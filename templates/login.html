@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Login - Belajar</title>
+  <style>
+    * { box-sizing: border-box; }
+    body{
+      margin:0;
+      font-family: Arial, sans-serif;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: radial-gradient(circle at top, #7dd3fc, #60a5fa, #2563eb);
+      padding: 20px;
+    }
+    .card{
+      width: 360px;
+      background: rgba(255,255,255,0.92);
+      border-radius: 14px;
+      padding: 26px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.25);
+      backdrop-filter: blur(8px);
+    }
+    .title{
+      margin: 0 0 6px 0;
+      font-size: 24px;
+      text-align:center;
+    }
+    .subtitle{
+      margin: 0 0 18px 0;
+      text-align:center;
+      color:#555;
+      font-size: 13px;
+    }
+    label{
+      display:block;
+      margin: 10px 0 6px;
+      font-size: 13px;
+      color:#333;
+    }
+    input{
+      width: 100%;
+      padding: 11px 12px;
+      border-radius: 10px;
+      border: 1px solid #d0d0d0;
+      outline: none;
+      background: white;
+    }
+    input:focus{
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.18);
+    }
+    .row{
+      display:flex;
+      justify-content: space-between;
+      align-items:center;
+      margin: 12px 0 16px;
+      font-size: 13px;
+      color:#444;
+    }
+    .row a{
+      color:#2563eb;
+      text-decoration:none;
+    }
+    .row a:hover{ text-decoration: underline; }
+
+    .btn{
+      width:100%;
+      border:0;
+      padding: 11px 12px;
+      border-radius: 10px;
+      background: #2563eb;
+      color:white;
+      font-size: 15px;
+      cursor:pointer;
+      transition: transform 0.05s ease, background 0.2s ease;
+    }
+    .btn:hover{ background:#1d4ed8; }
+    .btn:active{ transform: translateY(1px); }
+
+    .error{
+      background: rgba(239,68,68,0.12);
+      color: #b91c1c;
+      border: 1px solid rgba(239,68,68,0.25);
+      padding: 10px 12px;
+      border-radius: 10px;
+      margin-bottom: 12px;
+      font-size: 13px;
+      display: none; /* nanti Flask bisa menampilkan */
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1 class="title">Login</h1>
+
+
+    {% if error %}
+  <div class="error" style="display:block;">{{ error }}
+  </div>
+     {% endif %}
+
+
+    <form method="post">
+      <label>Username</label>
+      <input type="text" name="username" placeholder="Masukkan ID" required>
+
+      <label>Password</label>
+      <input type="password" name="password" placeholder="Password" required>
+
+      <div class="row">
+        <label style="display:flex; gap:8px; align-items:center; margin:0;">
+          <input type="checkbox" style="width:auto; margin:0;"> Ingat saya
+        </label>
+        <a href="#">Lupa password?</a>
+      </div>
+
+      <button class="btn" type="submit">Masuk</button>
+    </form>
+  </div>
+</body>
+</html>
