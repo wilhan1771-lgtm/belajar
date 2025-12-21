@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard</title>
+  <style>
+    body{
+      margin:0;
+      font-family: Arial, sans-serif;
+      background:#f3f4f6;
+      padding: 24px;
+    }
+    .topbar{
+      display:flex;
+      justify-content: space-between;
+      align-items:center;
+      margin-bottom: 18px;
+    }
+    .topbar h1{ margin:0; font-size: 20px; }
+    .topbar a{
+      text-decoration:none;
+      background:#ef4444;
+      color:white;
+      padding:8px 12px;
+      border-radius:10px;
+      font-size: 13px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .card{
+      background:white;
+      border-radius: 14px;
+      padding: 18px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      border: 1px solid #e5e7eb;
+      transition: transform 0.08s ease;
+    }
+    .card:hover{ transform: translateY(-2px); }
+    .card h2{ margin:0 0 8px 0; font-size: 16px; }
+    .card p{ margin:0 0 12px 0; color:#555; font-size: 13px; }
+
+    .btn{
+      display:inline-block;
+      text-decoration:none;
+      background:#2563eb;
+      color:white;
+      padding:9px 12px;
+      border-radius:10px;
+      font-size: 13px;
+    }
+
+    @media (max-width: 640px){
+      .grid{ grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <h1>Halo, {{ user }} 👋</h1>
+    <a href="/logout">Logout</a>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Receving</h2>
+      <p>Pilihan pertama (nanti bisa isi fitur).</p>
+      <a class="btn" href="/menu/1">Buka</a>
+    </div>
+
+    <div class="card">
+      <h2>Pembelian</h2>
+      <p>Pilihan kedua.</p>
+      <a class="btn" href="/menu/2">Buka</a>
+    </div>
+
+    <div class="card">
+      <h2>Processing</h2>
+      <p>Pilihan ketiga.</p>
+      <a class="btn" href="/menu/3">Buka</a>
+    </div>
+
+    <div class="card">
+      <h2>Kotak 4</h2>
+      <p>Pilihan keempat.</p>
+      <a class="btn" href="/menu/4">Buka</a>
+    </div>
+  </div>
+</body>
+</html>
