@@ -14,7 +14,7 @@
     .topbar{
       display:flex;
       justify-content: space-between;
-      align-items:center;
+      align-items:center;p
       margin-bottom: 18px;
     }
     .topbar h1{ margin:0; font-size: 20px; }
@@ -68,29 +68,29 @@
   </div>
 
   <div class="grid">
-    <div class="card">
-      <h2>Receving</h2>
-      <p>Pilihan pertama (nanti bisa isi fitur).</p>
-      <a class="btn" href="/menu/1">Buka</a>
-    </div>
 
-    <div class="card">
-      <h2>Pembelian</h2>
-      <p>Pilihan kedua.</p>
-      <a class="btn" href="/menu/2">Buka</a>
-    </div>
-
-    <div class="card">
-      <h2>Processing</h2>
-      <p>Pilihan ketiga.</p>
-      <a class="btn" href="/menu/3">Buka</a>
-    </div>
-
-    <div class="card">
-      <h2>Kotak 4</h2>
-      <p>Pilihan keempat.</p>
-      <a class="btn" href="/menu/4">Buka</a>
-    </div>
+  <div class="card">
+    <h2>Receiving</h2>
+    <p>Pilihan pertama.</p>
+    <a class="btn" href="{{ url_for('menu1') }}">Buka</a>
   </div>
-</body>
-</html>
+
+  <div class="card">
+    <h2>Pembelian</h2>
+    <p>Pilihan kedua.</p>
+    <a class="btn" href="{{ url_for('menu2') }}">Buka</a>
+  </div>
+
+  <div class="card">
+    <h2>Processing</h2>
+    <p>Pilihan ketiga.</p>
+    <a class="btn" href="{{ url_for('menu3') }}">Buka</a>
+  </div>
+
+  <div class="card">
+    <h2>Kotak 4</h2>
+    <p>Pilihan keempat.</p>
+    <a class="btn" href="{{ url_for('menu4') }}">Buka</a>
+  </div>
+
+</div>
