@@ -266,10 +266,109 @@
   }
 
   // tombol partai baru
-  btnPartai.addEventListener("click", buatPartaiBaru);
+btnPartai.addEventListener("click", buatPartaiBaru);
 
-  // auto buat partai pertama saat halaman dibuka
-  buatPartaiBaru();
+/* =========================
+   SAVE: kumpulkan data & kirim ke Flask
+   ========================= */
+const btnSave = document.getElementById("btnSave");
+
+function getNumber(val) {
+  const n = parseFloat((val || "").toString().trim());
+  return isNaN(n) ? null : n;
+}
+function getInt(val) {
+  const n = parseInt((val || "").toString().trim(), 10);
+  return isNaN(n) ? null : n;
+}
+
+function kumpulPayload() {
+  const tanggal = document.getElementById("tanggal").value;
+  const supplier = document.getElementById("supplier").value;
+  const jenis = document.getElementById("jenis").value;
+  const fiber = getNumber(document.getElementById("fiber").value);
+
+  const partai = [];
+  document.querySelectorAll(".partai").forEach((pEl) => {
+    const partaiNo = getInt(pEl.dataset.partai);
+
+    const pcs = getInt(document.getElementById(`pcs-${partaiNo}`).value);
+    const kgSample = getNumber(document.getElementById(`kg-${partaiNo}`).value);
+    const size = getNumber(document.getElementById(`size-${partaiNo}`).value);
+    const roundSize = getInt(document.getElementById(`round-${partaiNo}`).value);
+
+    const keranjang = getInt(document.getElementById(`keranjang-${partaiNo}`).value);
+    const taraPerKeranjang = getNumber(document.getElementById(`tara-${partaiNo}`).value);
+    const bruto = getNumber(document.getElementById(`bruto-${partaiNo}`).value);
+    const totalTara = getNumber(document.getElementById(`total-tara-${partaiNo}`).value);
+    const netto = getNumber(document.getElementById(`netto-${partaiNo}`).value);
+    const note = document.getElementById(`note-${partaiNo}`).value || "";
+
+    const timbangan = [];
+    document.querySelectorAll(`#tbody-${partaiNo} .inp-berat`).forEach(inp => {
+      const v = getNumber(inp.value);
+      if (v !== null) timbangan.push(v);
+    });
+
+    partai.push({
+      partai_no: partaiNo,
+      pcs: pcs,
+      kg_sample: kgSample,
+      size: size,
+      round_size: roundSize,
+      keranjang: keranjang,
+      tara_per_keranjang: taraPerKeranjang,
+      bruto: bruto,
+      total_tara: totalTara,
+      netto: netto,
+      note: note,
+      timbangan: timbangan
+    });
+  });
+
+  return { tanggal, supplier, jenis, fiber, partai };
+}
+
+btnSave.addEventListener("click", async () => {
+  const payload = kumpulPayload();
+
+  if (!payload.supplier.trim()) {
+    alert("Supplier wajib diisi");
+    return;
+  }
+  if (!payload.partai.length) {
+    alert("Minimal 1 partai");
+    return;
+  }
+
+  try {
+    const res = await fetch("/receiving/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const out = await res.json();
+    if (!res.ok || !out.ok) {
+      alert(out.msg || "Gagal simpan");
+      return;
+    }
+
+    alert("Berhasil disimpan! ID: " + out.header_id);
+    // kalau mau reset halaman:
+    // location.reload();
+  } catch (e) {
+    alert("Error koneksi: " + e);
+  }
+});
+
+/* =========================
+   END SAVE
+   ========================= */
+
+// auto buat partai pertama saat halaman dibuka
+buatPartaiBaru();
+
 </script>
 
 </body>
