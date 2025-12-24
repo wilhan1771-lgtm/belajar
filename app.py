@@ -11,8 +11,6 @@ from db import get_conn
 
 app = Flask(__name__)
 app.secret_key = "belajar-secret"
-from db import get_conn
-
 @app.route("/receiving/debug")
 def receiving_debug():
     conn = get_conn()

@@ -355,8 +355,18 @@ btnSave.addEventListener("click", async () => {
     }
 
     alert("Berhasil disimpan! ID: " + out.header_id);
-    // kalau mau reset halaman:
-    // location.reload();
+
+      // kosongkan header (tanggal biarkan)
+      document.getElementById("supplier").value = "";
+      document.getElementById("jenis").value = "";
+      document.getElementById("fiber").value = "";
+
+      // kosongkan semua partai dan buat ulang partai pertama
+      document.getElementById("partaiContainer").innerHTML = "";
+      partaiKe = 0;
+      buatPartaiBaru();
+
+
   } catch (e) {
     alert("Error koneksi: " + e);
   }
