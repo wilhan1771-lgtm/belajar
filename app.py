@@ -6,9 +6,6 @@ import json
 from flask import jsonify
 
 from db import get_conn
-
-
-
 app = Flask(__name__)
 app.secret_key = "belajar-secret"
 @app.route("/receiving/debug")
@@ -21,6 +18,28 @@ def receiving_debug():
         "headers": [dict(r) for r in headers],
         "partai": [dict(r) for r in partai],
     }
+@app.route("/receiving/list")
+def receiving_list():
+    if "user" not in session:
+        return redirect(url_for("login"))
+
+    conn = get_conn()
+    rows = conn.execute("""
+        SELECT
+            h.id,
+            h.tanggal,
+            h.supplier,
+            h.jenis,
+            SUM(p.netto) AS total_netto,
+            COUNT(p.id) AS jml_partai
+        FROM receiving_header h
+        LEFT JOIN receiving_partai p ON p.header_id = h.id
+        GROUP BY h.id
+        ORDER BY h.id DESC
+    """).fetchall()
+    conn.close()
+
+    return render_template("receiving_list.html", rows=rows)
 
 @app.route("/receiving/save", methods=["POST"])
 def receiving_save():
