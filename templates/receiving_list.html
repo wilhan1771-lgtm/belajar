@@ -58,10 +58,11 @@
           <td>{{ r.id }}</td>
           <td>{{ r.tanggal }}</td>
           <td>{{ r.supplier }}</td>
-          <td>{{ r.jenis or "-" }}</td>
-          <td>{{ r.fiber if r.fiber is not none else "-" }}</td>
-          <td>{{ "%.2f"|format(r.total_netto or 0) }}</td>
-          <td>{{ r.jml_partai }}</td>
+          <td>{{ r["jenis"] or "-" }}</td>
+          <td>{{ r["fiber"] if r["fiber"] is not none else "-" }}</td>
+          <td>{{ "%.2f"|format(r["total_netto"] or 0) }}</td>
+          <td>{{ r["jml_partai"] }}</td>
+
           <td class="actions">
             <a href="/receiving/{{ r.id }}">Detail</a>
           </td>

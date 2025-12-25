@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice</title>
+  <style>
+    @page{size:A4;margin:18mm}
+    body{font-family:Arial;font-size:12px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .btn{padding:8px 12px;border-radius:10px;border:0;font-weight:700;cursor:pointer}
+    .btn-print{background:#2563eb;color:#fff}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid #000;padding:6px}
+    th{background:#f3f4f6}
+    .right{text-align:right}
+  </style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <h2 style="margin:0">INVOICE PEMBELIAN</h2>
+    <div>Invoice ID: <b>{{ inv.id }}</b> | Receiving ID: <b>{{ inv.receiving_id }}</b></div>
+    <div>Tanggal: <b>{{ inv.tanggal }}</b> | Supplier: <b>{{ inv.supplier }}</b></div>
+  </div>
+  <button class="btn btn-print" onclick="window.print()">Print</button>
+</div>
+
+<table>
+  <thead>
+    <tr>
+      <th>Partai</th>
+      <th>Round Size</th>
+      <th class="right">Netto (kg)</th>
+      <th class="right">Harga/kg</th>
+      <th class="right">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for r in det %}
+    <tr>
+      <td>{{ r.partai_no }}</td>
+      <td>{{ r.size_round if r.size_round is not none else "-" }}</td>
+      <td class="right">{{ "%.2f"|format(r.berat_netto or 0) }}</td>
+      <td class="right">
+        {% if r.harga is not none %}
+          {{ "{:,}".format(r.harga).replace(",", ".") }}
+        {% else %}-{% endif %}
+      </td>
+      <td class="right">
+        {% if r.total_harga is not none %}
+          {{ "{:,.0f}".format(r.total_harga).replace(",", ".") }}
+        {% else %}-{% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<table style="margin-top:10px;width:40%;margin-left:auto">
+  <tr><td>Subtotal</td><td class="right">{{ "{:,.0f}".format(inv.subtotal or 0).replace(",", ".") }}</td></tr>
+  <tr><td>PPH</td><td class="right">{{ "{:,.0f}".format(inv.pph or 0).replace(",", ".") }}</td></tr>
+  <tr><td><b>Total</b></td><td class="right"><b>{{ "{:,.0f}".format(inv.total or 0).replace(",", ".") }}</b></td></tr>
+</table>
+
+</body>
+</html>

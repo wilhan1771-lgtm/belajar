@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice List</title>
+  <style>
+    body{font-family:Arial;padding:24px;background:#f3f4f6}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 8px 20px rgba(0,0,0,.06);margin-top:12px}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border:1px solid #e5e7eb;padding:10px;text-align:left}
+    th{background:#f9fafb}
+    input{padding:10px;border:1px solid #d1d5db;border-radius:10px}
+    .btn{padding:10px 14px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn-primary{background:#2563eb;color:#fff}
+    .btn-secondary{background:#111827;color:#fff;text-decoration:none;display:inline-block}
+    .btn-danger{background:#dc2626;color:#fff}
+    .right{text-align:right}
+    a{color:#2563eb;text-decoration:none;font-weight:700}
+  </style>
+</head>
+<body>
+
+<div class="top">
+  <h2>Invoice List</h2>
+  <div>
+    <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
+  </div>
+</div>
+
+<div class="card">
+  <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
+    <div>
+      <div>Dari Tanggal</div>
+      <input type="date" name="start" value="{{ start }}">
+    </div>
+    <div>
+      <div>Sampai</div>
+      <input type="date" name="end" value="{{ end }}">
+    </div>
+    <button class="btn btn-primary" type="submit">Cari</button>
+    <a class="btn btn-secondary" href="/invoice/list">Reset</a>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Tanggal</th>
+        <th>Supplier</th>
+        <th>Receiving</th>
+        <th class="right">Subtotal</th>
+        <th class="right">PPH</th>
+        <th class="right">Total</th>
+        <th>Aksi</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td>{{ r.tanggal }}</td>
+        <td>{{ r.supplier }}</td>
+        <td>{{ r.receiving_id }}</td>
+        <td class="right">{{ "{:,.0f}".format(r.subtotal or 0).replace(",", ".") }}</td>
+        <td class="right">{{ "{:,.0f}".format(r.pph or 0).replace(",", ".") }}</td>
+        <td class="right"><b>{{ "{:,.0f}".format(r.total or 0).replace(",", ".") }}</b></td>
+        <td style="display:flex; gap:10px; align-items:center;">
+          <a href="/invoice/{{ r.id }}">Detail</a>
+
+          <form method="post" action="/invoice/delete/{{ r.id }}"
+                onsubmit="return confirm('Yakin mau hapus invoice ID {{ r.id }}?');"
+                style="margin:0;">
+            <button type="submit" class="btn btn-danger" style="padding:6px 10px;">Hapus</button>
+          </form>
+          </td>
+      </tr>
+          {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>
