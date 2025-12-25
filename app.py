@@ -379,6 +379,8 @@ def menu3():
 @app.route("/menu4")
 def menu4():
     return render_template("menu4.html")
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=False)
 
 @app.route("/receiving")
 def receiving():
