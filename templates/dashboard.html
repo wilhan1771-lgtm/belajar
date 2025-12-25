@@ -10,30 +10,51 @@
       font-family: Arial, sans-serif;
       background:#f3f4f6;
       padding: 24px;
+      color:#111827;
     }
+
+    .container{
+      max-width: 980px;
+      margin: 0 auto;
+    }
+
     .topbar{
       display:flex;
       justify-content: space-between;
       align-items:center;
+      gap: 12px;
       margin-bottom: 18px;
     }
-    .topbar h1{ margin:0; font-size: 20px; }
-    .topbar a{
+    .topbar h1{ margin:0; font-size: 20px; font-weight: 700; }
+
+    .logout{
       text-decoration:none;
       background:#ef4444;
       color:white;
       padding:8px 12px;
       border-radius:10px;
       font-size: 13px;
+      font-weight: 700;
     }
 
+    /* Section title */
+    .section-title{
+      margin: 18px 0 10px 0;
+      font-size: 13px;
+      font-weight: 700;
+      color:#6b7280;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    /* Grid */
     .grid{
       display:grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
-      max-width: 900px;
-      margin: 0 auto;
     }
+
+    /* Cards */
     .card{
       background:white;
       border-radius: 14px;
@@ -43,59 +64,106 @@
       transition: transform 0.08s ease;
     }
     .card:hover{ transform: translateY(-2px); }
-    .card h2{ margin:0 0 8px 0; font-size: 16px; }
-    .card p{ margin:0 0 12px 0; color:#555; font-size: 13px; }
 
+    .card h2{ margin:0 0 8px 0; font-size: 16px; }
+    .card p{ margin:0; color:#6b7280; font-size: 13px; line-height: 1.4; }
+
+    /* Buttons */
     .btn{
-      display:inline-block;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap: 8px;
       text-decoration:none;
-      background:#2563eb;
       color:white;
-      padding:9px 12px;
-      border-radius:10px;
+      padding:12px 14px;
+      border-radius:12px;
       font-size: 13px;
+      font-weight: 700;
+      width: 100%;
+      margin-top: 12px;
+      box-sizing: border-box;
+    }
+    .btn-primary{ background:#2563eb; }
+    .btn-success{ background:#16a34a; }
+    .btn-outline{
+      background: white;
+      color:#111827;
+      border: 1px solid #e5e7eb;
+    }
+    .btn-outline:hover{
+      background:#f9fafb;
+    }
+
+    /* Quick summary row */
+    .stat-row{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+    .mini{
+      background:white;
+      border-radius: 14px;
+      padding: 14px 16px;
+      border: 1px solid #e5e7eb;
+      display:flex;
+      justify-content: space-between;
+      align-items:center;
+    }
+    .mini .label{
+      font-size: 13px;
+      color:#6b7280;
+      font-weight: 700;
+    }
+    .mini .value{
+      font-size: 13px;
+      font-weight: 700;
+      color:#111827;
     }
 
     @media (max-width: 640px){
       .grid{ grid-template-columns: 1fr; }
+      .stat-row{ grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
-  <div class="topbar">
-    <h1>Halo, {{ user }} 👋</h1>
-    <a href="/logout">Logout</a>
+  <div class="container">
+
+    <div class="topbar">
+      <h1>Halo, {{ user }} 👋</h1>
+      <a class="logout" href="/logout">Logout</a>
+    </div>
+
+    <div class="section-title">Aksi Utama</div>
+    <div class="grid">
+
+      <div class="card">
+        <h2>➕ Receiving Baru</h2>
+        <p>Input receiving udang (barang masuk) untuk transaksi hari ini.</p>
+        <a class="btn btn-primary" href="{{ url_for('menu1') }}">Buka Receiving</a>
+      </div>
+
+    </div>
+
+    <div class="section-title">Data & Riwayat</div>
+    <div class="grid">
+
+      <div class="card">
+        <h2>📦 Receiving List</h2>
+        <p>Lihat, cari, dan cek riwayat receiving.</p>
+        <a class="btn btn-outline" href="/receiving/list">Buka Receiving List</a>
+      </div>
+
+      <div class="card">
+        <h2>🗂️ Invoice List</h2>
+        <p>Daftar invoice yang sudah dibuat (lihat / hapus / cetak).</p>
+        <a class="btn btn-outline" href="/invoice/list">Buka Invoice List</a>
+      </div>
+
+    </div>
+
   </div>
-
-  <div class="grid">
-
-  <div class="card">
-    <h2>Receiving</h2>
-    <p>Pilihan pertama.</p>
-    <a class="btn" href="{{ url_for('menu1') }}">Buka</a>
-  </div>
-
-  <div class="card">
-    <h2>Pembelian</h2>
-    <p>Pilihan kedua.</p>
-    <a class="btn" href="{{ url_for('menu2') }}">Buka</a>
-  </div>
-
-  <div class="card">
-    <h2>Processing</h2>
-    <p>Pilihan ketiga.</p>
-    <a class="btn" href="{{ url_for('menu3') }}">Buka</a>
-  </div>
-  <div class="card">
-    <h2>Kotak 4</h2>
-    <p>Pilihan keempat.</p>
-    <a class="btn" href="{{ url_for('menu4') }}">Buka</a>
-  </div>
-<a href="/receiving/list">Receiving List</a>
-<a href="/invoice/list" class="btn btn-secondary">Invoice List</a>
-
-</div>
-
-
 </body>
 </html>
