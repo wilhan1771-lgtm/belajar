@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edit Receiving</title>
+</head>
+<body>
+  <h2>Edit Receiving #{{ header["id"] }}</h2>
+
+  <form method="post">
+    <fieldset>
+      <legend>Header</legend>
+
+      <label>Tanggal</label><br>
+      <input name="tanggal" value="{{ header['tanggal'] }}" required><br><br>
+
+      <label>Supplier</label><br>
+      <input name="supplier" value="{{ header['supplier'] }}" required><br><br>
+
+      <label>Jenis</label><br>
+      <input name="jenis" value="{{ header['jenis'] or '' }}"><br><br>
+
+      <label>Fiber</label><br>
+      <input name="fiber" value="{{ header['fiber'] if header['fiber'] is not none else '' }}"><br>
+    </fieldset>
+
+    <br>
+
+    <fieldset>
+      <legend>Partai</legend>
+
+      {% for p in partai %}
+        <div style="border:1px solid #ddd; padding:10px; margin:10px 0;">
+          <b>Partai No: {{ p.partai_no }}</b> (id {{ p.id }})<br><br>
+
+          <label>PCS</label><br>
+          <input name="pcs_{{ p.id }}" value="{{ p.pcs if p.pcs is not none else '' }}"><br><br>
+
+          <label>Round Size</label><br>
+          <input name="round_size_{{ p.id }}" value="{{ p.round_size if p.round_size is not none else '' }}"><br><br>
+
+          <label>Netto</label><br>
+          <input name="netto_{{ p.id }}" value="{{ p.netto if p.netto is not none else '' }}"><br><br>
+
+          <label>Note</label><br>
+          <input name="note_{{ p.id }}" value="{{ p.note or '' }}"><br><br>
+
+          <!-- ✅ Timbangan -->
+          <label>Timbangan (kg)</label><br>
+          <div id="twrap_{{ p.id }}">
+            {% set tb = p.timbangan if p.timbangan is defined else [] %}
+            {% if tb|length == 0 %}
+              <div style="margin-bottom:6px;">
+                <input name="timbangan_{{ p.id }}_0" value="" placeholder="contoh: 12.5">
+              </div>
+            {% else %}
+              {% for w in tb %}
+                <div style="margin-bottom:6px;">
+                  <input name="timbangan_{{ p.id }}_{{ loop.index0 }}" value="{{ w }}">
+                </div>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <button type="button" onclick="addTimbangan({{ p.id }})">+ Tambah Timbangan</button>
+        </div>
+      {% endfor %}
+    </fieldset>
+
+    <button type="submit">Simpan Perubahan</button>
+    <a href="{{ url_for('receiving_detail', header_id=header['id']) }}">Batal</a>
+  </form>
+
+  <script>
+    function addTimbangan(pid){
+      const wrap = document.getElementById("twrap_" + pid);
+      const idx = wrap.querySelectorAll("input").length; // index berikutnya
+      const div = document.createElement("div");
+      div.style.marginBottom = "6px";
+      div.innerHTML = `<input name="timbangan_${pid}_${idx}" value="" placeholder="contoh: 12.5">`;
+      wrap.appendChild(div);
+    }
+  </script>
+</body>
+</html>
