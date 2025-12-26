@@ -5,26 +5,33 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Receiving</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 24px; background:#f3f4f6; }
-    h2 { margin-top:0; }
-    .header { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+    body { font-family: Arial, sans-serif; padding: 24px; background:#f3f4f6; color:#111827; }
+    h2 { margin: 0 0 14px 0; }
+
+    .header { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 12px; }
     .field { display: flex; flex-direction: column; gap: 6px; }
     label { font-size: 13px; color:#111827; }
     input, select { padding: 10px; border: 1px solid #d1d5db; border-radius: 10px; background:white; }
     input[readonly] { background:#f9fafb; }
+
     .btn { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 600; }
     .btn-primary { background: #2563eb; color: white; }
     .btn-secondary { background: #111827; color: white; }
-    .btn-link { background: transparent; color:#2563eb; padding:0; border:0; cursor:pointer; font-weight:600; }
-    .partai { background:white; border: 1px solid #e5e7eb; border-radius: 14px; padding: 16px; margin-bottom: 14px;
-      box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
+
+    .muted { color: #6b7280; font-size: 13px; margin-top: 6px; }
+
+    .partai {
+      background:white; border: 1px solid #e5e7eb; border-radius: 14px; padding: 16px; margin-top: 14px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.06);
+    }
+    .toprow { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom: 8px; }
+    .row-actions { display:flex; gap:10px; align-items:center; flex-wrap: wrap; }
+    .pill { display:inline-block; font-size:12px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
+
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
     th { background:#f9fafb; }
-    .muted { color: #6b7280; font-size: 13px; }
-    .toprow { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom: 8px; }
-    .row-actions { display:flex; gap:10px; align-items:center; }
-    .pill { display:inline-block; font-size:12px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
+
     .section { margin-top:14px; padding-top:12px; border-top:1px dashed #e5e7eb; }
     .grid4 { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; align-items:end; }
     .grid3 { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; align-items:end; }
@@ -35,9 +42,13 @@
       .grid3 { grid-template-columns: 1fr 1fr; }
     }
     @media (max-width: 520px){
+      body { padding: 16px; }
       .header { grid-template-columns: 1fr; }
       .grid4 { grid-template-columns: 1fr; }
       .grid3 { grid-template-columns: 1fr; }
+      .toprow { flex-direction: column; align-items: flex-start; }
+      .row-actions { width: 100%; }
+      .row-actions .btn { width: 100%; }
     }
   </style>
 </head>
@@ -66,25 +77,32 @@
     <input id="fiber" type="number" step="0.01" placeholder="Contoh: 24">
   </div>
 
- <div class="field">
-  <label>&nbsp;</label>
-  <div style="display:flex; gap:10px;">
-    <button class="btn btn-secondary" id="btnPartai" type="button">+ Partai Baru</button>
+  <div class="field">
+    <label>&nbsp;</label>
     <button class="btn btn-primary" id="btnSave" type="button">Save</button>
   </div>
 </div>
+
+<div class="muted">
+  Cara input: ketik timbangannya lalu tekan <b>Enter</b> (PC) / <b>Done</b> (HP) untuk tambah baris.
+  Isi sampling & keranjang untuk otomatis hitung size dan netto.
 </div>
-
-
-<div class="muted">Cara input: ketik timbangannya lalu tekan <b>Enter</b> untuk tambah baris. Isi sampling & keranjang untuk otomatis hitung size dan netto.</div>
 
 <div id="partaiContainer" style="margin-top:14px;"></div>
 
 <script>
   const partaiContainer = document.getElementById("partaiContainer");
-  const btnPartai = document.getElementById("btnPartai");
-
+  const btnSave = document.getElementById("btnSave");
   let partaiKe = 0;
+
+  function getNumber(val) {
+    const n = parseFloat((val || "").toString().trim());
+    return isNaN(n) ? null : n;
+  }
+  function getInt(val) {
+    const n = parseInt((val || "").toString().trim(), 10);
+    return isNaN(n) ? null : n;
+  }
 
   function buatPartaiBaru() {
     partaiKe++;
@@ -100,7 +118,8 @@
           <div class="muted">Isi timbangan di bawah ini</div>
         </div>
         <div class="row-actions">
-          <button class="btn btn-primary" type="button" onclick="tambahBaris(${partaiKe}, true)">+ Baris</button>
+          <button class="btn btn-secondary btn-new-partai" type="button">+ Partai Baru</button>
+          <button class="btn btn-primary btn-add-row" type="button">+ Baris</button>
         </div>
       </div>
 
@@ -119,11 +138,11 @@
         <div class="grid4">
           <div class="field">
             <label>PCS (ekor)</label>
-            <input id="pcs-${partaiKe}" type="number" placeholder="contoh: 234" oninput="hitungSize(${partaiKe})">
+            <input id="pcs-${partaiKe}" type="number" placeholder="contoh: 234">
           </div>
           <div class="field">
             <label>Berat Sample (kg)</label>
-            <input id="kg-${partaiKe}" type="number" step="0.01" placeholder="contoh: 3.5" oninput="hitungSize(${partaiKe})">
+            <input id="kg-${partaiKe}" type="number" step="0.01" placeholder="contoh: 3.5">
           </div>
           <div class="field">
             <label>Size (pcs/kg)</label>
@@ -137,53 +156,64 @@
         <div class="muted" style="margin-top:8px;">Rumus: <b>PCS / kg</b> → dibulatkan jadi patokan size & harga.</div>
       </div>
 
-        <div class="section">
-      <div class="muted" style="margin-bottom:8px;"><b>Perhitungan Berat</b> (Bruto, Tara, Netto)</div>
+      <div class="section">
+        <div class="muted" style="margin-bottom:8px;"><b>Perhitungan Berat</b> (Bruto, Tara, Netto)</div>
 
-      <div class="grid4">
-        <div class="field">
-          <label>Keranjang (auto)</label>
-          <input type="text" id="keranjang-${partaiKe}" readonly>
+        <div class="grid4">
+          <div class="field">
+            <label>Keranjang (auto)</label>
+            <input type="text" id="keranjang-${partaiKe}" readonly>
+          </div>
+
+          <div class="field">
+            <label>Berat / Keranjang (kg)</label>
+            <input type="number" step="0.01" id="tara-${partaiKe}" placeholder="contoh: 2">
+          </div>
+
+          <div class="field">
+            <label>Total Bruto (kg)</label>
+            <input type="text" id="bruto-${partaiKe}" readonly>
+          </div>
+
+          <div class="field">
+            <label>Netto (kg)</label>
+            <input type="text" id="netto-${partaiKe}" readonly>
+          </div>
         </div>
 
-        <div class="field">
-          <label>Berat / Keranjang (kg)</label>
-          <input type="number" step="0.01" id="tara-${partaiKe}" placeholder="contoh: 2"
-                 oninput="hitungBerat(${partaiKe})">
+        <div class="grid3" style="margin-top:12px;">
+          <div class="field">
+            <label>Total Tara (kg)</label>
+            <input type="text" id="total-tara-${partaiKe}" readonly>
+          </div>
+          <div class="field">
+            <label>Catatan</label>
+            <input type="text" id="note-${partaiKe}" placeholder="contoh: kondisi udang baik">
+          </div>
+          <div class="field"></div>
         </div>
-
-        <div class="field">
-          <label>Total Bruto (kg)</label>
-          <input type="text" id="bruto-${partaiKe}" readonly>
-        </div>
-
-        <div class="field">
-          <label>Netto (kg)</label>
-          <input type="text" id="netto-${partaiKe}" readonly>
-        </div>
-      </div>
-
-      <div class="grid3" style="margin-top:12px;">
-        <div class="field">
-          <label>Total Tara (kg)</label>
-          <input type="text" id="total-tara-${partaiKe}" readonly>
-        </div>
-        <div class="field">
-          <label>Catatan</label>
-          <input type="text" id="note-${partaiKe}" placeholder="contoh: kondisi udang baik">
-        </div>
-        <div class="field"></div>
-      </div>
-    </div>
-
       </div>
     `;
 
     partaiContainer.appendChild(partaiDiv);
 
+    // bind tombol-tombol partai ini
+    const btnNewPartai = partaiDiv.querySelector(".btn-new-partai");
+    const btnAddRow = partaiDiv.querySelector(".btn-add-row");
+    btnNewPartai.addEventListener("click", buatPartaiBaru);
+    btnAddRow.addEventListener("click", () => tambahBaris(partaiKe, true));
+
+    // bind input sampling & tara
+    const pcsEl = document.getElementById(`pcs-${partaiKe}`);
+    const kgEl = document.getElementById(`kg-${partaiKe}`);
+    const taraEl = document.getElementById(`tara-${partaiKe}`);
+
+    pcsEl.addEventListener("input", () => hitungSize(partaiKe));
+    kgEl.addEventListener("input", () => hitungSize(partaiKe));
+    taraEl.addEventListener("input", () => hitungBerat(partaiKe));
+
     // buat baris timbangan pertama
     tambahBaris(partaiKe, true);
-    // update awal
     hitungBerat(partaiKe);
   }
 
@@ -195,23 +225,34 @@
     tr.innerHTML = `
       <td>${rowCount}</td>
       <td>
-        <input type="number" step="0.01" class="inp-berat" placeholder="contoh: 34.6">
+        <input type="number" step="0.01" inputmode="decimal" class="inp-berat" placeholder="contoh: 34.6">
       </td>
     `;
-
     tbody.appendChild(tr);
 
     const input = tr.querySelector("input");
 
-    // setiap input berubah -> update bruto/netto
     input.addEventListener("input", () => hitungBerat(partai));
 
-    // Enter -> tambah baris baru (kalau ada isi)
+    // PC: Enter tambah baris
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        if (input.value.trim() === "") return;
+        const v = (input.value || "").trim();
+        if (!v) return;
         tambahBaris(partai, true);
+      }
+    });
+
+    // HP: selesai isi (Done/Next) -> blur -> tambah baris (hanya kalau ini baris terakhir)
+    input.addEventListener("blur", () => {
+      const v = (input.value || "").trim();
+      if (!v) return;
+
+      const inputs = tbody.querySelectorAll("input");
+      const last = inputs[inputs.length - 1];
+      if (last === input) {
+        tambahBaris(partai, false);
       }
     });
 
@@ -226,9 +267,9 @@
     const roundEl = document.getElementById(`round-${partai}`);
 
     if (pcs > 0 && kg > 0) {
-      const size = pcs / kg;              // pcs per kg
-      sizeEl.value = size.toFixed(1);     // tampil 1 desimal
-      roundEl.value = Math.round(size);   // pembulatan patokan
+      const size = pcs / kg;
+      sizeEl.value = size.toFixed(1);
+      roundEl.value = Math.round(size);
     } else {
       sizeEl.value = "";
       roundEl.value = "";
@@ -245,43 +286,19 @@
       const val = parseFloat(raw);
       if (!isNaN(val)) {
         bruto += val;
-        keranjang += 1; // hanya yang terisi dihitung keranjang
+        keranjang += 1;
       }
     });
 
-      const beratKeranjang = parseFloat(document.getElementById(`tara-${partai}`).value || "0");
-      const totalTara = keranjang * beratKeranjang;
-      const netto = bruto - totalTara;
+    const beratKeranjang = parseFloat(document.getElementById(`tara-${partai}`).value || "0");
+    const totalTara = keranjang * beratKeranjang;
+    const netto = bruto - totalTara;
 
-      document.getElementById(`keranjang-${partai}`).value = keranjang > 0 ? keranjang : "";
-      document.getElementById(`bruto-${partai}`).value = bruto > 0 ? bruto.toFixed(2) : "";
-      document.getElementById(`total-tara-${partai}`).value = totalTara > 0 ? totalTara.toFixed(2) : "";
-      document.getElementById(`netto-${partai}`).value = netto > 0 ? netto.toFixed(2) : "";
-    }
-
-
-  function hapusPartai(partai) {
-    const el = partaiContainer.querySelector(`[data-partai="${partai}"]`);
-    if (el) el.remove();
+    document.getElementById(`keranjang-${partai}`).value = keranjang > 0 ? keranjang : "";
+    document.getElementById(`bruto-${partai}`).value = bruto > 0 ? bruto.toFixed(2) : "";
+    document.getElementById(`total-tara-${partai}`).value = totalTara > 0 ? totalTara.toFixed(2) : "";
+    document.getElementById(`netto-${partai}`).value = netto > 0 ? netto.toFixed(2) : "";
   }
-
-  // tombol partai baru
-btnPartai.addEventListener("click", buatPartaiBaru);
-
-/* =========================
-   SAVE: kumpulkan data & kirim ke Flask
-   ========================= */
-const btnSave = document.getElementById("btnSave");
-
-function getNumber(val) {
-  const n = parseFloat((val || "").toString().trim());
-  return isNaN(n) ? null : n;
-}
-function getInt(val) {
-  const n = parseInt((val || "").toString().trim(), 10);
-  return isNaN(n) ? null : n;
-}
-
 function kumpulPayload() {
   const tanggal = document.getElementById("tanggal").value;
   const supplier = document.getElementById("supplier").value;
@@ -289,6 +306,7 @@ function kumpulPayload() {
   const fiber = getNumber(document.getElementById("fiber").value);
 
   const partai = [];
+
   document.querySelectorAll(".partai").forEach((pEl) => {
     const partaiNo = getInt(pEl.dataset.partai);
 
@@ -302,13 +320,23 @@ function kumpulPayload() {
     const bruto = getNumber(document.getElementById(`bruto-${partaiNo}`).value);
     const totalTara = getNumber(document.getElementById(`total-tara-${partaiNo}`).value);
     const netto = getNumber(document.getElementById(`netto-${partaiNo}`).value);
-    const note = document.getElementById(`note-${partaiNo}`).value || "";
+    const note = (document.getElementById(`note-${partaiNo}`).value || "").trim();
 
     const timbangan = [];
     document.querySelectorAll(`#tbody-${partaiNo} .inp-berat`).forEach(inp => {
       const v = getNumber(inp.value);
       if (v !== null) timbangan.push(v);
     });
+
+    // ✅ FILTER partai kosong
+    const kosong =
+      timbangan.length === 0 &&
+      pcs === null &&
+      kgSample === null &&
+      taraPerKeranjang === null &&
+      note === "";
+
+    if (kosong) return; // skip partai kosong
 
     partai.push({
       partai_no: partaiNo,
@@ -329,56 +357,51 @@ function kumpulPayload() {
   return { tanggal, supplier, jenis, fiber, partai };
 }
 
-btnSave.addEventListener("click", async () => {
-  const payload = kumpulPayload();
 
-  if (!payload.supplier.trim()) {
-    alert("Supplier wajib diisi");
-    return;
-  }
-  if (!payload.partai.length) {
-    alert("Minimal 1 partai");
-    return;
-  }
+  btnSave.addEventListener("click", async () => {
+    const payload = kumpulPayload();
 
-  try {
-    const res = await fetch("/receiving/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const out = await res.json();
-    if (!res.ok || !out.ok) {
-      alert(out.msg || "Gagal simpan");
+    if (!payload.supplier.trim()) {
+      alert("Supplier wajib diisi");
+      return;
+    }
+    if (!payload.partai.length) {
+      alert("Minimal 1 partai");
       return;
     }
 
-    alert("Berhasil disimpan! ID: " + out.header_id);
+    try {
+      const res = await fetch("/receiving/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const out = await res.json();
+      if (!res.ok || !out.ok) {
+        alert(out.msg || "Gagal simpan");
+        return;
+      }
+
+      alert("Berhasil disimpan! ID: " + out.header_id);
 
       // kosongkan header (tanggal biarkan)
       document.getElementById("supplier").value = "";
       document.getElementById("jenis").value = "";
       document.getElementById("fiber").value = "";
 
-      // kosongkan semua partai dan buat ulang partai pertama
-      document.getElementById("partaiContainer").innerHTML = "";
+      // reset partai
+      partaiContainer.innerHTML = "";
       partaiKe = 0;
       buatPartaiBaru();
 
+    } catch (e) {
+      alert("Error koneksi: " + e);
+    }
+  });
 
-  } catch (e) {
-    alert("Error koneksi: " + e);
-  }
-});
-
-/* =========================
-   END SAVE
-   ========================= */
-
-// auto buat partai pertama saat halaman dibuka
-buatPartaiBaru();
-
+  // auto buat partai pertama saat halaman dibuka
+  buatPartaiBaru();
 </script>
 
 </body>

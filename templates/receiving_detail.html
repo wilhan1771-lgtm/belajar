@@ -31,6 +31,15 @@
     @media (max-width: 520px){
       .grid { grid-template-columns: 1fr; }
     }
+    @media (max-width: 520px){
+  .grid { grid-template-columns: 1fr; }
+  .top {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
   </style>
 </head>
 <body>
@@ -47,36 +56,42 @@
   </div>
 
   <!-- HEADER -->
-  <div class="card">
-    <h3>Header</h3>
-    <div class="grid">
-      <div class="field">
-        <label>Tanggal</label>
-        <div class="val">{{ header["tanggal"] }}</div>
-      </div>
-      <div class="field">
-        <label>Supplier</label>
-        <div class="val">{{ header["supplier"] }}</div>
-      </div>
-      <div class="field">
-        <label>Jenis</label>
-        <div class="val">{{ header["jenis"] or "-" }}</div>
-      </div>
-      <div class="field">
-        <label>Fiber</label>
-        <div class="val">{{ header["fiber"] if header["fiber"] is not none else "-" }}</div>
-      </div>
-      <div class="field">
-        <label>Dibuat</label>
-        <div class="val">{{ header["created_at"] or "-" }}</div>
-      </div>
-    </div>
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
+    <h3 style="margin:0;">Header</h3>
 
-    <div class="muted" style="margin-top:14px;">
-      Total Netto semua partai: <b>{{ "%.2f"|format(total_netto) }} kg</b>
+    <a class="btn btn-primary" href="/invoice/new/{{ header['id'] }}">
+      Buat Invoice
+    </a>
+  </div>
+
+  <div class="grid">
+    <div class="field">
+      <label>Tanggal</label>
+      <div class="val">{{ header["tanggal"] }}</div>
+    </div>
+    <div class="field">
+      <label>Supplier</label>
+      <div class="val">{{ header["supplier"] }}</div>
+    </div>
+    <div class="field">
+      <label>Jenis</label>
+      <div class="val">{{ header["jenis"] or "-" }}</div>
+    </div>
+    <div class="field">
+      <label>Fiber</label>
+      <div class="val">{{ header["fiber"] if header["fiber"] is not none else "-" }}</div>
+    </div>
+    <div class="field">
+      <label>Dibuat</label>
+      <div class="val">{{ header["created_at"] or "-" }}</div>
     </div>
   </div>
-<a class="btn btn-primary" href="/invoice/new/{{ header['id'] }}">Buat Invoice</a>
+
+  <div class="muted" style="margin-top:14px;">
+    Total Netto semua partai: <b>{{ "%.2f"|format(total_netto) }} kg</b>
+  </div>
+</div>
 
   <!-- PARTAI -->
   {% for p in partai %}
@@ -112,8 +127,9 @@
             <div><b>Bruto:</b> {{ p["bruto"] if p["bruto"] is not none else "-" }}</div>
             <div><b>Total Tara:</b> {{ p["total_tara"] if p["total_tara"] is not none else "-" }}</div>
             <div><b>Netto:</b> <b><span style="font-weight:700; text-decoration: underline;">
-                    {{ p["round_size"] if p["round_size"] is not none else "-" }}
-                      </span></b></div>
+                    {{ p["netto"] if p["netto"] is not none else "-" }}
+                  </span></b></div>
+
           </td>
           <td>
             {{ p["note"] or "-" }}
@@ -131,6 +147,10 @@
             {% else %}
               -
             {% endif %}
+            {% if total_netto and total_netto > 0 %}
+
+            {% endif %}
+
           </td>
         </tr>
       </tbody>

@@ -41,7 +41,8 @@
     <tr>
       <td>{{ r.partai_no }}</td>
       <td>{{ r.size_round if r.size_round is not none else "-" }}</td>
-      <td class="right">{{ "%.2f"|format(r.berat_netto or 0) }}</td>
+      <td class="right">{{ "%.2f"|format((r.berat_netto or 0)|float) }}</td>
+
       <td class="right">
         {% if r.harga is not none %}
           {{ "{:,}".format(r.harga).replace(",", ".") }}
@@ -49,7 +50,7 @@
       </td>
       <td class="right">
         {% if r.total_harga is not none %}
-          {{ "{:,.0f}".format(r.total_harga).replace(",", ".") }}
+          {{ "{:,.0f}".format((r.total_harga or 0)|float).replace(",", ".") }}
         {% else %}-{% endif %}
       </td>
     </tr>
@@ -58,8 +59,21 @@
 </table>
 
 <table style="margin-top:10px;width:40%;margin-left:auto">
-  <tr><td>Subtotal</td><td class="right">{{ "{:,.0f}".format(inv.subtotal or 0).replace(",", ".") }}</td></tr>
-  <tr><td>PPH</td><td class="right">{{ "{:,.0f}".format(inv.pph or 0).replace(",", ".") }}</td></tr>
+  <tr><td>Subtotal</td>{{ "{:,.0f}".format((inv.subtotal or 0)|float).replace(",", ".") }}
+</tr>
+ <tr>
+  <td>PPH</td>
+  <td class="right">
+    {% if inv.pph is not none %}
+      {{ "{:,.0f}".format((inv.pph or 0)|float).replace(",", ".") }}
+    {% else %}
+      -
+    {% endif %}
+  </td>
+</tr>
+
+</tr>
+
   <tr><td><b>Total</b></td><td class="right"><b>{{ "{:,.0f}".format(inv.total or 0).replace(",", ".") }}</b></td></tr>
 </table>
 

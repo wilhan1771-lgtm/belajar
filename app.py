@@ -86,6 +86,7 @@ def invoice_new(receiving_id):
 
     # ambil patokan harga dinamis dari form: p60, p70, p100, dst
     points = {}
+
     for k, v in request.form.items():
         if k.startswith("p"):
             try:
@@ -94,7 +95,9 @@ def invoice_new(receiving_id):
             except:
                 pass
 
-    pph_rate = float(request.form.get("pph_rate") or 0.0025)
+    # ✅ PPH (%) opsional - DI LUAR loop points
+    pph_raw = (request.form.get("pph") or "").replace(",", ".").strip()
+    pph_rate = float(pph_raw) / 100 if pph_raw else None
 
     details = []
     subtotal = 0.0
@@ -106,24 +109,32 @@ def invoice_new(receiving_id):
 
         harga = interpolate_price(size_round, points)
         total_harga = (netto * harga) if harga is not None else None
+
         if total_harga is not None:
             subtotal += total_harga
 
-        details.append((pno, size_round, netto, harga, total_harga))
+        details.append({
+            "partai_no": pno,
+            "size_round": size_round,
+            "berat_netto": netto,
+            "harga": harga,
+            "total_harga": total_harga
+        })
 
-    pph = subtotal * pph_rate
-    total = subtotal - pph  # sesuai contoh sheet kamu
+    # ✅ hitung pph & total SETELAH subtotal jadi
+    pph = (subtotal * pph_rate) if pph_rate is not None else None
+    total = subtotal + (pph or 0)
 
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO invoice_header(receiving_id, tanggal, supplier, price_points_json, pph_rate, subtotal, pph, total)
+        INSERT INTO invoice_header(receiving_id, tanggal, supplier, price_points_json, pph, subtotal, pph, total)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         receiving_id,
         header["tanggal"],
         header["supplier"],
         json.dumps(points),
-        pph_rate,
+        pph,
         subtotal,
         pph,
         total
@@ -388,6 +399,7 @@ def receiving():
         return redirect(url_for("login"))
     today = date.today().strftime("%d/%m/%Y")
     return render_template("receiving.html", today=today)
-
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+
+

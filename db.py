@@ -33,18 +33,14 @@ def init_db():
                     NULL,
                     price_points_json
                     TEXT, -- simpan patokan 40/50/60/70 dalam JSON
-                    pph_rate
-                    REAL
-                    DEFAULT
-                    0.0025,
+                    pph
+                    REAL,
                     subtotal
                     REAL
                     DEFAULT
                     0,
                     pph
-                    REAL
-                    DEFAULT
-                    0,
+                    REAL,
                     total
                     REAL
                     DEFAULT
