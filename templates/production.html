@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Produksi / Yield</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px; background:#f3f4f6; color:#111827; }
+    h2 { margin:0 0 12px 0; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap: wrap; }
+    .btn { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 600; text-decoration:none; display:inline-block; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-secondary { background: #111827; color: white; }
+    .btn-danger { background: #dc2626; color: white; }
+    .muted { color:#6b7280; font-size:13px; margin-top:6px; }
+
+    .card { background:white; border:1px solid #e5e7eb; border-radius:14px; padding:16px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.06); margin-top:14px; }
+
+    .grid4 { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; }
+    .grid3 { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    label { font-size: 13px; }
+    input, select { padding: 10px; border: 1px solid #d1d5db; border-radius: 10px; background:white; }
+    input[readonly] { background:#f9fafb; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; vertical-align: top; }
+    th { background:#f9fafb; }
+    .right { text-align:right; }
+    .pill { display:inline-block; font-size:12px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
+
+    @media (max-width: 900px){
+      .grid4 { grid-template-columns: 1fr 1fr; }
+      .grid3 { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 520px){
+      body { padding: 16px; }
+      .grid4, .grid3 { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <h2>Produksi / Yield <span class="pill">1 Receiving = 1 Produksi</span></h2>
+    <div class="muted">Isi berat per tahap (HL, Kupas, Soaking) + breakdown packing per size.</div>
+  </div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <a class="btn btn-secondary" href="/receiving/{{ receiving.id }}">← Kembali ke Receiving</a>
+    <button class="btn btn-primary" id="btnSave" type="button">Save</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="grid4">
+    <div class="field">
+      <label>Tanggal</label>
+      <input type="text" value="{{ receiving.tanggal }}" readonly>
+    </div>
+    <div class="field">
+      <label>Supplier</label>
+      <input type="text" value="{{ receiving.supplier }}" readonly>
+    </div>
+    <div class="field">
+      <label>Jenis</label>
+      <input type="text" value="{{ receiving.jenis or '-' }}" readonly>
+    </div>
+    <div class="field">
+      <label>Bahan Masuk (kg)</label>
+      <input type="text" id="bahanMasuk" value="{{ '%.2f'|format(receiving.total_netto or 0) }}" readonly>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h3 style="margin:0 0 8px 0;">Tahapan Yield</h3>
+  <div class="muted">Yield % dihitung dari (berat tahap / bahan masuk) × 100.</div>
+
+  <div class="grid3" style="margin-top:12px;">
+    <div class="field">
+      <label>HL (kg)</label>
+      <input type="number" step="0.01" id="hlKg" placeholder="contoh: 2500">
+      <div class="muted">Yield: <b id="hlPct">0.00%</b></div>
+    </div>
+
+    <div class="field">
+      <label>Kupas (kg)</label>
+      <input type="number" step="0.01" id="kupasKg" placeholder="contoh: 1800">
+      <div class="muted">Yield: <b id="kupasPct">0.00%</b></div>
+    </div>
+
+    <div class="field">
+      <label>Soaking (kg)</label>
+      <input type="number" step="0.01" id="soakKg" placeholder="contoh: 1900">
+      <div class="muted">Yield: <b id="soakPct">0.00%</b></div>
+    </div>
+  </div>
+
+  <div style="margin-top:12px; padding:10px 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px;">
+    <b>Final Yield (Soaking / Bahan Masuk):</b> <span id="finalPct">0.00%</span>
+  </div>
+</div>
+
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+    <div>
+      <h3 style="margin:0;">Packing / Sortir Size</h3>
+      <div class="muted">Isi size & hasil kg. Opsional: isi dus / kg per dus / total dus.</div>
+    </div>
+    <button class="btn btn-secondary" id="btnAddRow" type="button">+ Baris</button>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:160px;">Size</th>
+        <th style="width:140px;">Berat (kg)</th>
+        <th style="width:140px;">Isi/Dus</th>
+        <th style="width:160px;">Kg per Dus</th>
+        <th style="width:160px;">Total Dus</th>
+        <th style="width:110px;">Aksi</th>
+      </tr>
+    </thead>
+    <tbody id="packingBody"></tbody>
+  </table>
+
+  <div style="margin-top:12px; padding:10px 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px;">
+    <b>Total Packing (kg):</b> <span id="packTotalKg">0.00</span>
+    <span class="muted"> | Tips: total packing sebaiknya ≤ soaking.</span>
+  </div>
+</div>
+
+<script>
+  const bahanMasuk = parseFloat(document.getElementById("bahanMasuk").value || "0") || 0;
+
+  const hlKg = document.getElementById("hlKg");
+  const kupasKg = document.getElementById("kupasKg");
+  const soakKg = document.getElementById("soakKg");
+
+  const hlPct = document.getElementById("hlPct");
+  const kupasPct = document.getElementById("kupasPct");
+  const soakPct = document.getElementById("soakPct");
+  const finalPct = document.getElementById("finalPct");
+
+  const packingBody = document.getElementById("packingBody");
+  const packTotalKg = document.getElementById("packTotalKg");
+
+  function num(v) {
+    const x = parseFloat((v ?? "").toString().replace(",", "."));
+    return isNaN(x) ? 0 : x;
+  }
+
+  function pct(x) {
+    if (!bahanMasuk || bahanMasuk <= 0) return 0;
+    return (x / bahanMasuk) * 100.0;
+  }
+
+  function updateYieldUI() {
+    const hl = num(hlKg.value);
+    const kp = num(kupasKg.value);
+    const sk = num(soakKg.value);
+
+    hlPct.textContent = pct(hl).toFixed(2) + "%";
+    kupasPct.textContent = pct(kp).toFixed(2) + "%";
+    soakPct.textContent = pct(sk).toFixed(2) + "%";
+    finalPct.textContent = pct(sk).toFixed(2) + "%";
+  }
+
+  hlKg.addEventListener("input", updateYieldUI);
+  kupasKg.addEventListener("input", updateYieldUI);
+  soakKg.addEventListener("input", updateYieldUI);
+
+  function makeRow(data = {}) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input class="p-size" type="text" placeholder="contoh: 31/40" value="${escapeHtml(data.size || "")}"></td>
+      <td><input class="p-kg" type="number" step="0.01" placeholder="0" value="${data.berat_kg ?? ""}"></td>
+      <td><input class="p-isi" type="number" step="0.01" placeholder="opsional" value="${data.isi_dus ?? ""}"></td>
+      <td><input class="p-kpd" type="number" step="0.01" placeholder="opsional" value="${data.berat_per_dus ?? ""}"></td>
+      <td><input class="p-dus" type="number" step="0.01" placeholder="opsional" value="${data.total_dus ?? ""}"></td>
+      <td><button type="button" class="btn btn-danger btn-del">Hapus</button></td>
+    `;
+
+    tr.querySelector(".btn-del").addEventListener("click", () => {
+      tr.remove();
+      updatePackTotal();
+    });
+
+    tr.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("input", updatePackTotal);
+    });
+
+    return tr;
+  }
+
+  function updatePackTotal() {
+    let total = 0;
+    packingBody.querySelectorAll("tr").forEach(tr => {
+      const kg = num(tr.querySelector(".p-kg").value);
+      total += kg;
+    });
+    packTotalKg.textContent = total.toFixed(2);
+  }
+
+  function escapeHtml(s) {
+    return (s || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+                    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  document.getElementById("btnAddRow").addEventListener("click", () => {
+    packingBody.appendChild(makeRow({}));
+    updatePackTotal();
+  });
+
+  // preload steps from server if available
+  (function preloadSteps() {
+    const steps = {{ steps|tojson }};
+    for (const s of steps) {
+      const name = (s.step_name || "").toUpperCase();
+      const kg = (s.berat_kg ?? 0);
+      if (name === "HL") hlKg.value = kg;
+      if (name === "KUPAS") kupasKg.value = kg;
+      if (name === "SOAKING") soakKg.value = kg;
+    }
+    updateYieldUI();
+  })();
+
+  // preload packing rows
+  (function preloadPacking() {
+    const rows = {{ packing|tojson }};
+    if (!rows || rows.length === 0) {
+      packingBody.appendChild(makeRow({}));
+    } else {
+      for (const r of rows) {
+        packingBody.appendChild(makeRow(r));
+      }
+    }
+    updatePackTotal();
+  })();
+
+  document.getElementById("btnSave").addEventListener("click", async () => {
+    const payload = {
+      hl: num(hlKg.value),
+      kupas: num(kupasKg.value),
+      soaking: num(soakKg.value),
+      packing: []
+    };
+
+    packingBody.querySelectorAll("tr").forEach(tr => {
+      payload.packing.push({
+        size: (tr.querySelector(".p-size").value || "").trim(),
+        berat_kg: num(tr.querySelector(".p-kg").value),
+        isi_dus: tr.querySelector(".p-isi").value,
+        berat_per_dus: tr.querySelector(".p-kpd").value,
+        total_dus: tr.querySelector(".p-dus").value
+      });
+    });
+
+    try {
+      const res = await fetch("/production/save/{{ receiving.id }}", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify(payload)
+      });
+
+      const out = await res.json();
+      if (!res.ok || !out.ok) {
+        alert(out.msg || "Gagal simpan");
+        return;
+      }
+
+      alert("Produksi berhasil disimpan!");
+    } catch (e) {
+      alert("Error koneksi: " + e);
+    }
+  });
+</script>
+
+</body>
+</html>

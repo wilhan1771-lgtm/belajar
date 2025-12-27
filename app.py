@@ -79,6 +79,178 @@ def login():
 
     return render_template("login.html", error=error)
 
+@app.route("/production/<int:receiving_id>")
+def production_view(receiving_id):
+    if not require_login():
+        return redirect(url_for("login"))
+
+    conn = get_conn()
+
+    # ambil receiving
+    rec = conn.execute("""
+        SELECT h.id, h.tanggal, h.supplier, h.jenis,
+               COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
+        FROM receiving_header h
+        LEFT JOIN receiving_partai p ON p.header_id = h.id
+        WHERE h.id = ?
+        GROUP BY h.id
+    """, (receiving_id,)).fetchone()
+
+    if not rec:
+        conn.close()
+        return "Receiving tidak ditemukan", 404
+
+    # cek production header
+    prod = conn.execute(
+        "SELECT * FROM production_header WHERE receiving_id = ?",
+        (receiving_id,)
+    ).fetchone()
+
+    # jika belum ada: buat production_header + steps default
+    if not prod:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO production_header (receiving_id, tanggal, supplier, jenis, bahan_masuk_kg)
+            VALUES (?, ?, ?, ?, ?)
+        """, (rec["id"], rec["tanggal"], rec["supplier"], rec["jenis"], float(rec["total_netto"] or 0)))
+        prod_id = cur.lastrowid
+
+        for step in ["HL", "KUPAS", "SOAKING"]:
+            cur.execute("""
+                INSERT INTO production_step (production_id, step_name, berat_kg, yield_pct)
+                VALUES (?, ?, 0, 0)
+            """, (prod_id, step))
+
+        conn.commit()
+
+        prod = conn.execute("SELECT * FROM production_header WHERE id=?", (prod_id,)).fetchone()
+
+    # ambil steps + packing
+    steps = conn.execute("""
+        SELECT step_name, berat_kg, yield_pct
+        FROM production_step
+        WHERE production_id=?
+        ORDER BY id
+    """, (prod["id"],)).fetchall()
+
+    packing = conn.execute("""
+        SELECT * FROM production_packing
+        WHERE production_id=?
+        ORDER BY id
+    """, (prod["id"],)).fetchall()
+
+    conn.close()
+
+    return render_template(
+        "production.html",
+        receiving=dict(rec),
+        production=dict(prod),
+        steps=[dict(r) for r in steps],
+        packing=[dict(r) for r in packing],
+    )
+@app.post("/production/save/<int:receiving_id>")
+def production_save(receiving_id):
+    if not require_login():
+        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
+
+    data = request.get_json(force=True) or {}
+
+    # step weights
+    try:
+        hl = float(data.get("hl") or 0)
+        kupas = float(data.get("kupas") or 0)
+        soaking = float(data.get("soaking") or 0)
+    except ValueError:
+        return jsonify({"ok": False, "msg": "Input HL/Kupas/Soaking harus angka"}), 400
+
+    packing_rows = data.get("packing") or []
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    prod = conn.execute(
+        "SELECT id, bahan_masuk_kg FROM production_header WHERE receiving_id=?",
+        (receiving_id,)
+    ).fetchone()
+
+    if not prod:
+        conn.close()
+        return jsonify({"ok": False, "msg": "Production belum dibuat. Buka dulu halaman Produksi/Yield."}), 400
+
+    prod_id = prod["id"]
+    bahan_masuk = float(prod["bahan_masuk_kg"] or 0)
+
+    def pct(x):
+        if bahan_masuk <= 0:
+            return 0.0
+        return (float(x) / bahan_masuk) * 100.0
+
+    # ✅ Validasi: total packing <= soaking
+    try:
+        total_pack = 0.0
+        for r in packing_rows:
+            total_pack += float((r.get("berat_kg") or 0))
+        if soaking > 0 and total_pack > soaking + 1e-6:
+            conn.close()
+            return jsonify({"ok": False, "msg": "Total packing lebih besar dari Soaking"}), 400
+    except Exception:
+        conn.close()
+        return jsonify({"ok": False, "msg": "Data packing tidak valid"}), 400
+
+    def to_float_or_none(v):
+        s = "" if v is None else str(v).strip()
+        if s == "":
+            return None
+        return float(s)
+
+    try:
+        # update steps
+        cur.execute("""
+            UPDATE production_step SET berat_kg=?, yield_pct=?
+            WHERE production_id=? AND step_name='HL'
+        """, (hl, pct(hl), prod_id))
+
+        cur.execute("""
+            UPDATE production_step SET berat_kg=?, yield_pct=?
+            WHERE production_id=? AND step_name='KUPAS'
+        """, (kupas, pct(kupas), prod_id))
+
+        cur.execute("""
+            UPDATE production_step SET berat_kg=?, yield_pct=?
+            WHERE production_id=? AND step_name='SOAKING'
+        """, (soaking, pct(soaking), prod_id))
+
+        # replace packing
+        cur.execute("DELETE FROM production_packing WHERE production_id=?", (prod_id,))
+
+        for r in packing_rows:
+            size = (r.get("size") or "").strip() or None
+            berat_kg = float(r.get("berat_kg") or 0)
+
+            # optional fields
+            isi_dus = to_float_or_none(r.get("isi_dus"))
+            berat_per_dus = to_float_or_none(r.get("berat_per_dus"))
+            total_dus = to_float_or_none(r.get("total_dus"))
+
+            # skip baris kosong
+            if (not size) and berat_kg == 0:
+                continue
+
+            cur.execute("""
+                INSERT INTO production_packing
+                (production_id, size, berat_kg, isi_dus, berat_per_dus, total_dus)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (prod_id, size, berat_kg, isi_dus, berat_per_dus, total_dus))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return jsonify({"ok": False, "msg": f"Gagal simpan: {e}"}), 500
+
+    conn.close()
+    return jsonify({"ok": True})
+
 
 @app.route("/dashboard")
 def dashboard():
@@ -178,32 +350,6 @@ def receiving_save():
 
     return jsonify({"ok": True, "header_id": header_id})
 
-
-@app.route("/receiving/list")
-def receiving_list():
-    if not require_login():
-        return redirect(url_for("login"))
-
-    conn = get_conn()
-    rows = conn.execute("""
-        SELECT
-            h.id,
-            h.tanggal,
-            h.supplier,
-            h.jenis,
-            h.fiber,
-            COALESCE(SUM(COALESCE(p.netto, 0)), 0) AS total_netto,
-            COUNT(p.id) AS jml_partai
-        FROM receiving_header h
-        LEFT JOIN receiving_partai p ON p.header_id = h.id
-        GROUP BY h.id
-        ORDER BY h.id DESC
-    """).fetchall()
-    conn.close()
-
-    # biar konsisten dengan template lain: list of dict
-    return render_template("receiving_list.html", rows=[dict(r) for r in rows])
-
 @app.post("/receiving/delete/<int:rid>")
 def receiving_delete(rid):
     if not require_login():
@@ -258,6 +404,65 @@ def master_supplier_add():
 
     conn.close()
     return jsonify({"ok": True})
+@app.route("/receiving/list")
+def receiving_list():
+    if not require_login():
+        return redirect(url_for("login"))
+
+    start = (request.args.get("start") or "").strip()
+    end = (request.args.get("end") or "").strip()
+    supplier_q = (request.args.get("supplier") or "").strip()
+
+    where = []
+    params = []
+
+    if start and end:
+        where.append("h.tanggal BETWEEN ? AND ?")
+        params.extend([start, end])
+    elif start:
+        where.append("h.tanggal >= ?")
+        params.append(start)
+    elif end:
+        where.append("h.tanggal <= ?")
+        params.append(end)
+
+    if supplier_q:
+        where.append("LOWER(h.supplier) LIKE ?")
+        params.append(f"%{supplier_q.lower()}%")
+
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    conn = get_conn()
+
+    rows = conn.execute(f"""
+        SELECT
+            h.id,
+            h.tanggal,
+            h.supplier,
+            h.jenis,
+            h.fiber,
+            COALESCE(SUM(COALESCE(p.netto, 0)), 0) AS total_netto,
+            COUNT(p.id) AS jml_partai
+        FROM receiving_header h
+        LEFT JOIN receiving_partai p ON p.header_id = h.id
+        {where_sql}
+        GROUP BY h.id
+        ORDER BY h.id DESC
+    """, params).fetchall()
+
+    # total berat dari hasil filter (jumlah total_netto semua receiving yang tampil)
+    total_berat = sum([(r["total_netto"] or 0) for r in rows])
+
+    conn.close()
+
+    return render_template(
+        "receiving_list.html",
+        rows=[dict(r) for r in rows],
+        start=start,
+        end=end,
+        supplier=supplier_q,
+        total_berat=total_berat
+    )
 
 @app.route("/receiving/<int:header_id>")
 def receiving_detail(header_id):

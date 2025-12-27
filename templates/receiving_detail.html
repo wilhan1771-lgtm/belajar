@@ -45,27 +45,27 @@
 <body>
 
   <div class="top">
-    <div>
-      <h2>Receiving Detail <span class="pill">ID {{ header["id"] }}</span></h2>
-      <div class="muted"></div>
-    </div>
-    <a class="btn btn-outline" href="{{ url_for('receiving_edit', header_id=header['id']) }}">
-  ✏️ Edit Receiving
-      </a>
-<form method="post" action="/receiving/delete/{{ header.id }}" style="display:inline;"
-      onsubmit="return confirm('Yakin hapus Receiving ini? Jika ada invoice, invoice juga akan terhapus!')">
-  <button class="btn btn-danger" type="submit">Hapus</button>
-</form>
-
-
-    <div style="display:flex; gap:10px;">
-      <a class="btn btn-secondary" href="/receiving/list">Kembali</a>
-      <a class="btn btn-primary" href="#" onclick="window.print(); return false;">Print</a>
-
-</a>
-
-    </div>
+  <div>
+    <h2>Receiving Detail <span class="pill">ID {{ header["id"] }}</span></h2>
+    <div class="muted"></div>
   </div>
+
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <a class="btn btn-outline" href="{{ url_for('receiving_edit', header_id=header['id']) }}">
+      ✏️ Edit Receiving
+    </a>
+
+    <form method="post" action="/receiving/delete/{{ header['id'] }}" style="display:inline;"
+          onsubmit="return confirm('Yakin hapus Receiving ini? Jika ada invoice, invoice juga akan terhapus!')">
+      <button class="btn btn-danger" type="submit">Hapus</button>
+    </form>
+
+    <a class="btn btn-secondary" href="/receiving/list">Kembali</a>
+    <a class="btn btn-primary" href="#" onclick="window.print(); return false;">Print</a>
+    <a class="btn btn-primary" href="/production/{{ header['id'] }}">Produksi / Yield</a>
+  </div>
+</div>
+
 
   <!-- HEADER -->
 <div class="card">

@@ -30,6 +30,32 @@
       <a class="btn btn-primary" href="/menu1">+ Receiving Baru</a>
     </div>
   </div>
+  <form method="get" action="/receiving/list" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin:12px 0;">
+  <div>
+    <label style="font-size:12px;">Tanggal Mulai</label><br>
+    <input type="date" name="start" value="{{ start or '' }}">
+  </div>
+
+  <div>
+    <label style="font-size:12px;">Tanggal Akhir</label><br>
+    <input type="date" name="end" value="{{ end or '' }}">
+  </div>
+
+  <div>
+    <label style="font-size:12px;">Supplier</label><br>
+    <input type="text" name="supplier" placeholder="contoh: parno" value="{{ supplier or '' }}">
+  </div>
+
+  <div>
+    <button type="submit" class="btn btn-primary">Search</button>
+    <a href="/receiving/list" class="btn btn-secondary" style="text-decoration:none; display:inline-block;">Reset</a>
+  </div>
+</form>
+
+<div style="margin:10px 0; padding:10px 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px;">
+  <b>Total Berat (kg):</b> {{ "%.2f"|format(total_berat or 0) }}
+</div>
+
   <div class="muted">Menampilkan data receiving terbaru. Total netto = jumlah netto semua partai.</div>
 
   <div class="card" style="margin-top:14px;">

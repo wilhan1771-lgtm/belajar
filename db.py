@@ -8,6 +8,7 @@ DB_NAME = os.path.join(BASE_DIR, "receiving.db")
 def get_conn():
     conn = sqlite3.connect(DB_NAME)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON;")
     return conn
 
 def init_db():
@@ -69,31 +70,56 @@ def init_db():
     );
 
     -- =====================
-    -- Invoice
+    -- Production
     -- =====================
-    CREATE TABLE IF NOT EXISTS invoice_header (
+    CREATE TABLE IF NOT EXISTS production_header (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      receiving_id INTEGER NOT NULL,
+      receiving_id INTEGER NOT NULL UNIQUE,
       tanggal TEXT NOT NULL,
       supplier TEXT NOT NULL,
-      price_points_json TEXT,
-      subtotal REAL DEFAULT 0,
-      pph REAL,
-      total REAL DEFAULT 0,
+      jenis TEXT,
+      bahan_masuk_kg REAL NOT NULL DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now','localtime')),
       FOREIGN KEY(receiving_id) REFERENCES receiving_header(id)
     );
 
-    CREATE TABLE IF NOT EXISTS invoice_detail (
+    CREATE TABLE IF NOT EXISTS production_step (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      invoice_id INTEGER NOT NULL,
-      partai_no INTEGER,
-      size_round INTEGER,
-      berat_netto REAL,
-      harga INTEGER,
-      total_harga REAL,
-      FOREIGN KEY(invoice_id) REFERENCES invoice_header(id)
+      production_id INTEGER NOT NULL,
+      step_name TEXT NOT NULL,
+      berat_kg REAL NOT NULL DEFAULT 0,
+      yield_pct REAL,
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      UNIQUE(production_id, step_name),
+      FOREIGN KEY(production_id) REFERENCES production_header(id)
     );
+
+    CREATE TABLE IF NOT EXISTS production_packing (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      production_id INTEGER NOT NULL,
+      size TEXT,
+      berat_kg REAL NOT NULL DEFAULT 0,
+      isi_dus REAL,
+      berat_per_dus REAL,
+      total_dus REAL,
+      created_at TEXT DEFAULT (datetime('now','localtime')),
+      FOREIGN KEY(production_id) REFERENCES production_header(id)
+    );
+
+    -- =====================
+    -- Indexes (SETELAH table ada)
+    -- =====================
+    CREATE INDEX IF NOT EXISTS idx_receiving_header_tanggal
+      ON receiving_header(tanggal);
+
+    CREATE INDEX IF NOT EXISTS idx_receiving_header_supplier
+      ON receiving_header(supplier);
+
+    CREATE INDEX IF NOT EXISTS idx_production_header_receiving_id
+      ON production_header(receiving_id);
+
+    CREATE INDEX IF NOT EXISTS idx_production_packing_prod_id
+      ON production_packing(production_id);
     """)
 
     conn.commit()
