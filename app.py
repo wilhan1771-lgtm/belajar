@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from datetime import date
-import json
+import json, sqlite3
 
 from db import init_db, get_conn
 
@@ -204,6 +204,60 @@ def receiving_list():
     # biar konsisten dengan template lain: list of dict
     return render_template("receiving_list.html", rows=[dict(r) for r in rows])
 
+@app.post("/receiving/delete/<int:rid>")
+def receiving_delete(rid):
+    if not require_login():
+        return redirect(url_for("login"))
+
+    conn = get_conn()
+    cur = conn.cursor()
+    try:
+        # hapus detail dulu
+        cur.execute("DELETE FROM receiving_partai WHERE header_id = ?", (rid,))
+        # hapus header
+        cur.execute("DELETE FROM receiving_header WHERE id = ?", (rid,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return f"Gagal hapus receiving: {e}", 500
+
+    conn.close()
+    return redirect(url_for("receiving_list"))
+@app.get("/master/suppliers")
+def master_suppliers():
+    conn = get_conn()
+    rows = conn.execute("SELECT id, nama FROM supplier WHERE aktif=1 ORDER BY nama").fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+@app.get("/master/jenis")
+def master_jenis():
+    conn = get_conn()
+    rows = conn.execute("SELECT id, nama FROM udang_jenis WHERE aktif=1 ORDER BY id").fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+@app.post("/master/supplier/add")
+def master_supplier_add():
+    if not require_login():
+        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
+
+    data = request.get_json(force=True)
+    nama = (data.get("nama") or "").strip()
+    if not nama:
+        return jsonify({"ok": False, "msg": "Nama supplier wajib"}), 400
+
+    conn = get_conn()
+    try:
+        conn.execute("INSERT INTO supplier (nama) VALUES (?)", (nama,))
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return jsonify({"ok": False, "msg": f"Gagal tambah supplier: {e}"}), 400
+
+    conn.close()
+    return jsonify({"ok": True})
 
 @app.route("/receiving/<int:header_id>")
 def receiving_detail(header_id):

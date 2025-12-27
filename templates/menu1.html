@@ -64,12 +64,21 @@
 
   <div class="field">
     <label>Supplier</label>
-    <input id="supplier" type="text" placeholder="Contoh: PT. SEAFOOD JAYA UTAMA">
+    <select id="supplier">
+    <option value="">-- Pilih Supplier --</option>
+    </select>
+
+    <input id="supplier_new" type="text" placeholder="Tambah supplier baru (opsional)">
+    <button type="button" class="btn btn-secondary" id="btnAddSupplier">+ Supplier</button>
+
   </div>
 
   <div class="field">
-    <label>Jenis Udang</label>
-    <input id="jenis" type="text" placeholder="Contoh: Vannamei">
+      <label>Jenis Udang</label>
+      <select id="jenis">
+      < option value="">-- Pilih Jenis Udang --</option>
+    </select>
+
   </div>
 
   <div class="field">
@@ -94,6 +103,47 @@
   const partaiContainer = document.getElementById("partaiContainer");
   const btnSave = document.getElementById("btnSave");
   let partaiKe = 0;
+  async function loadSuppliers() {
+  const res = await fetch("/master/suppliers");
+  const rows = await res.json();
+  const sel = document.getElementById("supplier");
+
+  sel.innerHTML = `<option value="">-- Pilih Supplier --</option>` +
+    rows.map(r => `<option value="${escapeHtml(r.nama)}">${escapeHtml(r.nama)}</option>`).join("");
+}
+
+async function loadJenis() {
+  const res = await fetch("/master/jenis");
+  const rows = await res.json();
+  const sel = document.getElementById("jenis");
+
+  sel.innerHTML = `<option value="">-- Pilih Jenis Udang --</option>` +
+    rows.map(r => `<option value="${escapeHtml(r.nama)}">${escapeHtml(r.nama)}</option>`).join("");
+}
+
+// helper biar aman dari karakter aneh di HTML option
+function escapeHtml(s) {
+  return (s || "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+                  .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+
+document.getElementById("btnAddSupplier").addEventListener("click", async () => {
+  const nama = (document.getElementById("supplier_new").value || "").trim();
+  if (!nama) return alert("Isi nama supplier dulu");
+
+  const res = await fetch("/master/supplier/add", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({nama})
+  });
+
+  const out = await res.json();
+  if (!res.ok || !out.ok) return alert(out.msg || "Gagal tambah supplier");
+
+  document.getElementById("supplier_new").value = "";
+  await loadSuppliers();
+  alert("Supplier ditambahkan");
+});
 
   function getNumber(val) {
     const n = parseFloat((val || "").toString().trim());
@@ -194,6 +244,8 @@
         </div>
       </div>
     `;
+        loadSuppliers();
+         loadJenis();
 
     partaiContainer.appendChild(partaiDiv);
 
@@ -361,11 +413,16 @@ function kumpulPayload() {
   btnSave.addEventListener("click", async () => {
     const payload = kumpulPayload();
 
-    if (!payload.supplier.trim()) {
-      alert("Supplier wajib diisi");
+    if (!payload.supplier) {
+      alert("Supplier wajib dipilih");
       return;
-    }
-    if (!payload.partai.length) {
+      }
+      if (!payload.jenis) {
+       alert("Jenis udang wajib dipilih");
+       return;
+}
+
+      if (!payload.partai.length) {
       alert("Minimal 1 partai");
       return;
     }
