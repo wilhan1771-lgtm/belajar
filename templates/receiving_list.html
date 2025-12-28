@@ -15,7 +15,7 @@
     .top { display:flex; justify-content:space-between; align-items:center; gap:12px; }
     .btn { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 600; text-decoration:none; display:inline-block; }
     .btn-primary { background: #2563eb; color: white; }
-    .btn-secondary { background: #111827; color: white; }
+    .btn-secondary { background: #7dd3fc; color: blue; }
     .muted { color:#6b7280; font-size:13px; margin-top:6px; }
     .actions a { color:#2563eb; text-decoration:none; font-weight:600; }
     .actions a:hover { text-decoration:underline; }
@@ -27,7 +27,7 @@
     <h2>Receiving List</h2>
     <div style="display:flex; gap:10px;">
       <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
-      <a class="btn btn-primary" href="/menu1">+ Receiving Baru</a>
+
     </div>
   </div>
   <form method="get" action="/receiving/list" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin:12px 0;">
@@ -43,7 +43,7 @@
 
   <div>
     <label style="font-size:12px;">Supplier</label><br>
-    <input type="text" name="supplier" placeholder="contoh: parno" value="{{ supplier or '' }}">
+    <input type="text" name="supplier" placeholder="contoh: ABC" value="{{ supplier or '' }}">
   </div>
 
   <div>
@@ -69,7 +69,7 @@
           <th style="width:90px;">Fiber</th>
           <th style="width:140px;">Total Netto (kg)</th>
           <th style="width:90px;">Partai</th>
-          <th style="width:120px;">Aksi</th>
+
         </tr>
       </thead>
       <tbody>
@@ -90,7 +90,10 @@
           <td>{{ r["jml_partai"] }}</td>
 
           <td class="actions">
-            <a href="/receiving/{{ r.id }}">Detail</a>
+            <td>
+            <a class="btn btn-secondary btn-sm" href="/receiving/{{ r.id }}">Detail</a>
+            <a class="btn btn-secondary btn-sm" href="/production/{{ r.id }}">Produksi</a>
+            </td>
           </td>
         </tr>
         {% endfor %}
