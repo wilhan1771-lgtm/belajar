@@ -10,7 +10,7 @@
 
     .header { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 12px; }
     .field { display: flex; flex-direction: column; gap: 6px; }
-    label { font-size: 13px; color:#111827; }
+    label { font-size: 15px; color:#111827; }
     input, select { padding: 10px; border: 1px solid #d1d5db; border-radius: 10px; background:white; }
     input[readonly] { background:#f9fafb; }
 
@@ -167,21 +167,10 @@ document.getElementById("btnAddSupplier").addEventListener("click", async () => 
           <h3 style="margin:0;">Partai #${partaiKe} <span class="pill">Receiving</span></h3>
           <div class="muted">Isi timbangan di bawah ini</div>
         </div>
-        <div class="row-actions">
-          <button class="btn btn-secondary btn-new-partai" type="button">+ Partai Baru</button>
-          <button class="btn btn-primary btn-add-row" type="button">+ Baris</button>
-        </div>
+
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th style="width:80px;">No</th>
-            <th>Berat Timbangan</th>
-          </tr>
-        </thead>
-        <tbody id="tbody-${partaiKe}"></tbody>
-      </table>
+
 
       <div class="section">
         <div class="muted" style="margin-bottom:8px;"><b>Sampling Partai #${partaiKe}</b> (PCS & Berat Sample kg)</div>
@@ -219,22 +208,21 @@ document.getElementById("btnAddSupplier").addEventListener("click", async () => 
             <label>Berat / Keranjang (kg)</label>
             <input type="number" step="0.01" id="tara-${partaiKe}" placeholder="contoh: 2">
           </div>
-
+          <div class="field">
+            <label>Total Tara (kg)</label>
+            <input type="text" id="total-tara-${partaiKe}" readonly>
+          </div>
           <div class="field">
             <label>Total Bruto (kg)</label>
             <input type="text" id="bruto-${partaiKe}" readonly>
           </div>
 
-          <div class="field">
-            <label>Netto (kg)</label>
-            <input type="text" id="netto-${partaiKe}" readonly>
-          </div>
         </div>
 
         <div class="grid3" style="margin-top:12px;">
           <div class="field">
-            <label>Total Tara (kg)</label>
-            <input type="text" id="total-tara-${partaiKe}" readonly>
+            <label>Netto (kg)</label>
+            <input type="text" id="netto-${partaiKe}" readonly>
           </div>
           <div class="field">
             <label>Catatan</label>
@@ -243,6 +231,19 @@ document.getElementById("btnAddSupplier").addEventListener("click", async () => 
           <div class="field"></div>
         </div>
       </div>
+      <table>
+        <thead>
+          <tr>
+            <th style="width:80px;">No</th>
+            <th>Berat Timbangan</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-${partaiKe}"></tbody>
+      </table>
+       <div class="row-actions">
+          <button class="btn btn-secondary btn-new-partai" type="button">+ Partai Baru</button>
+          <button class="btn btn-primary btn-add-row" type="button">+ Baris</button>
+        </div>
     `;
         loadSuppliers();
          loadJenis();
@@ -328,29 +329,51 @@ document.getElementById("btnAddSupplier").addEventListener("click", async () => 
     }
   }
 
-  function hitungBerat(partai) {
-    const tbody = document.getElementById(`tbody-${partai}`);
-    let bruto = 0;
-    let keranjang = 0;
+function hitungBerat(partai) {
+  const tbody = document.getElementById(`tbody-${partai}`);
+  let bruto = 0;
+  let keranjang = 0;
 
-    tbody.querySelectorAll("input").forEach(inp => {
-      const raw = (inp.value || "").trim();
-      const val = parseFloat(raw);
-      if (!isNaN(val)) {
-        bruto += val;
-        keranjang += 1;
-      }
-    });
+  tbody.querySelectorAll("input").forEach(inp => {
+    const raw = (inp.value || "").trim();
+    const val = parseFloat(raw);
+    if (!isNaN(val)) {
+      bruto += val;
+      keranjang += 1;
+    }
+  });
 
-    const beratKeranjang = parseFloat(document.getElementById(`tara-${partai}`).value || "0");
-    const totalTara = keranjang * beratKeranjang;
-    const netto = bruto - totalTara;
+  const taraEl = document.getElementById(`tara-${partai}`);
+  const taraRaw = (taraEl.value || "").trim();
+  const beratKeranjang = parseFloat(taraRaw);
 
-    document.getElementById(`keranjang-${partai}`).value = keranjang > 0 ? keranjang : "";
-    document.getElementById(`bruto-${partai}`).value = bruto > 0 ? bruto.toFixed(2) : "";
-    document.getElementById(`total-tara-${partai}`).value = totalTara > 0 ? totalTara.toFixed(2) : "";
-    document.getElementById(`netto-${partai}`).value = netto > 0 ? netto.toFixed(2) : "";
+  // tampilkan keranjang & bruto dulu
+  document.getElementById(`keranjang-${partai}`).value = keranjang > 0 ? keranjang : "";
+  document.getElementById(`bruto-${partai}`).value = bruto > 0 ? bruto.toFixed(2) : "";
+
+  // 🔒 RULE: kalau ada timbangan (keranjang>0) maka tara WAJIB > 0
+  if (keranjang > 0 && (taraRaw === "" || isNaN(beratKeranjang) || beratKeranjang <= 0)) {
+    document.getElementById(`total-tara-${partai}`).value = "";
+    document.getElementById(`netto-${partai}`).value = "";
+
+    // kasih tanda merah
+    taraEl.style.borderColor = "#dc2626";
+    taraEl.title = "Berat / Keranjang wajib diisi";
+
+    return; // STOP
+  } else {
+    // reset kalau sudah valid
+    taraEl.style.borderColor = "";
+    taraEl.title = "";
   }
+
+  const totalTara = keranjang * beratKeranjang;
+  const netto = bruto - totalTara;
+
+  document.getElementById(`total-tara-${partai}`).value = totalTara > 0 ? totalTara.toFixed(2) : "";
+  document.getElementById(`netto-${partai}`).value = netto > 0 ? netto.toFixed(2) : "";
+}
+
 function kumpulPayload() {
   const tanggal = document.getElementById("tanggal").value;
   const supplier = document.getElementById("supplier").value;

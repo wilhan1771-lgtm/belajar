@@ -93,18 +93,30 @@ def init_db():
       UNIQUE(production_id, step_name),
       FOREIGN KEY(production_id) REFERENCES production_header(id)
     );
-
+        
+          -- production_packing (format baru sesuai sheet)
+    DROP TABLE IF EXISTS production_packing;
+        
     CREATE TABLE IF NOT EXISTS production_packing (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      production_id INTEGER NOT NULL,
-      size TEXT,
-      berat_kg REAL NOT NULL DEFAULT 0,
-      isi_dus REAL,
-      berat_per_dus REAL,
-      total_dus REAL,
-      created_at TEXT DEFAULT (datetime('now','localtime')),
-      FOREIGN KEY(production_id) REFERENCES production_header(id)
-    );
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    production_id INTEGER NOT NULL,
+    size TEXT,
+        
+    kupas_kg REAL NOT NULL DEFAULT 0,      -- basis yield per baris
+     mc REAL NOT NULL DEFAULT 0,            -- jumlah dus/pack
+     berat_per_dus REAL NOT NULL DEFAULT 0, -- kg per dus
+        
+     total_kg REAL NOT NULL DEFAULT 0,      -- mc * berat_per_dus
+    yield_ratio REAL,                     -- total_kg / kupas_kg (contoh 1.120)
+        
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    FOREIGN KEY(production_id) REFERENCES production_header(id)
+        );
+        
+            CREATE INDEX IF NOT EXISTS idx_production_packing_prod_id
+          ON production_packing(production_id);
+
+
 
     -- =====================
     -- Indexes (SETELAH table ada)

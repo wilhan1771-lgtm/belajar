@@ -159,7 +159,11 @@ def production_save(receiving_id):
     try:
         hl = float(data.get("hl") or 0)
         kupas = float(data.get("kupas") or 0)
-        soaking = float(data.get("soaking") or 0)
+    except ValueError:
+        return jsonify({"ok": False, "msg": "Input HL/Kupas harus angka"}), 400
+
+    soaking = 0.0  # AUTO dari total packing
+
     except ValueError:
         return jsonify({"ok": False, "msg": "Input HL/Kupas/Soaking harus angka"}), 400
 
@@ -185,17 +189,28 @@ def production_save(receiving_id):
             return 0.0
         return (float(x) / bahan_masuk) * 100.0
 
-    # ✅ Validasi: total packing <= soaking
-    try:
-        total_pack = 0.0
-        for r in packing_rows:
-            total_pack += float((r.get("berat_kg") or 0))
-        if soaking > 0 and total_pack > soaking + 1e-6:
-            conn.close()
-            return jsonify({"ok": False, "msg": "Total packing lebih besar dari Soaking"}), 400
-    except Exception:
-        conn.close()
-        return jsonify({"ok": False, "msg": "Data packing tidak valid"}), 400
+
+# hitung total packing (AUTO)
+try:
+    total_pack = 0.0
+    for r in packing_rows:
+        mc = float(r.get("mc") or 0)
+        berat_per_dus = float(r.get("berat_per_dus") or 0)
+        # total_kg yang dipakai sistem kamu
+        row_total = mc * berat_per_dus if (mc > 0 and berat_per_dus > 0) else 0.0
+        total_pack += row_total
+except Exception:
+    conn.close()
+    return jsonify({"ok": False, "msg": "Data packing tidak valid"}), 400
+
+# Soaking AUTO = total packing
+soaking = total_pack
+
+# validasi aman: total packing tidak boleh > bahan masuk
+if soaking > bahan_masuk + 1e-6:
+    conn.close()
+    return jsonify({"ok": False, "msg": "Total packing lebih besar dari Bahan Masuk"}), 400
+
 
     def to_float_or_none(v):
         s = "" if v is None else str(v).strip()
@@ -225,22 +240,23 @@ def production_save(receiving_id):
 
         for r in packing_rows:
             size = (r.get("size") or "").strip() or None
-            berat_kg = float(r.get("berat_kg") or 0)
+            kupas_kg = float(r.get("kupas_kg") or 0)
+            mc = float(r.get("mc") or 0)
+            berat_per_dus = float(r.get("berat_per_dus") or 0)
 
-            # optional fields
-            isi_dus = to_float_or_none(r.get("isi_dus"))
-            berat_per_dus = to_float_or_none(r.get("berat_per_dus"))
-            total_dus = to_float_or_none(r.get("total_dus"))
+            # auto hitung
+            total_kg = mc * berat_per_dus if (mc > 0 and berat_per_dus > 0) else 0
+            yield_ratio = (total_kg / kupas_kg) if kupas_kg > 0 else None  # 1.120
 
             # skip baris kosong
-            if (not size) and berat_kg == 0:
+            if (not size) and kupas_kg == 0 and mc == 0 and berat_per_dus == 0:
                 continue
 
             cur.execute("""
-                INSERT INTO production_packing
-                (production_id, size, berat_kg, isi_dus, berat_per_dus, total_dus)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (prod_id, size, berat_kg, isi_dus, berat_per_dus, total_dus))
+                        INSERT INTO production_packing
+                     (production_id, size, kupas_kg, mc, berat_per_dus, total_kg, yield_ratio)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (prod_id, size, kupas_kg, mc, berat_per_dus, total_kg, yield_ratio))
 
         conn.commit()
     except Exception as e:
@@ -751,6 +767,84 @@ def invoice_new(receiving_id):
 
     return redirect(url_for("invoice_view", invoice_id=invoice_id))
 
+@app.route("/production/list")
+def production_list():
+    if not require_login():
+        return redirect(url_for("login"))
+
+    start = (request.args.get("start") or "").strip()
+    end = (request.args.get("end") or "").strip()
+    supplier_q = (request.args.get("supplier") or "").strip()
+
+    where = []
+    params = []
+
+    # filter tanggal (pakai tanggal receiving_header)
+    if start and end:
+        where.append("h.tanggal BETWEEN ? AND ?")
+        params.extend([start, end])
+    elif start:
+        where.append("h.tanggal >= ?")
+        params.append(start)
+    elif end:
+        where.append("h.tanggal <= ?")
+        params.append(end)
+
+    # filter supplier
+    if supplier_q:
+        where.append("LOWER(h.supplier) LIKE ?")
+        params.append(f"%{supplier_q.lower()}%")
+
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    conn = get_conn()
+
+    # rows: 1 baris = 1 receiving
+    # RM = total_netto receiving
+    # FG = soaking dari production_step (step_name='SOAKING')
+    rows = conn.execute(f"""
+        SELECT
+            h.id AS receiving_id,
+            h.tanggal,
+            h.supplier,
+            h.jenis,
+            COALESCE(SUM(COALESCE(p.netto, 0)), 0) AS rm_kg,
+            COALESCE(ps_soak.berat_kg, 0) AS fg_kg,
+            CASE
+              WHEN COALESCE(SUM(COALESCE(p.netto, 0)), 0) = 0 THEN 0
+              ELSE (COALESCE(ps_soak.berat_kg, 0) / COALESCE(SUM(COALESCE(p.netto, 0)), 0)) * 100
+            END AS yield_pct
+        FROM receiving_header h
+        LEFT JOIN receiving_partai p ON p.header_id = h.id
+        LEFT JOIN production_header ph ON ph.receiving_id = h.id
+        LEFT JOIN production_step ps_soak
+               ON ps_soak.production_id = ph.id AND ps_soak.step_name = 'SOAKING'
+        {where_sql}
+        GROUP BY h.id
+        ORDER BY h.id DESC
+    """, params).fetchall()
+
+    # summary atas (total RM, total FG, avg yield, count)
+    total_rm = sum([(r["rm_kg"] or 0) for r in rows])
+    total_fg = sum([(r["fg_kg"] or 0) for r in rows])
+    avg_yield = (total_fg / total_rm * 100) if total_rm > 0 else 0
+    count_rows = len(rows)
+
+    conn.close()
+
+    return render_template(
+        "production_list.html",
+        rows=[dict(r) for r in rows],
+        start=start,
+        end=end,
+        supplier=supplier_q,
+        summary={
+            "total_rm": total_rm,
+            "total_fg": total_fg,
+            "avg_yield": avg_yield,
+            "count_rows": count_rows
+        }
+    )
 
 @app.route("/invoice/<int:invoice_id>")
 def invoice_view(invoice_id):
