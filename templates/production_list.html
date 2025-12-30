@@ -4,24 +4,36 @@
   <meta charset="UTF-8">
   <title>Production List</title>
   <style>
-    body{font-family:Arial;padding:24px;background:#f3f4f6}
-    .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 8px 20px rgba(0,0,0,.06);margin-top:12px}
-    table{width:100%;border-collapse:collapse;margin-top:12px}
-    th,td{border:1px solid #e5e7eb;padding:10px;text-align:left}
-    th{background:#f9fafb}
-    input{padding:10px;border:1px solid #d1d5db;border-radius:10px}
-    .btn{padding:10px 14px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
-    .btn-primary{background:#2563eb;color:#fff}
-    .btn-secondary{background:#111827;color:#fff;text-decoration:none;display:inline-block}
-    .right{text-align:right}
-    a{color:#2563eb;text-decoration:none;font-weight:700}
+  body{font-family:Arial;padding:24px;background:#f3f4f6}
+  .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 8px 20px rgba(0,0,0,.06);margin-top:12px}
+  table{width:100%;border-collapse:collapse;margin-top:12px}
+  th,td{border:1px solid #e5e7eb;padding:10px;text-align:left}
+  th{background:#f9fafb}
+  input, select{padding:10px;border:1px solid #d1d5db;border-radius:10px}
+  .btn{padding:10px 14px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
+  .btn-primary{background:#2563eb;color:#fff}
+  .btn-secondary{background:#111827;color:#fff;text-decoration:none;display:inline-block}
+  .right{text-align:right}
+  a{color:#2563eb;text-decoration:none;font-weight:700}
 
-    .summary{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
-    .pill{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px}
-    .pill b{display:block;font-size:13px;color:#111827}
-    .pill span{font-size:18px}
-  </style>
+  .summary{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
+  .pill{background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px}
+  .pill b{display:block;font-size:13px;color:#111827}
+  .pill span{font-size:18px}
+
+  /* FILTERS: satu baris */
+  .filters{
+    display:grid;
+    grid-template-columns: 170px 170px 220px 220px auto auto; /* start, end, supplier, jenis, cari, reset */
+    gap:10px;
+    align-items:end;
+  }
+  @media (max-width: 900px){
+    .filters{ grid-template-columns: 1fr 1fr; }
+  }
+</style>
+
 </head>
 <body>
 
@@ -33,22 +45,40 @@
 </div>
 
 <div class="card">
-  <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
-    <div>
-      <div>Dari Tanggal</div>
-      <input type="date" name="start" value="{{ start }}">
-    </div>
-    <div>
-      <div>Sampai</div>
-      <input type="date" name="end" value="{{ end }}">
-    </div>
-    <div>
-      <div>Supplier</div>
-      <input type="text" name="supplier" placeholder="contoh: Romly" value="{{ supplier }}">
-    </div>
-    <button class="btn btn-primary" type="submit">Cari</button>
-    <a class="btn btn-secondary" href="/production/list">Reset</a>
-  </form>
+  <form method="get" class="filters">
+  <div>
+    <div>Dari Tanggal</div>
+    <input type="date" name="start" value="{{ start }}">
+  </div>
+
+  <div>
+    <div>Sampai</div>
+    <input type="date" name="end" value="{{ end }}">
+  </div>
+
+  <div>
+    <div>Supplier</div>
+    <select name="supplier">
+      <option value="">-- Semua Supplier --</option>
+      {% for s in suppliers %}
+        <option value="{{ s }}" {{ "selected" if supplier==s else "" }}>{{ s }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div>
+    <div>Jenis</div>
+    <select name="jenis">
+      <option value="">-- Semua Jenis --</option>
+      {% for j in jenis_list %}
+        <option value="{{ j }}" {{ "selected" if jenis==j else "" }}>{{ j }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <button class="btn btn-primary" type="submit">Cari</button>
+  <a class="btn btn-secondary" href="/production/list">Reset</a>
+</form>
 
   <div class="summary">
     <div class="pill"><b>Total RM (kg)</b>
@@ -67,32 +97,61 @@
 
   <table>
     <thead>
-      <tr>
-        <th>ID</th>
-        <th>Tanggal</th>
-        <th>Supplier</th>
-        <th>Jenis</th>
-        <th class="right">RM (kg)</th>
-        <th class="right">FG/Soaking (kg)</th>
-        <th class="right">Yield (%)</th>
-        <th>Aksi</th>
-      </tr>
-    </thead>
+  <tr>
+    <th>ID</th>
+    <th>Tanggal</th>
+    <th>Supplier</th>
+    <th>Jenis</th>
+
+    <th class="right">RM (kg)</th>
+
+    <th class="right">HL (kg)</th>
+    <th class="right">Yield HL (%)</th>
+
+    <th class="right">Kupas (kg)</th>
+    <th class="right">Yield Kupas (%)</th>
+
+    <th class="right">Soaking/FG (kg)</th>
+    <th class="right">Yield Soak (%)</th>
+
+    <th class="right">Final (%)</th>
+    <th>Aksi</th>
+  </tr>
+</thead>
+
     <tbody>
       {% for r in rows %}
       <tr>
-        <td>{{ r.receiving_id }}</td>
-        <td>{{ r.tanggal }}</td>
-        <td>{{ r.supplier }}</td>
-        <td>{{ r.jenis }}</td>
-        <td class="right">{{ "{:,.2f}".format(r.rm_kg or 0).replace(",", ".") }}</td>
-        <td class="right">{{ "{:,.2f}".format(r.fg_kg or 0).replace(",", ".") }}</td>
-        <td class="right"><b>{{ "{:,.2f}".format(r.yield_pct or 0).replace(",", ".") }}</b></td>
-        <td style="display:flex; gap:10px; align-items:center;">
-          <a href="/production/{{ r.receiving_id }}">Produksi</a>
-          <a href="/receiving/{{ r.receiving_id }}">Detail</a>
-        </td>
-      </tr>
+  <td>{{ r.receiving_id }}</td>
+  <td>{{ r.tanggal }}</td>
+  <td>{{ r.supplier }}</td>
+  <td>{{ r.jenis }}</td>
+
+  <td class="right">{{ "{:,.2f}".format(r.rm_kg or 0).replace(",", ".") }}</td>
+
+  <td class="right">{{ "{:,.2f}".format(r.hl_kg or 0).replace(",", ".") }}</td>
+  <td class="right"><b>{{ "{:,.2f}".format(r.hl_yield or 0).replace(",", ".") }}</b></td>
+
+  <td class="right">{{ "{:,.2f}".format(r.kupas_kg or 0).replace(",", ".") }}</td>
+  <td class="right"><b>{{ "{:,.2f}".format(r.kupas_yield or 0).replace(",", ".") }}</b></td>
+
+  <td class="right">{{ "{:,.2f}".format(r.fg_kg or 0).replace(",", ".") }}</td>
+  <td class="right"><b>{{ "{:,.2f}".format(r.fg_yield or 0).replace(",", ".") }}</b></td>
+
+  <td class="right">
+    {% if (r.fg_kg or 0) <= 0 %}
+      <span style="color:#dc2626;font-weight:700;">BELUM INPUT</span>
+    {% else %}
+      <b>{{ "{:,.2f}".format(r.fg_yield or 0).replace(",", ".") }}</b>
+    {% endif %}
+  </td>
+
+  <td style="display:flex; gap:10px; align-items:center;">
+    <a href="/production/{{ r.receiving_id }}">Produksi</a>
+    <a href="/receiving/{{ r.receiving_id }}">Detail</a>
+  </td>
+</tr>
+
       {% endfor %}
     </tbody>
   </table>

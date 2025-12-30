@@ -94,7 +94,7 @@
 
     <div class="field">
       <label>Soaking (kg)</label>
-      <input type="number" step="0.01" id="soakKg" placeholder="contoh: 1900">
+      <input type="number" step="0.01" id="soakKg" readonly>
       <div class="muted">Yield: <b id="soakPct">0.00%</b></div>
     </div>
   </div>
@@ -217,35 +217,43 @@
     kupasKg.value = totalKupas.toFixed(2);
     updateYieldUI();
   }
-
-  function updatePackTotal() {
+function updatePackTotal() {
   let totalPacking = 0;
   packingBody.querySelectorAll("tr").forEach(tr => {
     totalPacking += num(tr.querySelector(".p-total")?.value);
   });
+
   packTotalKg.textContent = totalPacking.toFixed(2);
 
-  // ✅ Soaking auto = total packing
+  // ✅ AUTO: Soaking mengikuti total packing
   soakKg.value = totalPacking.toFixed(2);
 
-  // Kupas tahapan ikut naik otomatis
+  // Kupas tahapan juga auto
   updateKupasFromPacking();
 
-  // ✅ update yield UI setelah soaking berubah
+  // refresh yield
   updateYieldUI();
 }
 
-
   function makeRow(data = {}) {
     const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input class="p-size" type="text" placeholder="contoh: 31/40" value="${escapeHtml(data.size || "")}"></td>
-      <td><input class="p-kupas" type="number" step="0.01" placeholder="contoh: 400" value="${data.berat_kg ?? ""}"></td>
-      <td><input class="p-mc" type="number" step="0.01" placeholder="contoh: 57.5" value="${data.isi_dus ?? ""}"></td>
-      <td><input class="p-beratdus" type="number" step="0.01" placeholder="contoh: 8" value="${data.berat_per_dus ?? ""}"></td>
-      <td><input class="p-total" type="text" readonly value=""></td>
-      <td><input class="p-yield" type="text" readonly value=""></td>
-    `;
+  tr.innerHTML = `
+  <td><input class="p-size" type="text" placeholder="contoh: 31/40"
+      value="${escapeHtml(data.size || "")}"></td>
+
+  <td><input class="p-kupas" type="number" step="0.01" placeholder="contoh: 400"
+      value="${data.kupas_kg ?? ""}"></td>
+
+  <td><input class="p-mc" type="number" step="0.01" placeholder="contoh: 57.5"
+      value="${data.mc ?? ""}"></td>
+
+  <td><input class="p-beratdus" type="number" step="0.01" placeholder="contoh: 8"
+      value="${data.berat_per_dus ?? ""}"></td>
+
+  <td><input class="p-total" type="text" readonly value="${(data.total_kg ?? "")}"></td>
+  <td><input class="p-yield" type="text" readonly value=""></td>
+`;
+
 
     tr.querySelectorAll("input").forEach(inp => {
       inp.addEventListener("input", () => {
@@ -312,13 +320,13 @@
       if (kosong) return;
 
       payload.packing.push({
-        size: size,
-        kupas_kg: kupas,
-        mc: num(mc),
-        berat_per_dus: num(beratDus)
-      });
+          size: size,
+          kupas_kg: kupas,
+          mc: num(mc),
+          berat_per_dus: num(beratDus)
+        });
 
-    });
+          });
 
     try {
       const res = await fetch("/production/save/{{ receiving.id }}", {
