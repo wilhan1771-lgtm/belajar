@@ -56,7 +56,6 @@ def interpolate_price(size: int | None, points: dict) -> int | None:
 
     return None
 
-
 def require_login():
     return "user" in session
 
@@ -79,14 +78,24 @@ def login():
 
     return render_template("login.html", error=error)
 
-@app.route("/production/<int:receiving_id>")
-def production_view(receiving_id):
+@app.route("/production/<int:prod_id>")
+def production_view(prod_id):
     if not require_login():
         return redirect(url_for("login"))
 
     conn = get_conn()
 
-    # ambil receiving
+    # ambil production by prod_id (INI KUNCI)
+    prod = conn.execute(
+        "SELECT * FROM production_header WHERE id=?",
+        (prod_id,)
+    ).fetchone()
+
+    if not prod:
+        conn.close()
+        return "Production tidak ditemukan", 404
+
+    # ambil receiving dari prod.receiving_id
     rec = conn.execute("""
         SELECT h.id, h.tanggal, h.supplier, h.jenis,
                COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
@@ -94,74 +103,43 @@ def production_view(receiving_id):
         LEFT JOIN receiving_partai p ON p.header_id = h.id
         WHERE h.id = ?
         GROUP BY h.id
-    """, (receiving_id,)).fetchone()
+    """, (prod["receiving_id"],)).fetchone()
 
-    if not rec:
-        conn.close()
-        return "Receiving tidak ditemukan", 404
-
-    # cek production header
-    prod = conn.execute(
-        "SELECT * FROM production_header WHERE receiving_id = ? ORDER BY id DESC LIMIT 1",
-        (receiving_id,)
-    ).fetchone()
-
-    # jika belum ada: buat production_header + steps default
-    if not prod:
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO production_header (receiving_id, tanggal, supplier, jenis, bahan_masuk_kg)
-            VALUES (?, ?, ?, ?, ?)
-        """, (rec["id"], rec["tanggal"], rec["supplier"], rec["jenis"], float(rec["total_netto"] or 0)))
-        prod_id = cur.lastrowid
-
-        for step in ["HL", "KUPAS", "SOAKING"]:
-            cur.execute("""
-                INSERT INTO production_step (production_id, step_name, berat_kg, yield_pct)
-                VALUES (?, ?, 0, 0)
-            """, (prod_id, step))
-
-        conn.commit()
-
-        prod = conn.execute("SELECT * FROM production_header WHERE id=?", (prod_id,)).fetchone()
-
-    # ambil steps + packing
+    # ambil steps + packing by prod_id
     steps = conn.execute("""
         SELECT step_name, berat_kg, yield_pct
         FROM production_step
         WHERE production_id=?
         ORDER BY id
-    """, (prod["id"],)).fetchall()
+    """, (prod_id,)).fetchall()
 
     packing = conn.execute("""
         SELECT * FROM production_packing
         WHERE production_id=?
         ORDER BY id
-    """, (prod["id"],)).fetchall()
+    """, (prod_id,)).fetchall()
 
     conn.close()
 
     return render_template(
         "production.html",
-        receiving=dict(rec),
+        receiving=dict(rec) if rec else None,
         production=dict(prod),
         steps=[dict(r) for r in steps],
         packing=[dict(r) for r in packing],
     )
-@app.post("/production/save/<int:receiving_id>")
-def production_save(receiving_id):
+
+@app.post("/production/save/<int:prod_id>")
+def production_save(prod_id):
     if not require_login():
         return jsonify({"ok": False, "msg": "Unauthorized"}), 401
 
     data = request.get_json(force=True) or {}
 
-    # step weights
     try:
         hl = float(data.get("hl") or 0)
-        # kupas boleh dikirim dari FE (hasil auto), tapi kita juga bisa hitung ulang dari packing kalau mau
-        kupas = float(data.get("kupas") or 0)
     except ValueError:
-        return jsonify({"ok": False, "msg": "Input HL/Kupas harus angka"}), 400
+        return jsonify({"ok": False, "msg": "Input HL harus angka"}), 400
 
     packing_rows = data.get("packing") or []
 
@@ -169,25 +147,20 @@ def production_save(receiving_id):
     cur = conn.cursor()
 
     prod = conn.execute(
-        "SELECT id, bahan_masuk_kg FROM production_header WHERE receiving_id=? ORDER BY id DESC LIMIT 1",
-        (receiving_id,)
+        "SELECT id, bahan_masuk_kg FROM production_header WHERE id=?",
+        (prod_id,)
     ).fetchone()
 
     if not prod:
         conn.close()
-        return jsonify({"ok": False, "msg": "Production belum dibuat. Buka dulu halaman Produksi/Yield."}), 400
+        return jsonify({"ok": False, "msg": "Production tidak ditemukan"}), 404
 
-    prod_id = prod["id"]
     bahan_masuk = float(prod["bahan_masuk_kg"] or 0)
 
     def pct(x):
-        if bahan_masuk <= 0:
-            return 0.0
-        return (float(x) / bahan_masuk) * 100.0
+        return 0.0 if bahan_masuk <= 0 else (float(x) / bahan_masuk) * 100.0
 
-    # =========
-    # AUTO: hitung total packing & (opsional) auto kupas dari sum(kupas_kg)
-    # =========
+    # hitung total
     try:
         total_pack = 0.0
         total_kupas = 0.0
@@ -195,19 +168,15 @@ def production_save(receiving_id):
             k = float(r.get("kupas_kg") or 0)
             mc = float(r.get("mc") or 0)
             bpd = float(r.get("berat_per_dus") or 0)
-
             total_kupas += k
             total_pack += (mc * bpd) if (mc > 0 and bpd > 0) else 0.0
     except Exception:
         conn.close()
         return jsonify({"ok": False, "msg": "Data packing tidak valid"}), 400
 
-    # kalau mau benar2 auto kupas dari packing (recommended):
     kupas = total_kupas
+    soaking = total_pack
 
-    soaking = total_pack  # AUTO
-
-    # validasi aman
     if soaking > bahan_masuk + 1e-6:
         conn.close()
         return jsonify({"ok": False, "msg": "Total packing lebih besar dari Bahan Masuk"}), 400
@@ -229,7 +198,7 @@ def production_save(receiving_id):
             WHERE production_id=? AND step_name='SOAKING'
         """, (soaking, pct(soaking), prod_id))
 
-        # replace packing
+        # replace packing (ini tetap ok untuk sekarang)
         cur.execute("DELETE FROM production_packing WHERE production_id=?", (prod_id,))
 
         for r in packing_rows:
@@ -237,7 +206,6 @@ def production_save(receiving_id):
             kupas_kg = float(r.get("kupas_kg") or 0)
             mc = float(r.get("mc") or 0)
             berat_per_dus = float(r.get("berat_per_dus") or 0)
-
             total_kg = (mc * berat_per_dus) if (mc > 0 and berat_per_dus > 0) else 0.0
             yield_ratio = (total_kg / kupas_kg) if kupas_kg > 0 else None
 
@@ -258,6 +226,53 @@ def production_save(receiving_id):
 
     conn.close()
     return jsonify({"ok": True})
+@app.get("/production/open/<int:receiving_id>")
+def production_open(receiving_id):
+    if not require_login():
+        return redirect(url_for("login"))
+
+    conn = get_conn()
+
+    # cek sudah ada production?
+    prod = conn.execute(
+        "SELECT * FROM production_header WHERE receiving_id=? ORDER BY id DESC LIMIT 1",
+        (receiving_id,)
+    ).fetchone()
+
+    # kalau belum ada, buat
+    if not prod:
+        rec = conn.execute("""
+            SELECT h.id, h.tanggal, h.supplier, h.jenis,
+                   COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
+            FROM receiving_header h
+            LEFT JOIN receiving_partai p ON p.header_id = h.id
+            WHERE h.id = ?
+            GROUP BY h.id
+        """, (receiving_id,)).fetchone()
+
+        if not rec:
+            conn.close()
+            return "Receiving tidak ditemukan", 404
+
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO production_header (receiving_id, tanggal, supplier, jenis, bahan_masuk_kg)
+            VALUES (?, ?, ?, ?, ?)
+        """, (rec["id"], rec["tanggal"], rec["supplier"], rec["jenis"], float(rec["total_netto"] or 0)))
+        prod_id = cur.lastrowid
+
+        for step in ["HL", "KUPAS", "SOAKING"]:
+            cur.execute("""
+                INSERT INTO production_step (production_id, step_name, berat_kg, yield_pct)
+                VALUES (?, ?, 0, 0)
+            """, (prod_id, step))
+
+        conn.commit()
+        prod = conn.execute("SELECT * FROM production_header WHERE id=?", (prod_id,)).fetchone()
+
+    conn.close()
+    return redirect(url_for("production_view", prod_id=prod["id"]))
+
 
 @app.route("/dashboard")
 def dashboard():
@@ -406,6 +421,7 @@ def master_jenis():
     rows = conn.execute("SELECT id, nama FROM udang_jenis WHERE aktif=1 ORDER BY id").fetchall()
     conn.close()
     return jsonify([dict(r) for r in rows])
+
 @app.post("/master/supplier/add")
 def master_supplier_add():
     if not require_login():
@@ -427,6 +443,8 @@ def master_supplier_add():
 
     conn.close()
     return jsonify({"ok": True})
+
+
 @app.route("/receiving/list")
 def receiving_list():
     if not require_login():
@@ -910,7 +928,6 @@ def invoice_view(invoice_id):
 
     return render_template("invoice_view.html", inv=dict(inv), det=[dict(r) for r in det])
 
-
 @app.route("/invoice/list")
 def invoice_list():
     if not require_login():
@@ -918,46 +935,311 @@ def invoice_list():
 
     start = (request.args.get("start") or "").strip()
     end = (request.args.get("end") or "").strip()
+    supplier_q = (request.args.get("supplier") or "").strip()
 
     conn = get_conn()
+
+    where = ["status='ACTIVE'"]
+    params = []
+
+    # filter tanggal
     if start and end:
-        rows = conn.execute("""
-            SELECT id, receiving_id, tanggal, supplier, subtotal, pph, total, created_at
-            FROM invoice_header
-            WHERE tanggal BETWEEN ? AND ?
-            ORDER BY id DESC
-        """, (start, end)).fetchall()
-    else:
-        rows = conn.execute("""
-            SELECT id, receiving_id, tanggal, supplier, subtotal, pph, total, created_at
-            FROM invoice_header
-            ORDER BY id DESC
-            LIMIT 100
-        """).fetchall()
+        where.append("tanggal BETWEEN ? AND ?")
+        params.extend([start, end])
+    elif start:
+        where.append("tanggal >= ?")
+        params.append(start)
+    elif end:
+        where.append("tanggal <= ?")
+        params.append(end)
+
+    # filter supplier (case-insensitive)
+    if supplier_q:
+        where.append("LOWER(TRIM(supplier)) = ?")
+        params.append(supplier_q.lower())
+
+    where_sql = "WHERE " + " AND ".join(where)
+
+    # data tabel
+    rows = conn.execute(f"""
+        SELECT id, receiving_id, tanggal, supplier, subtotal, pph, total, created_at
+        FROM invoice_header
+        {where_sql}
+        ORDER BY id DESC
+        LIMIT 200
+    """, params).fetchall()
+
+    # total pembelian sesuai filter
+    total_beli_row = conn.execute(f"""
+        SELECT COALESCE(SUM(COALESCE(total,0)),0) AS total_beli
+        FROM invoice_header
+        {where_sql}
+    """, params).fetchone()
+
+    total_beli = float(total_beli_row["total_beli"] or 0)
+
     conn.close()
 
-    return render_template("invoice_list.html", rows=[dict(r) for r in rows], start=start, end=end)
+    return render_template(
+        "invoice_list.html",
+        rows=[dict(r) for r in rows],
+        start=start,
+        end=end,
+        supplier=supplier_q,  # <-- tambah
+        total_beli=total_beli
+    )
 
 
-@app.route("/invoice/delete/<int:invoice_id>", methods=["POST"])
-def invoice_delete(invoice_id):
+@app.get("/invoice/edit/<int:invoice_id>")
+def invoice_edit(invoice_id):
     if not require_login():
         return redirect(url_for("login"))
 
     conn = get_conn()
+
+    inv = conn.execute("SELECT * FROM invoice_header WHERE id=?", (invoice_id,)).fetchone()
+    if not inv:
+        conn.close()
+        return "Invoice tidak ditemukan", 404
+
+    # ambil partai dari receiving (sumber data utama)
+    parts = conn.execute("""
+        SELECT partai_no, round_size, COALESCE(netto,0) AS netto
+        FROM receiving_partai
+        WHERE header_id=?
+        ORDER BY partai_no
+    """, (inv["receiving_id"],)).fetchall()
+
+    # ambil detail invoice lama (harga lama)
+    det = conn.execute("""
+        SELECT partai_no, harga
+        FROM invoice_detail
+        WHERE invoice_id=?
+        ORDER BY partai_no
+    """, (invoice_id,)).fetchall()
+
+    conn.close()
+
+    # map harga lama per partai
+    det_map = {d["partai_no"]: (d["harga"] or 0) for d in det}
+
+    return render_template(
+        "invoice_edit.html",
+        inv=dict(inv),
+        parts=[dict(p) for p in parts],
+        det_map=det_map
+    )
+
+@app.post("/invoice/update/<int:invoice_id>")
+def invoice_update(invoice_id):
+    if not require_login():
+        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
+
+    data = request.get_json(force=True) or {}
+    items = data.get("items") or []   # [{partai_no:1, harga:32000}, ...]
+    pph_input = data.get("pph_rate")  # input persen (contoh 1 = 1%)
+
+    conn = get_conn()
     cur = conn.cursor()
+
+    inv = conn.execute("SELECT * FROM invoice_header WHERE id=?", (invoice_id,)).fetchone()
+    if not inv:
+        conn.close()
+        return jsonify({"ok": False, "msg": "Invoice tidak ditemukan"}), 404
+
+    receiving_id = inv["receiving_id"]
+
+    # sumber netto & size dari receiving
+    parts = conn.execute("""
+        SELECT partai_no, round_size, COALESCE(netto,0) AS netto
+        FROM receiving_partai
+        WHERE header_id=?
+    """, (receiving_id,)).fetchall()
+    part_map = {p["partai_no"]: p for p in parts}
+
     try:
+        pph_rate = float(pph_input or 0) / 100.0
+    except:
+        pph_rate = 0.0
+
+    subtotal = 0.0
+    detail_rows = []
+
+    for it in items:
+        pn = int(it.get("partai_no") or 0)
+        harga = int(float(it.get("harga") or 0))
+
+        p = part_map.get(pn)
+        if not p:
+            continue
+
+        size_round = p["round_size"]
+        berat_netto = float(p["netto"] or 0)
+        total_harga = berat_netto * harga
+
+        subtotal += total_harga
+        detail_rows.append((invoice_id, pn, size_round, berat_netto, harga, total_harga))
+
+    pph = subtotal * pph_rate
+    total = subtotal - pph   # kalau PPH menambah: subtotal + pph
+
+    try:
+        cur.execute("""
+            UPDATE invoice_header
+            SET pph_rate=?, subtotal=?, pph=?, total=?
+            WHERE id=?
+        """, (pph_rate, subtotal, pph, total, invoice_id))
+
         cur.execute("DELETE FROM invoice_detail WHERE invoice_id=?", (invoice_id,))
-        cur.execute("DELETE FROM invoice_header WHERE id=?", (invoice_id,))
+        for row in detail_rows:
+            cur.execute("""
+                INSERT INTO invoice_detail
+                    (invoice_id, partai_no, size_round, berat_netto, harga, total_harga)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, row)
+
         conn.commit()
     except Exception as e:
         conn.rollback()
         conn.close()
-        return f"Gagal hapus invoice: {e}", 500
+        return jsonify({"ok": False, "msg": f"Gagal update: {e}"}), 500
 
     conn.close()
-    return redirect(url_for("invoice_list"))
+    return jsonify({"ok": True})
 
+@app.route("/invoice/list/print")
+def invoice_list_print():
+    if not require_login():
+        return redirect(url_for("login"))
+
+    start = (request.args.get("start") or "").strip()
+    end = (request.args.get("end") or "").strip()
+    supplier_q = (request.args.get("supplier") or "").strip()
+
+    conn = get_conn()
+
+    where = ["status='ACTIVE'"]
+    params = []
+
+    if start and end:
+        where.append("tanggal BETWEEN ? AND ?")
+        params.extend([start, end])
+    elif start:
+        where.append("tanggal >= ?")
+        params.append(start)
+    elif end:
+        where.append("tanggal <= ?")
+        params.append(end)
+
+    if supplier_q:
+        where.append("LOWER(TRIM(supplier)) = ?")
+        params.append(supplier_q.lower())
+
+    where_sql = "WHERE " + " AND ".join(where)
+
+    rows = conn.execute(f"""
+        SELECT id, receiving_id, tanggal, supplier, subtotal, pph, total, created_at
+        FROM invoice_header
+        {where_sql}
+        ORDER BY id DESC
+    """, params).fetchall()
+
+    total_beli_row = conn.execute(f"""
+        SELECT COALESCE(SUM(COALESCE(total,0)),0) AS total_beli
+        FROM invoice_header
+        {where_sql}
+    """, params).fetchone()
+
+    total_beli = float(total_beli_row["total_beli"] or 0)
+    conn.close()
+
+    return render_template(
+        "invoice_list_print.html",
+        rows=[dict(r) for r in rows],
+        total_beli=total_beli,
+        start=start,
+        end=end,
+        supplier=supplier_q
+    )
+
+
+
+@app.post("/invoice/save/<int:invoice_id>")
+def invoice_save(invoice_id):
+    if not require_login():
+        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
+
+    data = request.get_json(force=True) or {}
+    rows = data.get("rows") or []
+    deleted_ids = data.get("deleted_ids") or []
+
+    conn = get_conn()
+    cur = conn.cursor()
+
+    inv = conn.execute("SELECT id FROM invoice_header WHERE id=?", (invoice_id,)).fetchone()
+    if not inv:
+        conn.close()
+        return jsonify({"ok": False, "msg": "Invoice tidak ditemukan"}), 404
+
+    try:
+        # 1) delete baris yang memang dihapus user
+        for did in deleted_ids:
+            cur.execute("DELETE FROM invoice_detail WHERE id=? AND invoice_id=?", (did, invoice_id))
+
+        # 2) upsert baris: kalau ada id -> UPDATE, kalau kosong -> INSERT
+        for r in rows:
+            detail_id = r.get("id")  # boleh None
+            partai_no = int(r.get("partai_no") or 0)
+            qty = float(r.get("qty") or 0)
+            harga = float(r.get("harga") or 0)
+            jumlah = qty * harga
+
+            if detail_id:
+                cur.execute("""
+                    UPDATE invoice_detail
+                    SET partai_no=?, qty=?, harga=?, jumlah=?
+                    WHERE id=? AND invoice_id=?
+                """, (partai_no, qty, harga, jumlah, detail_id, invoice_id))
+            else:
+                cur.execute("""
+                    INSERT INTO invoice_detail (invoice_id, partai_no, qty, harga, jumlah)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (invoice_id, partai_no, qty, harga, jumlah))
+
+        # 3) hitung ulang header (subtotal/pph/total)
+        subtotal = conn.execute("""
+            SELECT COALESCE(SUM(COALESCE(jumlah,0)),0) AS s
+            FROM invoice_detail WHERE invoice_id=?
+        """, (invoice_id,)).fetchone()["s"]
+
+        pph = float(data.get("pph") or 0)
+        total = float(subtotal) - float(pph)
+
+        cur.execute("""
+            UPDATE invoice_header
+            SET subtotal=?, pph=?, total=?
+            WHERE id=?
+        """, (subtotal, pph, total, invoice_id))
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        conn.close()
+        return jsonify({"ok": False, "msg": f"Gagal simpan: {e}"}), 500
+
+    conn.close()
+    return jsonify({"ok": True})
+
+@app.post("/invoice/void/<int:invoice_id>")
+def invoice_void(invoice_id):
+    if not require_login():
+        return redirect(url_for("login"))
+
+    conn = get_conn()
+    conn.execute("UPDATE invoice_header SET status='VOID' WHERE id=?", (invoice_id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("invoice_list"))
 
 # =========================
 # Menus (optional, kamu masih pakai)
@@ -994,5 +1276,6 @@ print(app.url_map)
 # Run
 # =========================
 if __name__ == "__main__":
+
     app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
 

@@ -1,84 +1,233 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Invoice List</title>
   <style>
     body{font-family:Arial;padding:24px;background:#f3f4f6}
-    .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:5px}
     .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 8px 20px rgba(0,0,0,.06);margin-top:12px}
+
     table{width:100%;border-collapse:collapse;margin-top:12px}
-    th,td{border:1px solid #e5e7eb;padding:10px;text-align:left}
+    th,td{border:1px solid #e5e7eb;padding:10px;text-align:left;vertical-align:top}
     th{background:#f9fafb}
-    input{padding:10px;border:1px solid #d1d5db;border-radius:10px}
-    .btn{padding:10px 14px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
-    .btn-primary{background:#2563eb;color:#fff}
-    .btn-secondary{background:#111827;color:#fff;text-decoration:none;display:inline-block}
-    .btn-danger{background:#dc2626;color:#fff}
     .right{text-align:right}
     a{color:#2563eb;text-decoration:none;font-weight:700}
+
+    /* ===== Filter bar (tanggal + supplier) ===== */
+        .filter-row{
+      display:flex;
+      gap:12px;
+      align-items:flex-end;
+      flex-wrap:wrap;
+    }
+
+    .filter-item{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+
+    .filter-item label{
+      font-size:13px;
+      font-weight:700;
+      color:#111827;
+    }
+
+    /* input & select seragam */
+    .filter-item input,
+    .filter-item select{
+      width:220px;
+      height:40px;
+      padding:10px;
+      border:1px solid #d1d5db;
+      border-radius:10px;
+      box-sizing:border-box;
+      background:#fff;
+    }
+
+    /* total pembelian model "pill" biar sejajar input */
+    .summary-inline { width:220px; }
+    .summary-pill{
+      height:40px;
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      padding:0 12px;
+      border:1px solid #e5e7eb;
+      border-radius:10px;
+      background:#f9fafb;
+      font-weight:800;
+    }
+
+    /* area tombol */
+    .filter-actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    /* tombol sama besar */
+    .btn{
+      width:120px;     /* <-- ini yang bikin sama besar */
+      height:40px;
+      padding:10px 14px;
+      border-radius:10px;
+      font-weight:700;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      text-decoration:none;
+      border:0;
+    }
+
+    /* variasi warna tombol */
+    .btn-primary{background:#2563eb;color:#fff}
+    .btn-secondary{background:#111827;color:#fff}
+    .btn-ghost{background:#e5e7eb;color:#111827}
+    .btn-outline{background:#fff;color:#111827;border:1px solid #d1d5db}
+
+
+    /* summary box */
+    .summary-row{margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;}
+    .summary-box{
+      background:#f9fafb;
+      border:1px solid #e5e7eb;
+      border-radius:12px;
+      padding:12px 14px;
+    }
+    .summary-label{font-size:12px;color:#6b7280;}
+    .summary-value{font-size:18px;font-weight:800;margin-top:4px;}
+
+    /* aksi */
+    .aksi{display:flex;gap:10px;align-items:center;}
   </style>
 </head>
+<button onclick="window.print()">Print</button>
+
 <body>
-
-<div class="top">
-  <h2>Invoice List</h2>
-  <div>
-    <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
+  <div class="top">
+    <h2>Purchasing RAW</h2>
   </div>
-</div>
 
-<div class="card">
-  <form method="get" style="display:flex;gap:10px;flex-wrap:wrap;align-items:end">
-    <div>
-      <div>Dari Tanggal</div>
-      <input type="date" name="start" value="{{ start }}">
+  <div class="card">
+
+    <form method="get" action="/invoice/list" class="filter-row">
+  <div class="filter-item">
+    <label>Dari Tanggal</label>
+    <input type="date" name="start" value="{{ start or '' }}">
+  </div>
+
+  <div class="filter-item">
+    <label>Sampai</label>
+    <input type="date" name="end" value="{{ end or '' }}">
+  </div>
+
+  <div class="filter-item">
+    <label>Supplier</label>
+    <select id="supplier" name="supplier"></select>
+  </div>
+
+  <!-- Total pembelian (sebaris) -->
+  <div class="filter-item summary-inline">
+    <label>Total Pembelian</label>
+    <div class="summary-pill">
+      {{ "{:,.0f}".format(total_beli or 0).replace(",", ".") }}
     </div>
-    <div>
-      <div>Sampai</div>
-      <input type="date" name="end" value="{{ end }}">
-    </div>
+  </div>
+
+  <!-- Tombol -->
+  <div class="filter-actions">
     <button class="btn btn-primary" type="submit">Cari</button>
-    <a class="btn btn-secondary" href="/invoice/list">Reset</a>
-  </form>
 
-  <table>
-    <thead>
-      <tr>
-        <th>ID</th>
-        <th>Tanggal</th>
-        <th>Supplier</th>
-        <th>Receiving</th>
-        <th class="right">Subtotal</th>
-        <th class="right">PPH</th>
-        <th class="right">Total</th>
-        <th>Aksi</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for r in rows %}
-      <tr>
-        <td>{{ r.id }}</td>
-        <td>{{ r.tanggal }}</td>
-        <td>{{ r.supplier }}</td>
-        <td>{{ r.receiving_id }}</td>
-        <td class="right">{{ "{:,.0f}".format(r.subtotal or 0).replace(",", ".") }}</td>
-        <td class="right">{{ "{:,.0f}".format(r.pph or 0).replace(",", ".") }}</td>
-        <td class="right"><b>{{ "{:,.0f}".format(r.total or 0).replace(",", ".") }}</b></td>
-        <td style="display:flex; gap:10px; align-items:center;">
-          <a href="/invoice/{{ r.id }}">Detail</a>
+    <a class="btn btn-ghost" href="/invoice/list">Reset</a>
 
-          <form method="post" action="/invoice/delete/{{ r.id }}"
-                onsubmit="return confirm('Yakin mau hapus invoice ID {{ r.id }}?');"
-                style="margin:0;">
-            <button type="submit" class="btn btn-danger" style="padding:6px 10px;">Hapus</button>
-          </form>
+    <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
+
+    <!-- Tombol Print -->
+    <a class="btn btn-outline"
+   href="/invoice/list/print?start={{ start or '' }}&end={{ end or '' }}&supplier={{ supplier or '' }}">
+      Print
+      </a>
+
+  </div>
+</form>
+
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Tanggal</th>
+          <th>Supplier</th>
+          <th>Receiving</th>
+          <th class="right">Subtotal</th>
+          <th class="right">PPH</th>
+          <th class="right">Total</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.id }}</td>
+          <td>{{ r.tanggal }}</td>
+          <td>{{ r.supplier }}</td>
+          <td>{{ r.receiving_id }}</td>
+          <td class="right">{{ "{:,.0f}".format(r.subtotal or 0).replace(",", ".") }}</td>
+          <td class="right">{{ "{:,.0f}".format(r.pph or 0).replace(",", ".") }}</td>
+          <td class="right"><b>{{ "{:,.0f}".format(r.total or 0).replace(",", ".") }}</b></td>
+          <td>
+            <div class="aksi">
+              <a href="/invoice/{{ r.id }}">Detail</a>
+              <a href="/invoice/edit/{{ r.id }}">Edit</a>
+            </div>
           </td>
-      </tr>
-          {% endfor %}
-    </tbody>
-  </table>
-</div>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
+  <script>
+    function escapeHtml(s) {
+      return (s || "")
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    async function loadSuppliersInvoice() {
+      const sel = document.getElementById("supplier");
+      if (!sel) return;
+
+      const params = new URLSearchParams(window.location.search);
+      const selected = (params.get("supplier") || "").trim().toLowerCase();
+
+      let rows = [];
+      try {
+        const res = await fetch("/master/suppliers");
+        rows = await res.json();
+      } catch (e) {
+        // kalau gagal fetch, tetap tampilkan minimal option
+        rows = [];
+      }
+
+      const options = [`<option value="">-- Semua Supplier --</option>`]
+        .concat(rows.map(r => {
+          const v = (r.nama || "").trim();
+          const isSel = (v.toLowerCase() === selected) ? "selected" : "";
+          return `<option value="${escapeHtml(v)}" ${isSel}>${escapeHtml(v)}</option>`;
+        }));
+
+      sel.innerHTML = options.join("");
+    }
+
+    loadSuppliersInvoice();
+  </script>
 </body>
 </html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Edit Invoice</title>
+  <style>
+    body{font-family:Arial;padding:24px;background:#f3f4f6}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    th,td{border:1px solid #e5e7eb;padding:10px;text-align:left}
+    th{background:#f9fafb}
+    input{padding:10px;border:1px solid #d1d5db;border-radius:10px;width:140px}
+    .btn{padding:10px 14px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn-primary{background:#2563eb;color:#fff}
+    .right{text-align:right}
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>Edit Invoice ID {{ inv.id }}</h2>
+  <div>Tanggal: {{ inv.tanggal }} | Supplier: {{ inv.supplier }} | Receiving: {{ inv.receiving_id }}</div>
+
+  <div style="margin-top:12px;">
+    <label>PPH (%)</label><br>
+    <input id="pph_rate" type="number" step="0.01" value="{{ (inv.pph_rate or 0) * 100 }}">
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Partai</th>
+        <th>Round Size</th>
+        <th class="right">Netto (kg)</th>
+        <th class="right">Harga/kg</th>
+        <th class="right">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in parts %}
+      <tr>
+        <td>{{ p.partai_no }}</td>
+        <td>{{ p.round_size or '-' }}</td>
+        <td class="right">{{ "{:,.2f}".format(p.netto or 0).replace(",", ".") }}</td>
+        <td class="right">
+          <input class="harga" data-partai="{{ p.partai_no }}" type="number"
+                 value="{{ det_map.get(p.partai_no, 0) }}">
+        </td>
+        <td class="right" id="tot_{{ p.partai_no }}">0</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div style="margin-top:12px;">
+    <button class="btn btn-primary" id="btnSave" type="button">Save Perubahan</button>
+  </div>
+</div>
+
+<script>
+function num(v){ const x=parseFloat(v||0); return isNaN(x)?0:x; }
+
+function recalc(){
+  document.querySelectorAll(".harga").forEach(inp=>{
+    const pn = inp.dataset.partai;
+    // netto ambil dari kolom tabel (lebih simpel: parse dari td ke-3)
+    const tr = inp.closest("tr");
+    const netto = num(tr.children[2].innerText.replaceAll(".","").replace(",","."));
+    const harga = num(inp.value);
+    const tot = netto * harga;
+    document.getElementById("tot_"+pn).innerText = tot.toLocaleString("id-ID");
+  });
+}
+document.querySelectorAll(".harga").forEach(i=>i.addEventListener("input", recalc));
+recalc();
+
+document.getElementById("btnSave").addEventListener("click", async ()=>{
+  const items = [];
+  document.querySelectorAll(".harga").forEach(inp=>{
+    items.push({partai_no: parseInt(inp.dataset.partai), harga: num(inp.value)});
+  });
+
+  const payload = { pph_rate: num(document.getElementById("pph_rate").value), items };
+
+  const res = await fetch("/invoice/update/{{ inv.id }}", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  const out = await res.json();
+  if(!res.ok || !out.ok) return alert(out.msg || "Gagal update");
+
+  alert("Invoice berhasil diupdate!");
+  window.location.href = "/invoice/{{ inv.id }}";
+});
+</script>
+
+</body>
+</html>

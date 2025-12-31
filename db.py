@@ -94,8 +94,7 @@ def init_db():
       FOREIGN KEY(production_id) REFERENCES production_header(id)
     );
         
-          -- production_packing (format baru sesuai sheet)
-    DROP TABLE IF EXISTS production_packing;
+      
         
     CREATE TABLE IF NOT EXISTS production_packing (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
