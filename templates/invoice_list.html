@@ -69,19 +69,21 @@
     }
 
     /* tombol sama besar */
-    .btn{
-      width:120px;     /* <-- ini yang bikin sama besar */
-      height:40px;
-      padding:10px 14px;
-      border-radius:10px;
-      font-weight:700;
-      cursor:pointer;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      text-decoration:none;
-      border:0;
+    .btn {
+      width: 120px;          /* samakan */
+      height: 50px;          /* samakan */
+      padding: 2 !important; /* biar gak beda2 */
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+
+      font-size: 14px;
+      font-weight: 700;
+      line-height: 1;        /* penting, supaya button tidak lebih pendek */
+      border-radius: 10px;
     }
+
 
     /* variasi warna tombol */
     .btn-primary{background:#2563eb;color:#fff}
@@ -105,7 +107,7 @@
     .aksi{display:flex;gap:10px;align-items:center;}
   </style>
 </head>
-<button onclick="window.print()">Print</button>
+
 
 <body>
   <div class="top">
@@ -140,7 +142,7 @@
 
   <!-- Tombol -->
   <div class="filter-actions">
-    <button class="btn btn-primary" type="submit">Cari</button>
+    <a class="btn btn-secondary" type="submit">Cari</a>
 
     <a class="btn btn-ghost" href="/invoice/list">Reset</a>
 

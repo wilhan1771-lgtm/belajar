@@ -894,6 +894,98 @@ def production_list():
         suppliers=[s["nama"] for s in suppliers],   # ✅ dropdown data
         jenis_list=[j["nama"] for j in jenis_list], # ✅ dropdown data
     )
+@app.route("/production/list/print")
+def production_list_print():
+    if not require_login():
+        return redirect(url_for("login"))
+
+    start = (request.args.get("start") or "").strip()
+    end = (request.args.get("end") or "").strip()
+    supplier_q = (request.args.get("supplier") or "").strip()
+    jenis_q = (request.args.get("jenis") or "").strip()
+
+    conn = get_conn()
+
+    # --- filter sama seperti production_list ---
+    where = []
+    params = []
+
+    if start and end:
+        where.append("r.tanggal BETWEEN ? AND ?")
+        params.extend([start, end])
+    elif start:
+        where.append("r.tanggal >= ?")
+        params.append(start)
+    elif end:
+        where.append("r.tanggal <= ?")
+        params.append(end)
+
+    if supplier_q:
+        where.append("LOWER(TRIM(r.supplier)) = ?")
+        params.append(supplier_q.strip().lower())
+
+    if jenis_q:
+        where.append("LOWER(TRIM(r.jenis)) = ?")
+        params.append(jenis_q.strip().lower())
+
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+
+    rows = conn.execute(f"""
+        SELECT
+          r.id AS receiving_id,
+          r.tanggal, r.supplier, r.jenis,
+          r.total_netto AS rm_kg,
+
+          COALESCE(hl.berat_kg,0) AS hl_kg,
+          COALESCE(hl.yield_pct,0) AS hl_yield,
+
+          COALESCE(kp.berat_kg,0) AS kupas_kg,
+          COALESCE(kp.yield_pct,0) AS kupas_yield,
+
+          COALESCE(sk.berat_kg,0) AS fg_kg,
+          COALESCE(sk.yield_pct,0) AS fg_yield,
+
+          COALESCE(sk.yield_pct,0) AS final_pct
+        FROM (
+          SELECT h.id, h.tanggal, h.supplier, h.jenis,
+                 COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
+          FROM receiving_header h
+          LEFT JOIN receiving_partai p ON p.header_id=h.id
+          GROUP BY h.id
+        ) r
+        LEFT JOIN production_header ph ON ph.id = (
+          SELECT id FROM production_header
+          WHERE receiving_id = r.id
+          ORDER BY id DESC
+          LIMIT 1
+        )
+        LEFT JOIN production_step hl ON hl.production_id=ph.id AND hl.step_name='HL'
+        LEFT JOIN production_step kp ON kp.production_id=ph.id AND kp.step_name='KUPAS'
+        LEFT JOIN production_step sk ON sk.production_id=ph.id AND sk.step_name='SOAKING'
+        {where_sql}
+        ORDER BY r.id DESC
+    """, params).fetchall()
+
+    rows = [dict(r) for r in rows]
+
+    summary = {
+        "total_rm": sum([(x.get("rm_kg") or 0) for x in rows]),
+        "total_fg": sum([(x.get("fg_kg") or 0) for x in rows]),
+        "avg_yield": (sum([(x.get("final_pct") or 0) for x in rows]) / len(rows)) if rows else 0,
+        "count_rows": len(rows),
+    }
+
+    conn.close()
+
+    return render_template(
+        "production_list_print.html",
+        rows=rows,
+        summary=summary,
+        start=start,
+        end=end,
+        supplier=supplier_q,
+        jenis=jenis_q
+    )
 
 @app.get("/production/debug/<int:receiving_id>")
 def production_debug(receiving_id):

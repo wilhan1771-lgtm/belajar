@@ -11,10 +11,29 @@
   th,td{border:1px solid #e5e7eb;padding:10px;text-align:left}
   th{background:#f9fafb}
   input, select{padding:10px;border:1px solid #d1d5db;border-radius:10px}
-  .btn{padding:10px 14px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
-  .btn-primary{background:#2563eb;color:#fff}
-  .btn-secondary{background:#111827;color:#fff;text-decoration:none;display:inline-block}
-  .right{text-align:right}
+  button.btn,
+a.btn{
+  width:120px;
+  height:40px;
+  padding:0 !important;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  box-sizing:border-box;
+  font-size:14px;
+  font-weight:700;
+  line-height:1;
+  border-radius:10px;
+  text-decoration:none;
+  cursor:pointer;
+  border:0;
+}
+
+.btn-primary{background:#2563eb;color:#fff}
+.btn-secondary{background:#111827;color:#fff}
+.btn-ghost{background:#e5e7eb;color:#111827}
+.btn-outline{background:#fff;color:#111827;border:1px solid #d1d5db}
+
   a{color:#2563eb;text-decoration:none;font-weight:700}
 
   .summary{display:flex;gap:14px;flex-wrap:wrap;margin-top:12px}
@@ -22,15 +41,22 @@
   .pill b{display:block;font-size:13px;color:#111827}
   .pill span{font-size:18px}
 
-  /* FILTERS: satu baris */
   .filters{
-    display:grid;
-    grid-template-columns: 170px 170px 220px 220px auto auto; /* start, end, supplier, jenis, cari, reset */
-    gap:10px;
-    align-items:end;
-  }
-  @media (max-width: 900px){
-    .filters{ grid-template-columns: 1fr 1fr; }
+  display:grid;
+  grid-template-columns: 170px 170px 220px 220px 1fr; /* kolom terakhir untuk tombol */
+  gap:10px;
+  align-items:end;
+}
+
+.filter-actions{
+  display:flex;
+  gap:10px;
+  justify-content:flex-end;
+  flex-wrap:wrap;
+}
+
+}
+
   }
 </style>
 
@@ -39,13 +65,10 @@
 
 <div class="top">
   <h2>Production List</h2>
-  <div>
-    <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
-  </div>
 </div>
 
 <div class="card">
-  <form method="get" class="filters">
+  <form method="get" action="/production/list" class="filters">
   <div>
     <div>Dari Tanggal</div>
     <input type="date" name="start" value="{{ start }}">
@@ -61,23 +84,42 @@
     <select name="supplier">
       <option value="">-- Semua Supplier --</option>
       {% for s in suppliers %}
-        <option value="{{ s }}" {{ "selected" if supplier==s else "" }}>{{ s }}</option>
+        {% if supplier|lower == s|lower %}
+          <option value="{{ s }}" selected>{{ s }}</option>
+        {% else %}
+          <option value="{{ s }}">{{ s }}</option>
+        {% endif %}
       {% endfor %}
     </select>
+
   </div>
 
   <div>
     <div>Jenis</div>
     <select name="jenis">
-      <option value="">-- Semua Jenis --</option>
-      {% for j in jenis_list %}
-        <option value="{{ j }}" {{ "selected" if jenis==j else "" }}>{{ j }}</option>
-      {% endfor %}
-    </select>
-  </div>
+  <option value="">-- Semua Jenis --</option>
+  {% for j in jenis_list %}
+    {% if jenis|lower == j|lower %}
+      <option value="{{ j }}" selected>{{ j }}</option>
+    {% else %}
+      <option value="{{ j }}">{{ j }}</option>
+    {% endif %}
+  {% endfor %}
+</select>
 
+  </div>
+<div class="filter-actions">
   <button class="btn btn-primary" type="submit">Cari</button>
-  <a class="btn btn-secondary" href="/production/list">Reset</a>
+
+  <a class="btn btn-ghost" href="/production/list">Reset</a>
+
+  <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
+
+  <a class="btn btn-outline"
+     href="/production/list/print?start={{ start or '' }}&end={{ end or '' }}&supplier={{ supplier or '' }}&jenis={{ jenis or '' }}">
+    Print
+  </a>
+</div>
 </form>
 
   <div class="summary">
@@ -113,9 +155,7 @@
 
     <th class="right">Soaking/FG (kg)</th>
     <th class="right">Yield Soak (%)</th>
-
-    <th class="right">Final (%)</th>
-    <th>Aksi</th>
+      <th>Aksi</th>
   </tr>
 </thead>
 
@@ -138,15 +178,7 @@
   <td class="right">{{ "{:,.2f}".format(r.fg_kg or 0).replace(",", ".") }}</td>
   <td class="right"><b>{{ "{:,.2f}".format(r.fg_yield or 0).replace(",", ".") }}</b></td>
 
-  <td class="right">
-    {% if (r.fg_kg or 0) <= 0 %}
-      <span style="color:#dc2626;font-weight:700;">BELUM INPUT</span>
-    {% else %}
-      <b>{{ "{:,.2f}".format(r.fg_yield or 0).replace(",", ".") }}</b>
-    {% endif %}
-  </td>
-
-  <td style="display:flex; gap:10px; align-items:center;">
+    <td style="display:flex; gap:10px; align-items:center;">
     <a href="/production/open/{{ r.receiving_id }}">PRODUKSI</a>
     <a href="/receiving/{{ r.receiving_id }}">Detail</a>
   </td>
