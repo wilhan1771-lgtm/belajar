@@ -453,15 +453,15 @@ def receiving_update(header_id):
 
 def sync_invoice_from_receiving(conn, receiving_id: int):
     """
-    Jika ada invoice ACTIVE untuk receiving_id:
-    - update invoice_detail.size_round + berat_netto dari receiving_partai
-    - hitung ulang total_harga per baris (berat_netto * harga)
-    - update invoice_header.subtotal/pph/total dengan pph_rate yg tersimpan
+    Sinkronkan invoice dari receiving jika invoice masih DRAFT:
+    - update size_round + berat_netto di invoice_detail sesuai receiving_partai
+    - total_harga = berat_netto * harga (harga dipertahankan)
+    - update invoice_header subtotal/pph/total berdasarkan pph_rate
     """
     inv = conn.execute("""
         SELECT id, COALESCE(pph_rate,0) AS pph_rate
         FROM invoice_header
-        WHERE receiving_id=? AND status='ACTIVE'
+        WHERE receiving_id=? AND status='DRAFT'
         ORDER BY id DESC
         LIMIT 1
     """, (receiving_id,)).fetchone()
@@ -472,14 +472,13 @@ def sync_invoice_from_receiving(conn, receiving_id: int):
     invoice_id = inv["id"]
     pph_rate = float(inv["pph_rate"] or 0)
 
-    # Ambil detail invoice yang sudah ada (harga dipertahankan)
     det_rows = conn.execute("""
-        SELECT id, partai_no, harga
+        SELECT id, partai_no, COALESCE(harga,0) AS harga
         FROM invoice_detail
         WHERE invoice_id=?
+        ORDER BY partai_no
     """, (invoice_id,)).fetchall()
 
-    # map receiving partai by partai_no
     parts = conn.execute("""
         SELECT partai_no, round_size, COALESCE(netto,0) AS netto
         FROM receiving_partai
@@ -496,7 +495,6 @@ def sync_invoice_from_receiving(conn, receiving_id: int):
 
         p = part_map.get(pn)
         if not p:
-            # kalau partai hilang, boleh kamu set 0 atau biarkan
             size_round = None
             berat_netto = 0.0
         else:
@@ -513,13 +511,14 @@ def sync_invoice_from_receiving(conn, receiving_id: int):
         """, (size_round, berat_netto, total_harga, d["id"], invoice_id))
 
     pph = subtotal * pph_rate
-    total = subtotal - pph   # ikut logic kamu sekarang (subtotal - pph)
+    total = subtotal - pph   # sesuai logic kamu: total = subtotal - pph
 
     cur.execute("""
         UPDATE invoice_header
         SET subtotal=?, pph=?, total=?
         WHERE id=?
     """, (subtotal, pph, total, invoice_id))
+
 
 
 @app.post("/receiving/delete/<int:rid>")
@@ -702,13 +701,17 @@ def receiving_edit(header_id):
     conn = get_conn()
 
     # ✅ LOCK: kalau sudah ada invoice, jangan boleh edit
-    inv = conn.execute(
-        "SELECT id FROM invoice_header WHERE receiving_id = ? LIMIT 1",
-        (header_id,)
-    ).fetchone()
-    if inv:
+    inv = conn.execute("""
+                       SELECT id, status
+                       FROM invoice_header
+                       WHERE receiving_id = ?
+                         AND status!='VOID'
+                       ORDER BY id DESC LIMIT 1
+                       """, (header_id,)).fetchone()
+
+    if inv and inv["status"] != "DRAFT":
         conn.close()
-        return "Receiving sudah dibuat invoice, tidak bisa diedit.", 400
+        return "Receiving terkunci karena invoice sudah FINAL.", 400
 
     header = conn.execute(
         "SELECT * FROM receiving_header WHERE id = ?",
@@ -868,6 +871,17 @@ def invoice_new(receiving_id):
             partai=[dict(r) for r in partai_rows],
             required_sizes=required_sizes
         )
+    # ✅ kalau invoice sudah ada untuk receiving ini (dan bukan VOID), jangan bikin lagi
+    existing = conn.execute("""
+        SELECT id FROM invoice_header
+        WHERE receiving_id=? AND status!='VOID'
+        ORDER BY id DESC
+        LIMIT 1
+    """, (receiving_id,)).fetchone()
+    if existing:
+        conn.close()
+        return redirect(url_for("invoice_view", invoice_id=existing["id"]))
+
 
     # POST: generate invoice
     points = {}
@@ -910,17 +924,21 @@ def invoice_new(receiving_id):
 
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO invoice_header (receiving_id, tanggal, supplier, price_points_json, subtotal, pph, total)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-    """, (
-        receiving_id,
-        header["tanggal"],
-        header["supplier"],
-        json.dumps(points),
-        float(subtotal),
-        float(pph) if pph is not None else None,
-        float(total)
-    ))
+                INSERT INTO invoice_header
+                (receiving_id, tanggal, supplier, price_points_json, subtotal, pph_rate, pph, total, status)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    receiving_id,
+                    header["tanggal"],
+                    header["supplier"],
+                    json.dumps(points),
+                    float(subtotal),
+                    float(pph_rate or 0),
+                    float(pph or 0),
+                    float(total),
+                    "DRAFT"
+                ))
+
     invoice_id = cur.lastrowid
 
     # insert details (FIX: loop dict, bukan unpack tuple)
@@ -1181,10 +1199,9 @@ def invoice_list():
 
     conn = get_conn()
 
-    where = ["status='ACTIVE'"]
+    where = ["status!='VOID'"]
     params = []
 
-    # filter tanggal
     if start and end:
         where.append("tanggal BETWEEN ? AND ?")
         params.extend([start, end])
@@ -1195,23 +1212,23 @@ def invoice_list():
         where.append("tanggal <= ?")
         params.append(end)
 
-    # filter supplier (case-insensitive)
     if supplier_q:
         where.append("LOWER(TRIM(supplier)) = ?")
         params.append(supplier_q.lower())
 
     where_sql = "WHERE " + " AND ".join(where)
 
-    # data tabel
+    # DEBUG PRINT (sementara)
+    print("INVOICE LIST SQL:", where_sql, "PARAMS:", params)
+
     rows = conn.execute(f"""
-        SELECT id, receiving_id, tanggal, supplier, subtotal, pph, total, created_at
+        SELECT id, receiving_id, tanggal, supplier, subtotal, pph, total, status, created_at
         FROM invoice_header
         {where_sql}
         ORDER BY id DESC
         LIMIT 200
     """, params).fetchall()
 
-    # total pembelian sesuai filter
     total_beli_row = conn.execute(f"""
         SELECT COALESCE(SUM(COALESCE(total,0)),0) AS total_beli
         FROM invoice_header
@@ -1227,9 +1244,10 @@ def invoice_list():
         rows=[dict(r) for r in rows],
         start=start,
         end=end,
-        supplier=supplier_q,  # <-- tambah
+        supplier=supplier_q,
         total_beli=total_beli
     )
+
 
 
 @app.get("/invoice/edit/<int:invoice_id>")
@@ -1360,7 +1378,7 @@ def invoice_list_print():
 
     conn = get_conn()
 
-    where = ["status='ACTIVE'"]
+    where = ["status! ='VOID'"]
     params = []
 
     if start and end:

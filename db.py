@@ -131,6 +131,49 @@ def init_db():
 
     CREATE INDEX IF NOT EXISTS idx_production_packing_prod_id
       ON production_packing(production_id);
+      
+      -- =====================
+-- Invoice
+-- =====================
+CREATE TABLE IF NOT EXISTS invoice_header (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  receiving_id INTEGER NOT NULL,
+  tanggal TEXT NOT NULL,
+  supplier TEXT NOT NULL,
+
+  price_points_json TEXT,
+  subtotal REAL NOT NULL DEFAULT 0,
+  pph_rate REAL NOT NULL DEFAULT 0,   -- contoh 0.004 untuk 0.4%
+  pph REAL NOT NULL DEFAULT 0,
+  total REAL NOT NULL DEFAULT 0,
+
+  status TEXT NOT NULL DEFAULT 'DRAFT',  -- DRAFT / FINAL / VOID
+  created_at TEXT DEFAULT (datetime('now','localtime')),
+
+  FOREIGN KEY(receiving_id) REFERENCES receiving_header(id)
+);
+
+CREATE TABLE IF NOT EXISTS invoice_detail (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  invoice_id INTEGER NOT NULL,
+  partai_no INTEGER,
+  size_round INTEGER,
+  berat_netto REAL,
+  harga REAL,
+  total_harga REAL,
+  FOREIGN KEY(invoice_id) REFERENCES invoice_header(id) ON DELETE CASCADE
+);
+
+-- 1 receiving = 1 invoice (selain VOID tetap dianggap ada)
+CREATE UNIQUE INDEX IF NOT EXISTS ux_invoice_receiving_id
+ON invoice_header(receiving_id);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_header_tanggal
+ON invoice_header(tanggal);
+
+CREATE INDEX IF NOT EXISTS idx_invoice_detail_invoice_id
+ON invoice_detail(invoice_id);
+
     """)
 
     conn.commit()
