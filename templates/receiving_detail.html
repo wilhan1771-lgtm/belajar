@@ -39,6 +39,40 @@
     gap: 8px;
   }
 }
+.btn-outline{background:#fff;color:#111827;border:1px solid #e5e7eb}
+.btn-outline:hover{background:#f9fafb}
+.btn-danger{background:#ef4444;color:#fff}
+.btn-danger:hover{filter:brightness(.95)}
+
+.inp{
+  width:100%;
+  padding:8px 10px;
+  border:1px solid #d1d5db;
+  border-radius:10px;
+  box-sizing:border-box;
+  background:#fff;
+}
+.inp:focus{
+  outline:none;
+  border-color:#2563eb;
+  box-shadow:0 0 0 3px rgba(37,99,235,.15);
+}
+.inp-read{
+  background:#f9fafb;
+}
+.timb-grid{
+  display:grid;
+  grid-template-columns: repeat(6, minmax(0,1fr));
+  gap:8px;
+}
+@media (max-width:900px){
+  .timb-grid{grid-template-columns: repeat(3, minmax(0,1fr));}
+}
+@media (max-width:520px){
+  .timb-grid{grid-template-columns: repeat(2, minmax(0,1fr));}
+}
+.small-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+.btn-sm{padding:8px 10px; border-radius:10px; font-size:13px; font-weight:700;}
 
   </style>
 </head>
@@ -64,6 +98,134 @@
     <a class="btn btn-primary" href="#" onclick="window.print(); return false;">Print</a>
   </div>
 </div>
+
+<button class="btn btn-primary" type="button" id="btnSaveInline">Simpan Perubahan</button>
+
+<script>
+function numOrNull(v){
+  v = (v ?? "").toString().trim();
+  if (v === "") return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+function intOrNull(v){
+  v = (v ?? "").toString().trim();
+  if (v === "") return null;
+  const n = parseInt(v,10);
+  return Number.isFinite(n) ? n : null;
+}
+
+// auto hitung size & round saat pcs/kg diubah (sheet-like)
+function bindAutoCalc(card){
+  const pcsEl = card.querySelector("[name='pcs']");
+  const kgEl  = card.querySelector("[name='kg_sample']");
+  const sizeEl = card.querySelector("[name='size']");
+  const roundEl = card.querySelector("[name='round_size']");
+
+  function calc(){
+    const pcs = numOrNull(pcsEl?.value);
+    const kg  = numOrNull(kgEl?.value);
+    if (pcs && kg && kg > 0){
+      const size = pcs / kg;
+      if (sizeEl) sizeEl.value = size.toFixed(1);
+      if (roundEl) roundEl.value = Math.round(size);
+    } else {
+      if (sizeEl) sizeEl.value = "";
+      if (roundEl) roundEl.value = "";
+    }
+  }
+  pcsEl?.addEventListener("input", calc);
+  kgEl?.addEventListener("input", calc);
+}
+
+function bindAddRow(card){
+  const btn = card.querySelector("[data-add-timb]");
+  if(!btn) return;
+
+  btn.addEventListener("click", () => {
+    const wrap = card.querySelector(".timb-grid");
+    if(!wrap) return;
+
+    const inp = document.createElement("input");
+    inp.type = "number";
+    inp.step = "0.01";
+    inp.className = "inp";
+    inp.setAttribute("data-timbangan", "1");
+    inp.placeholder = "0.00";
+    wrap.appendChild(inp);
+    inp.focus();
+  });
+}
+
+async function saveReceivingInline() {
+  const header_id = {{ header["id"] }};  // ✅ FIX
+
+  const payload = {
+    header: {
+      tanggal: "{{ header["tanggal"] }}",
+      supplier: "{{ header["supplier"] }}",
+      jenis: "{{ header["jenis"] or "" }}",
+      fiber: {{ header["fiber"] if header["fiber"] is not none else "null" }}
+    },
+    partai: []
+  };
+
+  document.querySelectorAll("[data-partai-id]").forEach(card => {
+    const pid = Number(card.dataset.partaiId);
+
+    const pcs = numOrNull(card.querySelector("[name='pcs']")?.value);
+    const kg_sample = numOrNull(card.querySelector("[name='kg_sample']")?.value);
+    const size = numOrNull(card.querySelector("[name='size']")?.value);
+    const round_size = intOrNull(card.querySelector("[name='round_size']")?.value);
+
+    const tara = numOrNull(card.querySelector("[name='tara_per_keranjang']")?.value);
+    const note = (card.querySelector("[name='note']")?.value || "").trim();
+
+    const timbangan = [];
+    card.querySelectorAll("[data-timbangan]").forEach(inp => {
+      const v = numOrNull(inp.value);
+      if (v !== null) timbangan.push(v);
+    });
+
+    const keranjang = timbangan.length || null;
+    const bruto = timbangan.reduce((a,b)=>a+(Number(b)||0), 0) || null;
+    const total_tara = (keranjang && tara) ? (keranjang * tara) : null;
+    const netto = (bruto !== null && total_tara !== null) ? (bruto - total_tara) : null;
+
+    payload.partai.push({
+      id: pid,
+      pcs, kg_sample, size, round_size,
+      keranjang,
+      tara_per_keranjang: tara,
+      bruto,
+      total_tara,
+      netto,
+      note,
+      timbangan
+    });
+  });
+
+  const res = await fetch(`/receiving/update/${header_id}`, {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  const out = await res.json().catch(()=> ({}));
+  if (!res.ok || !out.ok) return alert(out.msg || "Gagal simpan");
+
+  alert("Berhasil disimpan");
+  location.reload();
+}
+
+document.getElementById("btnSaveInline").addEventListener("click", saveReceivingInline);
+
+// bind semua partai saat halaman load
+document.querySelectorAll("[data-partai-id]").forEach(card => {
+  bindAutoCalc(card);
+  bindAddRow(card);
+});
+</script>
 
 
   <!-- HEADER -->
@@ -105,68 +267,91 @@
 
   <!-- PARTAI -->
   {% for p in partai %}
-  <div class="card">
-    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-      <h3 style="margin:0;">Partai #{{ p["partai_no"] }}</h3>
-      <div class="muted">Partai ID: {{ p["id"] }}</div>
-    </div>
-
-    <table>
-      <thead>
-        <tr>
-          <th style="width:160px;">Sampling</th>
-          <th style="width:180px;">Berat</th>
-          <th>Catatan</th>
-          <th>Timbangan</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>
-            <div><b>PCS:</b> {{ p["pcs"] if p["pcs"] is not none else "-" }}</div>
-            <div><b>Kg Sample:</b> {{ p["kg_sample"] if p["kg_sample"] is not none else "-" }}</div>
-            <div><b>Size:</b> {{ p["size"] if p["size"] is not none else "-" }}</div>
-            <div><b>Round:</b> <span style="font-weight:700; text-decoration: underline;">
-                    {{ p["round_size"] if p["round_size"] is not none else "-" }}
-                      </span>
-            </div>
-          </td>
-          <td>
-            <div><b>Keranjang:</b> {{ p["keranjang"] if p["keranjang"] is not none else "-" }}</div>
-            <div><b>Tara/Keranjang:</b> {{ p["tara_per_keranjang"] if p["tara_per_keranjang"] is not none else "-" }}</div>
-            <div><b>Bruto:</b> {{ p["bruto"] if p["bruto"] is not none else "-" }}</div>
-            <div><b>Total Tara:</b> {{ p["total_tara"] if p["total_tara"] is not none else "-" }}</div>
-            <div><b>Netto:</b> <b><span style="font-weight:700; text-decoration: underline;">
-                    {{ p["netto"] if p["netto"] is not none else "-" }}
-                  </span></b></div>
-
-          </td>
-          <td>
-            {{ p["note"] or "-" }}
-          </td>
-          <td>
-            {% if p["timbangan"] and p["timbangan"]|length > 0 %}
-              <div class="chips">
-                {% for t in p["timbangan"] %}
-                  <span class="chip">{{ t }}</span>
-                {% endfor %}
-              </div>
-              <div class="muted" style="margin-top:6px;">
-                Jumlah timbangan: {{ p["timbangan"]|length }}
-              </div>
-            {% else %}
-              -
-            {% endif %}
-            {% if total_netto and total_netto > 0 %}
-
-            {% endif %}
-
-          </td>
-        </tr>
-      </tbody>
-    </table>
+<div class="card" data-partai-id="{{ p['id'] }}">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+    <h3 style="margin:0;">Partai #{{ p["partai_no"] }}</h3>
+    <div class="muted">Partai ID: {{ p["id"] }}</div>
   </div>
-  {% endfor %}
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:220px;">Sampling (edit)</th>
+        <th style="width:240px;">Berat (auto)</th>
+        <th style="width:220px;">Catatan (edit)</th>
+        <th>Timbangan (edit)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <!-- SAMPLING -->
+        <td>
+          <div class="field" style="margin-bottom:8px;">
+            <label>PCS</label>
+            <input class="inp" name="pcs" type="number" value="{{ p['pcs'] if p['pcs'] is not none else '' }}">
+          </div>
+
+          <div class="field" style="margin-bottom:8px;">
+            <label>Kg Sample</label>
+            <input class="inp" name="kg_sample" type="number" step="0.01" value="{{ p['kg_sample'] if p['kg_sample'] is not none else '' }}">
+          </div>
+
+          <div class="field" style="margin-bottom:8px;">
+            <label>Size (auto)</label>
+            <input class="inp inp-read" name="size" type="text" readonly value="{{ p['size'] if p['size'] is not none else '' }}">
+          </div>
+
+          <div class="field">
+            <label>Round (auto)</label>
+            <input class="inp inp-read" name="round_size" type="text" readonly value="{{ p['round_size'] if p['round_size'] is not none else '' }}">
+          </div>
+        </td>
+
+        <!-- BERAT -->
+        <td>
+          <div class="field" style="margin-bottom:8px;">
+            <label>Tara/Keranjang</label>
+            <input class="inp" name="tara_per_keranjang" type="number" step="0.01"
+                   value="{{ p['tara_per_keranjang'] if p['tara_per_keranjang'] is not none else '' }}">
+          </div>
+
+          <div class="muted">Keranjang: <b>{{ p["keranjang"] if p["keranjang"] is not none else "-" }}</b></div>
+          <div class="muted">Bruto: <b>{{ p["bruto"] if p["bruto"] is not none else "-" }}</b></div>
+          <div class="muted">Total Tara: <b>{{ p["total_tara"] if p["total_tara"] is not none else "-" }}</b></div>
+          <div class="muted">Netto: <b>{{ p["netto"] if p["netto"] is not none else "-" }}</b></div>
+
+          <div class="muted" style="margin-top:8px;">
+            (Nilai di atas akan dihitung ulang saat Simpan)
+          </div>
+        </td>
+
+        <!-- NOTE -->
+        <td>
+          <textarea class="inp" name="note" rows="6" style="resize:vertical;">{{ p["note"] or "" }}</textarea>
+        </td>
+
+        <!-- TIMBANGAN -->
+        <td>
+          <div class="timb-grid">
+            {% if p["timbangan"] and p["timbangan"]|length > 0 %}
+              {% for t in p["timbangan"] %}
+                <input class="inp" data-timbangan="1" type="number" step="0.01" value="{{ t }}">
+              {% endfor %}
+            {% else %}
+              <input class="inp" data-timbangan="1" type="number" step="0.01" value="">
+            {% endif %}
+          </div>
+
+          <div class="small-actions">
+            <button type="button" class="btn btn-outline btn-sm" data-add-timb="1">+ Baris</button>
+            <span class="muted">Kosongkan value untuk abaikan.</span>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endfor %}
 
 </body>
 </html>
