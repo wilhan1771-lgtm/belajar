@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-from datetime import date
-import json, sqlite3
+from datetime import date, datetime, timedelta
+import json
+import sqlite3
 
 from db import init_db, get_conn
 
@@ -26,11 +27,11 @@ def interpolate_price(size: int | None, points: dict) -> int | None:
 
     try:
         size = int(size)
-    except:
+    except (TypeError, ValueError):
         return None
 
     # only keep valid numeric points
-    pts = {}
+    pts: dict[int, int] = {}
     for k, v in points.items():
         if v is None:
             continue
@@ -38,7 +39,7 @@ def interpolate_price(size: int | None, points: dict) -> int | None:
             continue
         try:
             pts[int(k)] = int(v)
-        except:
+        except (TypeError, ValueError):
             pass
 
     if size in pts:
@@ -56,8 +57,9 @@ def interpolate_price(size: int | None, points: dict) -> int | None:
 
     return None
 
-def require_login():
-    return "user" in session
+
+def require_login() -> bool:
+    return bool(session.get("user"))
 
 
 # =========================
@@ -66,6 +68,7 @@ def require_login():
 @app.route("/", methods=["GET", "POST"])
 def login():
     error = None
+
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = (request.form.get("password") or "").strip()
@@ -73,8 +76,8 @@ def login():
         if username == DEMO_USER["username"] and password == DEMO_USER["password"]:
             session["user"] = username
             return redirect(url_for("dashboard"))
-        else:
-            error = "Username / password salah"
+
+        error = "Username / password salah"
 
     return render_template("login.html", error=error)
 
@@ -660,14 +663,16 @@ def receiving_detail(header_id):
         return redirect(url_for("login"))
 
     conn = get_conn()
-    header = conn.execute(
-        "SELECT * FROM receiving_header WHERE id = ?",
-        (header_id,)
-    ).fetchone()
-
+    header = conn.execute("SELECT * FROM receiving_header WHERE id = ?", (header_id,)).fetchone()
     if not header:
         conn.close()
         return "Data receiving tidak ditemukan", 404
+
+    inv = conn.execute("""
+        SELECT id FROM invoice_header
+        WHERE receiving_id=? AND status!='VOID'
+        ORDER BY id DESC LIMIT 1
+    """, (header_id,)).fetchone()
 
     partai_rows = conn.execute("""
         SELECT * FROM receiving_partai
@@ -691,8 +696,11 @@ def receiving_detail(header_id):
         "receiving_detail.html",
         header=dict(header),
         partai=partai,
-        total_netto=total_netto
+        total_netto=total_netto,
+        invoice_exists=True if inv else False,
+        invoice_id=inv["id"] if inv else None
     )
+
 @app.route("/receiving/edit/<int:header_id>", methods=["GET", "POST"])
 def receiving_edit(header_id):
     if not require_login():
@@ -833,24 +841,46 @@ def receiving_edit(header_id):
 # =========================
 # Invoice
 # =========================
+from datetime import datetime, timedelta
+
 @app.route("/invoice/new/<int:receiving_id>", methods=["GET", "POST"])
 def invoice_new(receiving_id):
     if not require_login():
         return redirect(url_for("login"))
 
     conn = get_conn()
-    header = conn.execute("SELECT * FROM receiving_header WHERE id=?", (receiving_id,)).fetchone()
+
+    # 1) ambil receiving header
+    header = conn.execute(
+        "SELECT * FROM receiving_header WHERE id=?",
+        (receiving_id,)
+    ).fetchone()
     if not header:
         conn.close()
         return "Receiving tidak ditemukan", 404
 
+    # 2) kalau invoice sudah ada (dan bukan VOID) → jangan generate lagi
+    existing = conn.execute("""
+        SELECT id
+        FROM invoice_header
+        WHERE receiving_id=? AND status!='VOID'
+        ORDER BY id DESC
+        LIMIT 1
+    """, (receiving_id,)).fetchone()
+
+    if existing and request.method == "GET":
+        conn.close()
+        return redirect(url_for("invoice_view", invoice_id=existing["id"]))
+
+    # 3) ambil partai dari receiving
     partai_rows = conn.execute("""
-        SELECT partai_no, round_size, netto
+        SELECT partai_no, round_size, COALESCE(netto,0) AS netto
         FROM receiving_partai
         WHERE header_id=?
         ORDER BY partai_no ASC
     """, (receiving_id,)).fetchall()
 
+    # ===== GET =====
     if request.method == "GET":
         required_sizes = set()
         for r in partai_rows:
@@ -862,28 +892,56 @@ def invoice_new(receiving_id):
             required_sizes.add(lo)
             required_sizes.add(hi)
 
-        required_sizes = sorted(required_sizes)
-        conn.close()
+        # default tempo
+        default_tempo = 7
+        tgl_inv = datetime.strptime(header["tanggal"], "%Y-%m-%d")
+        default_due = (tgl_inv + timedelta(days=default_tempo)).strftime("%Y-%m-%d")
 
+        conn.close()
         return render_template(
             "invoice_new.html",
             header=dict(header),
             partai=[dict(r) for r in partai_rows],
-            required_sizes=required_sizes
+            required_sizes=sorted(required_sizes),
+            default_tempo=default_tempo,
+            default_due=default_due
         )
-    # ✅ kalau invoice sudah ada untuk receiving ini (dan bukan VOID), jangan bikin lagi
-    existing = conn.execute("""
-        SELECT id FROM invoice_header
-        WHERE receiving_id=? AND status!='VOID'
-        ORDER BY id DESC
-        LIMIT 1
-    """, (receiving_id,)).fetchone()
+
+    # ===== POST (GENERATE) =====
+    # 4) kalau POST tapi invoice sudah ada → redirect saja
     if existing:
         conn.close()
         return redirect(url_for("invoice_view", invoice_id=existing["id"]))
 
+    # 5) ambil payment term
+    payment_type = (request.form.get("payment_type") or "TRANSFER").strip().upper()
 
-    # POST: generate invoice
+    # tempo hari input manual
+    tempo_raw = (request.form.get("tempo_hari") or "").strip()
+    try:
+        tempo_hari = int(tempo_raw) if tempo_raw != "" else (1 if payment_type == "CASH" else 7)
+    except:
+        tempo_hari = (1 if payment_type == "CASH" else 7)
+
+    cash_raw = (request.form.get("cash_deduct_per_kg") or "").replace(",", ".").strip()
+    try:
+        cash_deduct_per_kg = float(cash_raw) if cash_raw != "" else 0.0
+    except:
+        cash_deduct_per_kg = 0.0
+
+    reject_kg_raw = (request.form.get("reject_kg") or "").replace(",", ".").strip()
+    try:
+        reject_kg = float(reject_kg_raw) if reject_kg_raw != "" else 0.0
+    except:
+        reject_kg = 0.0
+
+    reject_price_raw = (request.form.get("reject_price") or "").replace(",", ".").strip()
+    try:
+        reject_price = float(reject_price_raw) if reject_price_raw != "" else 0.0
+    except:
+        reject_price = 0.0
+
+    # 6) input harga patokan points
     points = {}
     for k, v in request.form.items():
         if k.startswith("p"):
@@ -893,55 +951,80 @@ def invoice_new(receiving_id):
             except:
                 pass
 
-    # PPH (%) opsional: 0.25 -> 0.0025
+    # 7) PPH persen (boleh desimal: 0.4 → 0.4%)
     pph_raw = (request.form.get("pph") or "").replace(",", ".").strip()
-    pph_rate = float(pph_raw) / 100 if pph_raw else None
+    try:
+        pph_rate = float(pph_raw) / 100.0 if pph_raw != "" else 0.0
+    except:
+        pph_rate = 0.0
 
+    # 8) hitung detail & subtotal (berdasarkan receiving)
     details = []
     subtotal = 0.0
+    total_berat = 0.0
 
     for r in partai_rows:
         pno = r["partai_no"]
         size_round = r["round_size"]
-        netto = r["netto"] or 0
+        netto = float(r["netto"] or 0.0)
+
+        total_berat += netto
 
         harga = interpolate_price(size_round, points)
-        total_harga = (float(netto) * float(harga)) if harga is not None else None
+        total_harga = (netto * float(harga)) if harga is not None else 0.0
 
-        if total_harga is not None:
-            subtotal += total_harga
+        subtotal += total_harga
 
         details.append({
             "partai_no": pno,
             "size_round": size_round,
-            "berat_netto": float(netto),
+            "berat_netto": netto,
             "harga": int(harga) if harga is not None else None,
-            "total_harga": float(total_harga) if total_harga is not None else None
+            "total_harga": float(total_harga)
         })
 
-    pph = (subtotal * pph_rate) if pph_rate is not None else None
-    total = subtotal + (pph or 0)
+    # 9) hitung due date dari tanggal invoice
+    tgl_inv = datetime.strptime(header["tanggal"], "%Y-%m-%d")
+    due_date = (tgl_inv + timedelta(days=int(tempo_hari))).strftime("%Y-%m-%d")
+
+    # 10) cash deduct total (dipakai kalau CASH, tapi tetap simpan)
+    cash_deduct_total = float(cash_deduct_per_kg) * float(total_berat) if payment_type == "CASH" else 0.0
+
+    # 11) reject total (opsional)
+    reject_total = float(reject_kg) * float(reject_price) if reject_kg > 0 and reject_price > 0 else 0.0
+
+    # 12) PPH dan total akhir
+    pph = subtotal * pph_rate
+    total = subtotal - pph - cash_deduct_total - reject_total
 
     cur = conn.cursor()
     cur.execute("""
-                INSERT INTO invoice_header
-                (receiving_id, tanggal, supplier, price_points_json, subtotal, pph_rate, pph, total, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    receiving_id,
-                    header["tanggal"],
-                    header["supplier"],
-                    json.dumps(points),
-                    float(subtotal),
-                    float(pph_rate or 0),
-                    float(pph or 0),
-                    float(total),
-                    "DRAFT"
-                ))
-
+        INSERT INTO invoice_header
+            (receiving_id, tanggal, supplier, price_points_json,
+             pph_rate, subtotal, pph, total, status,
+             due_date, payment_type, cash_deduct_per_kg, cash_deduct_total,
+             reject_kg, reject_price, reject_total)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        receiving_id,
+        header["tanggal"],
+        header["supplier"],
+        json.dumps(points),
+        float(pph_rate),
+        float(subtotal),
+        float(pph),
+        float(total),
+        "DRAFT",  # default invoice baru
+        due_date,
+        payment_type,
+        float(cash_deduct_per_kg),
+        float(cash_deduct_total),
+        float(reject_kg),
+        float(reject_price),
+        float(reject_total),
+    ))
     invoice_id = cur.lastrowid
 
-    # insert details (FIX: loop dict, bukan unpack tuple)
     for d in details:
         cur.execute("""
             INSERT INTO invoice_detail (invoice_id, partai_no, size_round, berat_netto, harga, total_harga)
@@ -1247,8 +1330,6 @@ def invoice_list():
         supplier=supplier_q,
         total_beli=total_beli
     )
-
-
 
 @app.get("/invoice/edit/<int:invoice_id>")
 def invoice_edit(invoice_id):

@@ -111,16 +111,15 @@ function numOrNull(v){
 function intOrNull(v){
   v = (v ?? "").toString().trim();
   if (v === "") return null;
-  const n = parseInt(v,10);
+  const n = parseInt(v, 10);
   return Number.isFinite(n) ? n : null;
 }
 
-// auto hitung size & round saat pcs/kg diubah (sheet-like)
 function bindAutoCalc(card){
-  const pcsEl = card.querySelector("[name='pcs']");
-  const kgEl  = card.querySelector("[name='kg_sample']");
+  const pcsEl  = card.querySelector("[name='pcs']");
+  const kgEl   = card.querySelector("[name='kg_sample']");
   const sizeEl = card.querySelector("[name='size']");
-  const roundEl = card.querySelector("[name='round_size']");
+  const roundEl= card.querySelector("[name='round_size']");
 
   function calc(){
     const pcs = numOrNull(pcsEl?.value);
@@ -134,6 +133,7 @@ function bindAutoCalc(card){
       if (roundEl) roundEl.value = "";
     }
   }
+
   pcsEl?.addEventListener("input", calc);
   kgEl?.addEventListener("input", calc);
 }
@@ -158,14 +158,14 @@ function bindAddRow(card){
 }
 
 async function saveReceivingInline() {
-  const header_id = {{ header["id"] }};  // ✅ FIX
+  const header_id = {{ header["id"] | tojson }};
 
   const payload = {
     header: {
-      tanggal: "{{ header["tanggal"] }}",
-      supplier: "{{ header["supplier"] }}",
-      jenis: "{{ header["jenis"] or "" }}",
-      fiber: {{ header["fiber"] if header["fiber"] is not none else "null" }}
+      tanggal: {{ (header["tanggal"] or "") | tojson }},
+      supplier: {{ (header["supplier"] or "") | tojson }},
+      jenis: {{ (header["jenis"] or "") | tojson }},
+      fiber: {{ header["fiber"] | tojson }}
     },
     partai: []
   };
@@ -207,20 +207,19 @@ async function saveReceivingInline() {
 
   const res = await fetch(`/receiving/update/${header_id}`, {
     method: "POST",
-    headers: {"Content-Type":"application/json"},
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload)
   });
 
-  const out = await res.json().catch(()=> ({}));
+  const out = await res.json().catch(() => ({}));
   if (!res.ok || !out.ok) return alert(out.msg || "Gagal simpan");
 
   alert("Berhasil disimpan");
   location.reload();
 }
 
-document.getElementById("btnSaveInline").addEventListener("click", saveReceivingInline);
+document.getElementById("btnSaveInline")?.addEventListener("click", saveReceivingInline);
 
-// bind semua partai saat halaman load
 document.querySelectorAll("[data-partai-id]").forEach(card => {
   bindAutoCalc(card);
   bindAddRow(card);
@@ -231,11 +230,29 @@ document.querySelectorAll("[data-partai-id]").forEach(card => {
   <!-- HEADER -->
 <div class="card">
   <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
-    <h3 style="margin:0;">Header</h3>
+<h3 style="margin:0;">Header</h3>
 
-    <a class="btn btn-primary" href="/invoice/new/{{ header['id'] }}">
-      Buat Invoice
-    </a>
+<h3 style="margin:0;">Header</h3>
+
+{% if invoice_exists %}
+  <a class="btn btn-primary"
+     href="{{ url_for('invoice_view', invoice_id=invoice_id) }}">
+    Lihat Invoice
+  </a>
+
+  <a class="btn btn-secondary"
+     href="{{ url_for('invoice_edit', invoice_id=invoice_id) }}">
+    Edit Invoice
+  </a>
+{% else %}
+  <a class="btn btn-primary"
+     href="{{ url_for('invoice_new', receiving_id=header['id']) }}">
+    Buat Invoice
+  </a>
+{% endif %}
+
+
+
   </div>
   <div class="grid">
     <div class="field">
