@@ -8,6 +8,14 @@
     .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 8px 20px rgba(0,0,0,.06)}
     .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
     .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+        .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .section-title{margin:0 0 8px 0}
+    .field label{display:block;font-size:13px;color:#374151;margin-bottom:6px}
+    .readonly{background:#f9fafb}
+    @media (max-width: 900px){
+      .grid-3{grid-template-columns:1fr}
+    }
+
     input, select{padding:10px;border:1px solid #d1d5db;border-radius:10px;width:100%;box-sizing:border-box}
     table{width:100%;border-collapse:collapse;margin-top:12px}
     th,td{border:1px solid #e5e7eb;padding:10px;text-align:left}
@@ -31,92 +39,127 @@
 
   <form method="post" style="margin-top:12px;">
 
-    <hr>
-    <h3>Term Pembayaran</h3>
+  <hr>
+  <h3 class="section-title">Term Pembayaran</h3>
 
-<label>Jenis Pembayaran</label>
-<select name="payment_type" id="payment_type">
-  <option value="TRANSFER">TRANSFER</option>
-  <option value="CASH">CASH</option>
-</select>
-
-<label style="margin-top:10px;">Tempo (Hari)</label>
-<input type="number" step="1" min="0" name="tempo_hari" id="tempo_hari" value="{{ default_tempo }}">
-
-<label style="margin-top:10px;">Due Date (otomatis)</label>
-<input type="date" id="due_preview" value="{{ default_due }}" readonly>
-
-<label style="margin-top:10px;">Potongan Cash per Kg (manual)</label>
-<input type="number" step="1" min="0" name="cash_deduct_per_kg" id="cash_deduct_per_kg" value="0">
-
-<h3 style="margin-top:14px;">Reject (Opsional)</h3>
-<label>Reject (Kg)</label>
-<input type="number" step="0.01" min="0" name="reject_kg" value="0">
-
-<label style="margin-top:10px;">Harga Reject per Kg (manual)</label>
-<input type="number" step="1" min="0" name="reject_price" value="0">
-
-<script>
-(function(){
-  const pay = document.getElementById("payment_type");
-  const tempo = document.getElementById("tempo_hari");
-  const due = document.getElementById("due_preview");
-
-  const invoiceDateStr = "{{ header['tanggal'] }}"; // YYYY-MM-DD
-  const invoiceDate = new Date(invoiceDateStr + "T00:00:00");
-
-  function fmt(d){
-    const y = d.getFullYear();
-    const m = String(d.getMonth()+1).padStart(2,'0');
-    const day = String(d.getDate()).padStart(2,'0');
-    return `${y}-${m}-${day}`;
-  }
-
-  function recalcDue(){
-    const days = parseInt(tempo.value || "0", 10) || 0;
-    const d = new Date(invoiceDate);
-    d.setDate(d.getDate() + days);
-    due.value = fmt(d);
-  }
-
-  function applyDefaults(){
-    if(pay.value === "CASH"){
-      tempo.value = 1; // cash default besok
-    } else {
-      tempo.value = 7; // transfer default 7 hari
-      document.getElementById("cash_deduct_per_kg").value = 0;
-    }
-    recalcDue();
-  }
-
-  pay.addEventListener("change", applyDefaults);
-  tempo.addEventListener("input", recalcDue);
-
-  applyDefaults();
-})();
-</script>
-
-
-    <hr>
-    <h3>Reject (Opsional)</h3>
-
-    <label>Reject (Kg)</label>
-    <input type="number" step="0.01" min="0" name="reject_kg" value="0">
-
-    <label style="margin-top:10px;">Harga Reject per Kg (isi manual, 0 jika diambil balik supplier)</label>
-    <input type="number" step="1" min="0" name="reject_price" value="0">
-
-    <hr>
-    <h3>Input Harga Patokan (Hari Ini)</h3>
-
-    <div class="grid">
-      {% for sz in required_sizes %}
-      <div>
-        <div>Harga size {{ sz }}</div>
-        <input name="p{{ sz }}" type="number" placeholder="isi harga size {{ sz }}">
-      </div>
-      {% endfor %}
+  <div class="grid-3">
+    <div class="field">
+      <label for="payment_type">Jenis Pembayaran</label>
+      <select name="payment_type" id="payment_type">
+        <option value="TRANSFER">TRANSFER</option>
+        <option value="CASH">CASH</option>
+      </select>
     </div>
+
+    <div class="field">
+      <label for="tempo_hari">Tempo (Hari)</label>
+      <input
+        type="number"
+        step="1"
+        min="0"
+        name="tempo_hari"
+        id="tempo_hari"
+        value="{{ default_tempo }}"
+        required
+      >
+    </div>
+
+    <div class="field">
+      <label for="due_preview">Due Date (otomatis)</label>
+      <input
+        type="date"
+        id="due_preview"
+        name="due_date"          <!-- opsional: biar ikut terkirim -->
+        value="{{ default_due }}"
+        readonly
+        class="readonly"
+      >
+    </div>
+  </div>
+
+    <hr>
+
+    <!-- BARIS 2 (OPSIONAL / ADJUSTMENT) -->
+    <h3 class="section-title">Adjustment (Opsional)</h3>
+    <div class="grid-3">
+      <div class="field">
+        <label>Potongan Cash per Kg</label>
+        <input type="number" step="1" min="0" name="cash_deduct_per_kg" id="cash_deduct_per_kg" value="0">
+      </div>
+</div>
+
+      <div class="field">
+        <label>Harga Reject per Kg</label>
+        <input type="number" step="1" min="0" name="reject_price" id="reject_price" value="0">
+      </div>
+    </div>
+
+    <script>
+    (function(){
+      const pay = document.getElementById("payment_type");
+      const tempo = document.getElementById("tempo_hari");
+      const due = document.getElementById("due_preview");
+      const cashDeduct = document.getElementById("cash_deduct_per_kg");
+
+      const invoiceDateStr = "{{ header['tanggal'] }}"; // YYYY-MM-DD
+      const invoiceDate = new Date(invoiceDateStr + "T00:00:00");
+
+      function fmt(d){
+        const y = d.getFullYear();
+        const m = String(d.getMonth()+1).padStart(2,'0');
+        const day = String(d.getDate()).padStart(2,'0');
+        return `${y}-${m}-${day}`;
+      }
+
+      function recalcDue(){
+        const days = parseInt(tempo.value || "0", 10) || 0;
+        const d = new Date(invoiceDate);
+        d.setDate(d.getDate() + days);
+        due.value = fmt(d);
+      }
+
+      function applyDefaults(){
+        if(pay.value === "CASH"){
+          tempo.value = 1;        // cash default besok
+          cashDeduct.value = 0;   // optional: reset cash deduct
+        } else {
+          tempo.value = 7;        // transfer default 7 hari
+          cashDeduct.value = 0;
+        }
+        recalcDue();
+      }
+
+      pay.addEventListener("change", applyDefaults);
+      tempo.addEventListener("input", recalcDue);
+
+      // jangan override kalau backend sudah set default_tempo/default_due yang bener
+      // tapi kalau mau tetap auto berdasarkan tipe pembayaran, aktifkan ini:
+      applyDefaults();
+    })();
+    </script>
+
+    <hr>
+    <hr>
+<h3>Input Harga Patokan (Hari Ini)</h3>
+
+{% if required_sizes and required_sizes|length > 0 %}
+  <div class="grid">
+    {% for sz in required_sizes %}
+    <div class="field">
+      <label>Harga size {{ sz }}</label>
+      <input name="p{{ sz }}" type="number" step="1" min="0" placeholder="isi harga size {{ sz }}" required>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="muted" style="margin-top:8px;">
+    Harga akan dihitung otomatis berdasarkan round size partai (interpolate).
+  </div>
+{% else %}
+  <div class="muted" style="color:#b91c1c;font-weight:700;">
+    Round Size belum ada di Receiving, sehingga harga per size tidak bisa dihitung.
+    Silakan lengkapi Round Size di Receiving dulu.
+  </div>
+{% endif %}
 
     <div style="margin-top:10px;max-width:220px;">
       <label>PPH (%) <span class="muted">(opsional)</span></label>

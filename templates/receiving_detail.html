@@ -234,26 +234,19 @@ document.querySelectorAll("[data-partai-id]").forEach(card => {
 
 <h3 style="margin:0;">Header</h3>
 
-{% if invoice_exists %}
-  <a class="btn btn-primary"
-     href="{{ url_for('invoice_view', invoice_id=invoice_id) }}">
-    Lihat Invoice
-  </a>
-
+{% if invoice %}
   <a class="btn btn-secondary"
-     href="{{ url_for('invoice_edit', invoice_id=invoice_id) }}">
-    Edit Invoice
+     href="{{ url_for('invoice_view', invoice_id=invoice.id) }}">
+    Lihat Invoice
   </a>
 {% else %}
   <a class="btn btn-primary"
-     href="{{ url_for('invoice_new', receiving_id=header['id']) }}">
+     href="{{ url_for('invoice_new', receiving_id=header.id) }}">
     Buat Invoice
   </a>
 {% endif %}
-
-
-
   </div>
+
   <div class="grid">
     <div class="field">
       <label>Tanggal</label>

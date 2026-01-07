@@ -5,26 +5,132 @@
   <title>Edit Invoice</title>
   <style>
     body{font-family:Arial;padding:24px;background:#f3f4f6}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px}
+    .card{
+      background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;
+      box-shadow:0 8px 20px rgba(0,0,0,.06)
+    }
+    .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+    .btn{padding:10px 14px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn-primary{background:#2563eb;color:#fff}
+    .btn-secondary{background:#111827;color:#fff;text-decoration:none;display:inline-block}
+    .muted{font-size:12px;color:#6b7280}
+
+    hr{border:0;border-top:1px solid #e5e7eb;margin:14px 0}
+
+    /* Form */
+    input, select{
+      padding:10px;border:1px solid #d1d5db;border-radius:10px;width:100%;box-sizing:border-box
+    }
+    .readonly{background:#f9fafb}
+    .grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+    .grid-2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .field label{display:block;font-size:13px;color:#374151;margin-bottom:6px}
+
+    /* Table */
     table{width:100%;border-collapse:collapse;margin-top:12px}
     th,td{border:1px solid #e5e7eb;padding:10px;text-align:left}
     th{background:#f9fafb}
-    input{padding:10px;border:1px solid #d1d5db;border-radius:10px;width:140px}
-    .btn{padding:10px 14px;border:0;border-radius:10px;font-weight:700;cursor:pointer}
-    .btn-primary{background:#2563eb;color:#fff}
     .right{text-align:right}
+    .w-harga{max-width:160px}
+
+    /* Summary box */
+    .summary{
+      margin-top:12px; display:flex; justify-content:flex-end;
+    }
+    .summary table{
+      width:420px; margin-top:0; border-collapse:collapse;
+    }
+    .summary td{
+      border:1px solid #e5e7eb; padding:10px;
+    }
+    .summary td:first-child{background:#f9fafb; font-weight:700}
+    .total-strong{font-weight:800}
+
+    @media (max-width: 900px){
+      .grid-3{grid-template-columns:1fr}
+      .grid-2{grid-template-columns:1fr}
+      .summary table{width:100%}
+    }
   </style>
 </head>
 <body>
 
-<div class="card">
-  <h2>Edit Invoice ID {{ inv.id }}</h2>
-  <div>Tanggal: {{ inv.tanggal }} | Supplier: {{ inv.supplier }} | Receiving: {{ inv.receiving_id }}</div>
+<div class="top">
+  <h2 style="margin:0">Edit Invoice ID {{ inv.id }}</h2>
+  <a class="btn btn-secondary" href="/invoice/{{ inv.id }}">Kembali</a>
+</div>
 
-  <div style="margin-top:12px;">
-    <label>PPH (%)</label><br>
-    <input id="pph_rate" type="number" step="0.01" value="{{ (inv.pph_rate or 0) * 100 }}">
+<div class="card">
+  <div>
+    <b>Tanggal:</b> {{ inv.tanggal }} |
+    <b>Supplier:</b> {{ inv.supplier }} |
+    <b>Receiving:</b> {{ inv.receiving_id }}
   </div>
+
+  <hr>
+  <h3 style="margin:0 0 8px 0;">Term Pembayaran</h3>
+
+  <!-- BARIS 1: TERM -->
+  <div class="grid-3">
+    <div class="field">
+      <label>Jenis Pembayaran</label>
+      <select id="payment_type">
+        {% set pt = (inv.payment_type or 'TRANSFER') %}
+        <option value="TRANSFER" {{ 'selected' if pt=='TRANSFER' else '' }}>TRANSFER</option>
+        <option value="CASH" {{ 'selected' if pt=='CASH' else '' }}>CASH</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Tempo (Hari)</label>
+      <input id="tempo_hari" type="number" step="1" min="0" value="{{ inv.tempo_hari or 7 }}">
+    </div>
+
+    <div class="field">
+      <label>Due Date</label>
+      <input id="due_date" type="date" value="{{ inv.due_date or '' }}">
+      <div class="muted" style="margin-top:6px;">Boleh diubah manual jika perlu.</div>
+    </div>
+  </div>
+
+  <hr>
+  <h3 style="margin:0 0 8px 0;">Adjustment (Opsional)</h3>
+
+  <!-- BARIS 2: ADJUSTMENT -->
+  <div class="grid-3">
+    <div class="field">
+      <label>Potongan Cash per Kg</label>
+      <input id="cash_deduct_per_kg" type="number" step="1" min="0" value="{{ inv.cash_deduct_per_kg or 0 }}">
+    </div>
+
+    <div class="field">
+      <label>Reject (Kg)</label>
+      <input id="reject_kg" type="number" step="0.01" min="0" value="{{ inv.reject_kg or 0 }}">
+    </div>
+
+    <div class="field">
+      <label>Harga Reject per Kg</label>
+      <input id="reject_price" type="number" step="1" min="0" value="{{ inv.reject_price or 0 }}">
+    </div>
+  </div>
+
+  <hr>
+  <div class="grid-2">
+    <div class="field">
+      <label>Harga Udang (Rp/kg)</label>
+      <input id="harga_udang" type="number" step="1" min="0" value="{{ inv.harga_udang or 0 }}">
+      <div class="muted" style="margin-top:6px;">Jika diisi, bisa diaplikasikan ke semua baris harga/kg.</div>
+    </div>
+
+    <div class="field">
+      <label>PPH (%)</label>
+      <input id="pph_rate" type="number" step="0.01" min="0" value="{{ (inv.pph_rate or 0) * 100 }}">
+      <div class="muted" style="margin-top:6px;">Contoh: 0.4 = 0.4%</div>
+    </div>
+  </div>
+
+  <hr>
+  <h3 style="margin:0 0 8px 0;">Detail Partai</h3>
 
   <table>
     <thead>
@@ -41,8 +147,8 @@
       <tr>
         <td>{{ p.partai_no }}</td>
         <td>{{ p.round_size or '-' }}</td>
-        <td class="right">{{ "{:,.2f}".format(p.netto or 0).replace(",", ".") }}</td>
-        <td class="right">
+        <td class="right netto">{{ "{:,.2f}".format(p.netto or 0).replace(",", ".") }}</td>
+        <td class="right w-harga">
           <input class="harga" data-partai="{{ p.partai_no }}" type="number"
                  value="{{ det_map.get(p.partai_no, 0) }}">
         </td>
@@ -52,26 +158,112 @@
     </tbody>
   </table>
 
-  <div style="margin-top:12px;">
+  <!-- Summary -->
+  <div class="summary">
+    <table>
+      <tr><td>Subtotal</td><td class="right" id="sum_subtotal">0</td></tr>
+      <tr><td>PPH</td><td class="right" id="sum_pph">0</td></tr>
+      <tr><td>Potongan Cash</td><td class="right" id="sum_cash">0</td></tr>
+      <tr><td>Reject</td><td class="right" id="sum_reject">0</td></tr>
+      <tr><td class="total-strong">Total</td><td class="right total-strong" id="sum_total">0</td></tr>
+    </table>
+  </div>
+
+  <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;">
+    <button class="btn btn-secondary" type="button" id="btnApplyHargaUdang">Apply Harga Udang ke Semua</button>
     <button class="btn btn-primary" id="btnSave" type="button">Save Perubahan</button>
   </div>
 </div>
 
 <script>
-function num(v){ const x=parseFloat(v||0); return isNaN(x)?0:x; }
+function num(v){ const x=parseFloat(String(v||"0").replace(",", ".")); return isNaN(x)?0:x; }
+function fmtID(n){
+  try { return n.toLocaleString("id-ID"); } catch(e){ return String(Math.round(n)); }
+}
+
+function parseNettoFromCell(text){
+  let s = String(text).trim();
+
+  // kalau ada koma dan titik, tentukan mana decimal terakhir
+  const lastComma = s.lastIndexOf(",");
+  const lastDot = s.lastIndexOf(".");
+
+  if (lastComma > -1 && lastDot > -1) {
+    // decimal adalah yang paling akhir muncul
+    if (lastComma > lastDot) {
+      // format: 1.234,56  -> hapus titik ribuan, koma jadi decimal
+      s = s.replaceAll(".", "").replace(",", ".");
+    } else {
+      // format: 1,234.56 -> hapus koma ribuan
+      s = s.replaceAll(",", "");
+    }
+  } else if (lastComma > -1) {
+    // format: 207,50 -> koma decimal
+    s = s.replace(",", ".");
+  } else {
+    // format: 207.50 -> dot decimal (biarkan)
+    // tapi kalau format ribuan: 1.234 (tanpa desimal) ini ambigu,
+    // anggap titik ribuan bila 3 digit setelah titik.
+    const m = s.match(/^(\d+)\.(\d{3})$/);
+    if (m) s = m[1] + m[2];
+  }
+
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
 
 function recalc(){
+  let subtotal = 0;
+  let totalBerat = 0;
+
   document.querySelectorAll(".harga").forEach(inp=>{
     const pn = inp.dataset.partai;
-    // netto ambil dari kolom tabel (lebih simpel: parse dari td ke-3)
     const tr = inp.closest("tr");
-    const netto = num(tr.children[2].innerText.replaceAll(".","").replace(",","."));
+    const netto = parseNettoFromCell(tr.querySelector(".netto").innerText);
     const harga = num(inp.value);
     const tot = netto * harga;
-    document.getElementById("tot_"+pn).innerText = tot.toLocaleString("id-ID");
+
+    totalBerat += netto;
+    subtotal += tot;
+
+    document.getElementById("tot_"+pn).innerText = fmtID(tot);
   });
+
+  const pphRatePct = num(document.getElementById("pph_rate").value);
+  const pph = subtotal * (pphRatePct / 100);
+
+  const cashPerKg = num(document.getElementById("cash_deduct_per_kg").value);
+  const cashTotal = cashPerKg * totalBerat;
+
+  const rejectKg = num(document.getElementById("reject_kg").value);
+  const rejectPrice = num(document.getElementById("reject_price").value);
+  const rejectTotal = (rejectKg > 0 && rejectPrice > 0) ? (rejectKg * rejectPrice) : 0;
+
+  const total = subtotal - pph - cashTotal - rejectTotal;
+
+  document.getElementById("sum_subtotal").innerText = fmtID(subtotal);
+  document.getElementById("sum_pph").innerText = fmtID(pph);
+  document.getElementById("sum_cash").innerText = fmtID(cashTotal);
+  document.getElementById("sum_reject").innerText = fmtID(rejectTotal);
+  document.getElementById("sum_total").innerText = fmtID(total);
 }
+
+// live recalc
 document.querySelectorAll(".harga").forEach(i=>i.addEventListener("input", recalc));
+["pph_rate","cash_deduct_per_kg","reject_kg","reject_price"].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener("input", recalc);
+});
+
+// Apply harga udang ke semua baris
+document.getElementById("btnApplyHargaUdang").addEventListener("click", ()=>{
+  const hu = num(document.getElementById("harga_udang").value);
+  if(hu <= 0) return alert("Harga udang harus > 0");
+  document.querySelectorAll(".harga").forEach(inp=> inp.value = hu);
+  recalc();
+});
+
 recalc();
 
 document.getElementById("btnSave").addEventListener("click", async ()=>{
@@ -80,7 +272,17 @@ document.getElementById("btnSave").addEventListener("click", async ()=>{
     items.push({partai_no: parseInt(inp.dataset.partai), harga: num(inp.value)});
   });
 
-  const payload = { pph_rate: num(document.getElementById("pph_rate").value), items };
+  const payload = {
+    pph_rate: num(document.getElementById("pph_rate").value),
+    payment_type: (document.getElementById("payment_type").value || "TRANSFER"),
+    tempo_hari: num(document.getElementById("tempo_hari").value),
+    due_date: (document.getElementById("due_date").value || ""),
+    cash_deduct_per_kg: num(document.getElementById("cash_deduct_per_kg").value),
+    reject_kg: num(document.getElementById("reject_kg").value),
+    reject_price: num(document.getElementById("reject_price").value),
+    harga_udang: num(document.getElementById("harga_udang").value),
+    items
+  };
 
   const res = await fetch("/invoice/update/{{ inv.id }}", {
     method:"POST",

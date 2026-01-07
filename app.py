@@ -663,10 +663,20 @@ def receiving_detail(header_id):
         return redirect(url_for("login"))
 
     conn = get_conn()
-    header = conn.execute("SELECT * FROM receiving_header WHERE id = ?", (header_id,)).fetchone()
+
+    header = conn.execute(
+        "SELECT * FROM receiving_header WHERE id=?",
+        (header_id,)
+    ).fetchone()
     if not header:
         conn.close()
-        return "Data receiving tidak ditemukan", 404
+        return "Receiving tidak ditemukan", 404
+
+    partai_rows = conn.execute("""
+        SELECT * FROM receiving_partai
+        WHERE header_id=?
+        ORDER BY partai_no
+    """, (header_id,)).fetchall()
 
     inv = conn.execute("""
         SELECT id FROM invoice_header
@@ -674,32 +684,24 @@ def receiving_detail(header_id):
         ORDER BY id DESC LIMIT 1
     """, (header_id,)).fetchone()
 
-    partai_rows = conn.execute("""
-        SELECT * FROM receiving_partai
-        WHERE header_id = ?
-        ORDER BY partai_no ASC, id ASC
-    """, (header_id,)).fetchall()
     conn.close()
 
     partai = []
+    total_netto = 0
     for r in partai_rows:
         d = dict(r)
-        try:
-            d["timbangan"] = json.loads(d.get("timbangan_json") or "[]")
-        except:
-            d["timbangan"] = []
+        d["timbangan"] = json.loads(d.get("timbangan_json") or "[]")
+        total_netto += d.get("netto") or 0
         partai.append(d)
-
-    total_netto = sum([(p.get("netto") or 0) for p in partai])
 
     return render_template(
         "receiving_detail.html",
         header=dict(header),
         partai=partai,
         total_netto=total_netto,
-        invoice_exists=True if inv else False,
-        invoice_id=inv["id"] if inv else None
+        invoice=inv   # ⬅️ penting
     )
+
 
 @app.route("/receiving/edit/<int:header_id>", methods=["GET", "POST"])
 def receiving_edit(header_id):
@@ -841,8 +843,6 @@ def receiving_edit(header_id):
 # =========================
 # Invoice
 # =========================
-from datetime import datetime, timedelta
-
 @app.route("/invoice/new/<int:receiving_id>", methods=["GET", "POST"])
 def invoice_new(receiving_id):
     if not require_login():
@@ -850,7 +850,7 @@ def invoice_new(receiving_id):
 
     conn = get_conn()
 
-    # 1) ambil receiving header
+    # 1) Ambil receiving header
     header = conn.execute(
         "SELECT * FROM receiving_header WHERE id=?",
         (receiving_id,)
@@ -859,7 +859,7 @@ def invoice_new(receiving_id):
         conn.close()
         return "Receiving tidak ditemukan", 404
 
-    # 2) kalau invoice sudah ada (dan bukan VOID) → jangan generate lagi
+    # 2) Jika invoice sudah ada (dan bukan VOID) → jangan generate lagi
     existing = conn.execute("""
         SELECT id
         FROM invoice_header
@@ -872,9 +872,9 @@ def invoice_new(receiving_id):
         conn.close()
         return redirect(url_for("invoice_view", invoice_id=existing["id"]))
 
-    # 3) ambil partai dari receiving
+    # 3) Ambil partai dari receiving
     partai_rows = conn.execute("""
-        SELECT partai_no, round_size, COALESCE(netto,0) AS netto
+        SELECT partai_no, round_size, COALESCE(netto, 0) AS netto
         FROM receiving_partai
         WHERE header_id=?
         ORDER BY partai_no ASC
@@ -882,17 +882,25 @@ def invoice_new(receiving_id):
 
     # ===== GET =====
     if request.method == "GET":
-        required_sizes = set()
-        for r in partai_rows:
-            if r["round_size"] is None:
-                continue
-            s = int(r["round_size"])
-            lo = (s // 10) * 10
-            hi = lo + 10
-            required_sizes.add(lo)
-            required_sizes.add(hi)
+        # Deteksi apakah receiving ini pakai size atau tidak
+        has_size = any(r["round_size"] is not None for r in partai_rows)
 
-        # default tempo
+        # Kumpulkan titik harga wajib (p20, p30, dst) untuk mode size
+        required_sizes = set()
+        if has_size:
+            for r in partai_rows:
+                rs = r["round_size"]
+                if rs is None:
+                    continue
+                s = int(rs)
+                lo = (s // 10) * 10
+                hi = lo + 10
+                required_sizes.add(lo)
+                required_sizes.add(hi)
+
+        required_sizes = sorted(required_sizes)
+
+        # Default tempo & due date
         default_tempo = 7
         tgl_inv = datetime.strptime(header["tanggal"], "%Y-%m-%d")
         default_due = (tgl_inv + timedelta(days=default_tempo)).strftime("%Y-%m-%d")
@@ -902,10 +910,12 @@ def invoice_new(receiving_id):
             "invoice_new.html",
             header=dict(header),
             partai=[dict(r) for r in partai_rows],
-            required_sizes=sorted(required_sizes),
+            has_size=has_size,                 # <-- tambahan: dipakai untuk switch UI
+            required_sizes=required_sizes,      # <-- sudah sorted list
             default_tempo=default_tempo,
             default_due=default_due
         )
+
 
     # ===== POST (GENERATE) =====
     # 4) kalau POST tapi invoice sudah ada → redirect saja
