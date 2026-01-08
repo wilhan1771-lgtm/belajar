@@ -31,6 +31,8 @@
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
     th { background:#f9fafb; }
+    .header .btn { width: 100%; }
+
 
     .section { margin-top:14px; padding-top:12px; border-top:1px dashed #e5e7eb; }
     .grid4 { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; align-items:end; }
@@ -50,6 +52,19 @@
       .row-actions { width: 100%; }
       .row-actions .btn { width: 100%; }
     }
+    .test-flag{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:8px;
+  font-size:13px;
+  color:#374151;
+}
+.test-flag input{
+  width:auto;
+  height:auto;
+}
+
   </style>
 </head>
 <body>
@@ -59,7 +74,11 @@
 <div class="header">
   <div class="field">
     <label>Tanggal</label>
-    <input id="tanggal" type="text" value="{{ today }}" readonly>
+    <input id="tanggal" type="date" value="{{ today }}">
+    <label class="test-flag">
+      <input type="checkbox" id="is_test">
+      Mode Test
+    </label>
   </div>
 
   <div class="field">
@@ -89,6 +108,7 @@
     <button class="btn btn-primary" id="btnSave" type="button">Save</button>
   </div>
 </div>
+
 
 <div class="muted">
   Cara input: ketik timbangannya lalu tekan <b>Enter</b> (PC) / <b>Done</b> (HP) untuk tambah baris.
@@ -412,38 +432,43 @@
   }
 
   btnSave.addEventListener("click", async () => {
-    const payload = kumpulPayload();
+  const payload = kumpulPayload();
 
-    if (!payload.supplier) return alert("Supplier wajib dipilih");
-    if (!payload.jenis) return alert("Jenis udang wajib dipilih");
-    if (!payload.partai.length) return alert("Minimal 1 partai");
+  if (!payload.tanggal) return alert("Tanggal wajib diisi");
+  if (!payload.supplier) return alert("Supplier wajib dipilih");
+  if (!payload.jenis) return alert("Jenis udang wajib dipilih");
+  if (!payload.partai.length) return alert("Minimal 1 partai");
 
-    try {
-      const res = await fetch("/receiving/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+  try {
+    const isTest = document.getElementById("is_test")?.checked;
+    const url = isTest ? "/receiving/save?test=1" : "/receiving/save";
 
-      const out = await res.json();
-      if (!res.ok || !out.ok) return alert(out.msg || "Gagal simpan");
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-      alert("Berhasil disimpan! ID: " + out.header_id);
+    const out = await res.json();
+    if (!res.ok || !out.ok) return alert(out.msg || "Gagal simpan");
 
-      // reset header
-      $("supplier").value = "";
-      $("jenis").value = "";
-      $("fiber").value = "";
+    alert(`Berhasil disimpan! ID: ${out.header_id}${out.is_test ? " (TEST)" : ""}`);
 
-      // reset partai
-      partaiContainer.innerHTML = "";
-      partaiKe = 0;
-      buatPartaiBaru();
+    // reset header (TAPI jangan reset tanggal, biar enak input berurutan)
+    $("supplier").value = "";
+    $("jenis").value = "";
+    $("fiber").value = "";
 
-    } catch (e) {
-      alert("Error koneksi: " + e);
-    }
-  });
+    // reset partai
+    partaiContainer.innerHTML = "";
+    partaiKe = 0;
+    buatPartaiBaru();
+
+  } catch (e) {
+    alert("Error koneksi: " + e);
+  }
+});
+
 
   // ========= init =========
   (async function init() {

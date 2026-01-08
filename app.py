@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from datetime import date, datetime, timedelta
 import json
 import sqlite3
+from typing import Optional, Any, Dict, List
+
 
 from db import init_db, get_conn
 
@@ -12,6 +14,61 @@ app = Flask(__name__)
 app.secret_key = "belajar-secret"
 
 DEMO_USER = {"username": "admin", "password": "1234"}
+
+DATE_FMT = "%Y-%m-%d"
+def ensure_is_test_column(conn):
+    cols = [r["name"] for r in conn.execute("PRAGMA table_info(receiving_header)").fetchall()]
+    if "is_test" not in cols:
+        conn.execute("ALTER TABLE receiving_header ADD COLUMN is_test INTEGER DEFAULT 0")
+        conn.commit()
+
+def today_str() -> str:
+    return date.today().strftime(DATE_FMT)
+
+def parse_date_str(s: str, default: Optional[str] = None) -> str:
+    """
+    Pastikan string tanggal valid format YYYY-MM-DD.
+    Kalau kosong/invalid -> pakai default, kalau default None -> pakai hari ini.
+    Return selalu string YYYY-MM-DD.
+    """
+    s = (s or "").strip()
+    if not s:
+        return default or today_str()
+
+    try:
+        datetime.strptime(s, DATE_FMT)
+        return s
+    except:
+        return default or today_str()
+
+def add_days(date_str: str, days: int) -> str:
+    d = datetime.strptime(date_str, DATE_FMT)
+    return (d.replace(hour=0, minute=0, second=0, microsecond=0) +
+            __import__("datetime").timedelta(days=days)).strftime(DATE_FMT)
+def calc_invoice_totals(det_rows, pph_rate=0.0, cash_deduct_per_kg=0.0, reject_kg=0.0, reject_price=0.0):
+    total_kg = sum(float(r.get("berat_netto") or 0) for r in det_rows)
+
+    subtotal = 0.0
+    for r in det_rows:
+        kg = float(r.get("berat_netto") or 0)
+        harga = float(r.get("harga") or 0)
+        subtotal += kg * harga
+
+    cash_total = float(cash_deduct_per_kg or 0) * total_kg
+    reject_total = float(reject_kg or 0) * float(reject_price or 0)
+
+    pph_amount = subtotal * (float(pph_rate or 0) / 100.0)
+
+    total = subtotal - cash_total - reject_total - pph_amount
+
+    return {
+        "total_kg": total_kg,
+        "subtotal": subtotal,
+        "cash_deduct_total": cash_total,
+        "reject_total": reject_total,
+        "pph_amount": pph_amount,
+        "total": total,
+    }
 
 
 # =========================
@@ -312,20 +369,21 @@ def receiving_debug():
 def receiving():
     if not require_login():
         return redirect(url_for("login"))
-    # kamu pakai today untuk default tanggal di form
-    today_str = date.today().strftime("%Y-%m-%d")
-    return render_template("receiving.html", today=today_str)
 
+    today = date.today().strftime("%Y-%m-%d")
+    return render_template("receiving.html", today=today)
 
 @app.route("/receiving/save", methods=["POST"])
 def receiving_save():
+    if not require_login():
+        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
+
     data = request.get_json(force=True)
 
     tanggal = (data.get("tanggal") or "").strip()
     supplier = (data.get("supplier") or "").strip()
     jenis = (data.get("jenis") or "").strip()
     fiber = data.get("fiber")
-
     partai_list = data.get("partai", [])
 
     if not tanggal or not supplier:
@@ -333,18 +391,24 @@ def receiving_save():
     if not partai_list:
         return jsonify({"ok": False, "msg": "Minimal harus ada 1 partai"}), 400
 
+    # FLAG MODE TEST DARI QUERYSTRING
+    is_test = 1 if (request.args.get("test") == "1") else 0
+
     conn = get_conn()
     cur = conn.cursor()
 
     try:
-        cur.execute(
-            "INSERT INTO receiving_header (tanggal, supplier, jenis, fiber) VALUES (?, ?, ?, ?)",
-            (tanggal, supplier, jenis or None, fiber)
-        )
+        ensure_is_test_column(conn)
+
+        cur.execute("""
+            INSERT INTO receiving_header (tanggal, supplier, jenis, fiber, is_test)
+            VALUES (?, ?, ?, ?, ?)
+        """, (tanggal, supplier, jenis or None, fiber, is_test))
+
         header_id = cur.lastrowid
 
         for p in partai_list:
-            timbangan = p.get("timbangan", [])
+            timbangan = p.get("timbangan") or []
             cur.execute("""
                 INSERT INTO receiving_partai
                 (header_id, partai_no, pcs, kg_sample, size, round_size, keranjang,
@@ -367,13 +431,13 @@ def receiving_save():
             ))
 
         conn.commit()
+        return jsonify({"ok": True, "header_id": header_id, "is_test": is_test})
+
     except Exception as e:
         conn.rollback()
         return jsonify({"ok": False, "msg": f"Gagal simpan: {str(e)}"}), 500
     finally:
         conn.close()
-
-    return jsonify({"ok": True, "header_id": header_id})
 
 @app.post("/receiving/update/<int:header_id>")
 def receiving_update(header_id):
@@ -1009,7 +1073,8 @@ def invoice_new(receiving_id):
 
     cur = conn.cursor()
     cur.execute("""
-        INSERT INTO invoice_header
+                    
+            INSERT INTO invoice_header
             (receiving_id, tanggal, supplier, price_points_json,
              pph_rate, subtotal, pph, total, status,
              due_date, payment_type, cash_deduct_per_kg, cash_deduct_total,
@@ -1279,7 +1344,15 @@ def invoice_view(invoice_id):
     if not inv:
         return "Invoice tidak ditemukan", 404
 
-    return render_template("invoice_view.html", inv=dict(inv), det=[dict(r) for r in det])
+    inv = dict(inv)
+    det = [dict(r) for r in det]
+
+    # fallback: total_kg dari detail kalau belum tersimpan
+    if inv.get("total_kg") in (None, 0, 0.0):
+        inv["total_kg"] = sum(float(r.get("berat_netto") or 0) for r in det)
+
+    return render_template("invoice_view.html", inv=inv, det=det)
+
 
 @app.route("/invoice/list")
 def invoice_list():
@@ -1347,13 +1420,11 @@ def invoice_edit(invoice_id):
         return redirect(url_for("login"))
 
     conn = get_conn()
-
     inv = conn.execute("SELECT * FROM invoice_header WHERE id=?", (invoice_id,)).fetchone()
     if not inv:
         conn.close()
         return "Invoice tidak ditemukan", 404
 
-    # ambil partai dari receiving (sumber data utama)
     parts = conn.execute("""
         SELECT partai_no, round_size, COALESCE(netto,0) AS netto
         FROM receiving_partai
@@ -1361,17 +1432,14 @@ def invoice_edit(invoice_id):
         ORDER BY partai_no
     """, (inv["receiving_id"],)).fetchall()
 
-    # ambil detail invoice lama (harga lama)
     det = conn.execute("""
         SELECT partai_no, harga
         FROM invoice_detail
         WHERE invoice_id=?
         ORDER BY partai_no
     """, (invoice_id,)).fetchall()
-
     conn.close()
 
-    # map harga lama per partai
     det_map = {d["partai_no"]: (d["harga"] or 0) for d in det}
 
     return render_template(
@@ -1380,15 +1448,13 @@ def invoice_edit(invoice_id):
         parts=[dict(p) for p in parts],
         det_map=det_map
     )
-
 @app.post("/invoice/update/<int:invoice_id>")
 def invoice_update(invoice_id):
     if not require_login():
         return jsonify({"ok": False, "msg": "Unauthorized"}), 401
 
     data = request.get_json(force=True) or {}
-    items = data.get("items") or []   # [{partai_no:1, harga:32000}, ...]
-    pph_input = data.get("pph_rate")  # input persen (contoh 1 = 1%)
+    items = data.get("items") or []
 
     conn = get_conn()
     cur = conn.cursor()
@@ -1400,63 +1466,105 @@ def invoice_update(invoice_id):
 
     receiving_id = inv["receiving_id"]
 
-    # sumber netto & size dari receiving
+    # ambil sumber partai dari receiving (sumber data utama)
     parts = conn.execute("""
-        SELECT partai_no, round_size, COALESCE(netto,0) AS netto
+        SELECT partai_no,
+               COALESCE(round_size,0) AS round_size,
+               COALESCE(netto,0) AS netto
         FROM receiving_partai
         WHERE header_id=?
+        ORDER BY partai_no
     """, (receiving_id,)).fetchall()
-    part_map = {p["partai_no"]: p for p in parts}
+
+    harga_map = {int(it.get("partai_no")): float(it.get("harga") or 0) for it in items}
+
+    # header fields
+    payment_type = (data.get("payment_type") or "TRANSFER").strip()
+    tempo_hari = int(float(data.get("tempo_hari") or 0))
+    due_date = (data.get("due_date") or "").strip() or None
+
+    pph_rate = float(data.get("pph_rate") or 0)  # contoh 0.25 = 0.25%
+    cash_deduct_per_kg = float(data.get("cash_deduct_per_kg") or 0)
+    reject_kg = float(data.get("reject_kg") or 0)
+    reject_price = float(data.get("reject_price") or 0)
 
     try:
-        pph_rate = float(pph_input or 0) / 100.0
-    except:
-        pph_rate = 0.0
+        cur.execute("BEGIN")
 
-    subtotal = 0.0
-    detail_rows = []
+        # rebuild invoice_detail dari receiving_partai
+        cur.execute("DELETE FROM invoice_detail WHERE invoice_id=?", (invoice_id,))
 
-    for it in items:
-        pn = int(it.get("partai_no") or 0)
-        harga = int(float(it.get("harga") or 0))
+        subtotal = 0.0
+        total_kg = 0.0
 
-        p = part_map.get(pn)
-        if not p:
-            continue
+        for p in parts:
+            partai_no = int(p["partai_no"])
+            berat_netto = float(p["netto"] or 0)
+            size_round = int(p["round_size"] or 0)
 
-        size_round = p["round_size"]
-        berat_netto = float(p["netto"] or 0)
-        total_harga = berat_netto * harga
+            harga = float(harga_map.get(partai_no, 0))
+            total_harga = berat_netto * harga
 
-        subtotal += total_harga
-        detail_rows.append((invoice_id, pn, size_round, berat_netto, harga, total_harga))
+            total_kg += berat_netto
+            subtotal += total_harga
 
-    pph = subtotal * pph_rate
-    total = subtotal - pph   # kalau PPH menambah: subtotal + pph
+            cur.execute("""
+                INSERT INTO invoice_detail (invoice_id, partai_no, size_round, berat_netto, harga, total_harga)
+                VALUES (?,?,?,?,?,?)
+            """, (invoice_id, partai_no, size_round, berat_netto, harga, total_harga))
 
-    try:
+        # hitung potongan
+        # PPH dari persen (misal input 0.25 artinya 0.25%)
+        pph_amount = subtotal * (pph_rate / 100.0)
+
+        cash_total = total_kg * cash_deduct_per_kg
+
+        reject_total = reject_kg * reject_price
+
+        total = subtotal - pph_amount - cash_total - reject_total
+
+        # update header (samakan dengan nama kolom DB kamu)
         cur.execute("""
             UPDATE invoice_header
-            SET pph_rate=?, subtotal=?, pph=?, total=?
+            SET payment_type=?,
+                tempo_hari=?,
+                due_date=?,
+                subtotal=?,
+                pph_rate=?,
+                pph=?,
+                cash_deduct_per_kg=?,
+                cash_deduct_total=?,
+                reject_kg=?,
+                reject_price=?,
+                reject_total=?,
+                total_kg=?,
+                total=?
             WHERE id=?
-        """, (pph_rate, subtotal, pph, total, invoice_id))
-
-        cur.execute("DELETE FROM invoice_detail WHERE invoice_id=?", (invoice_id,))
-        for row in detail_rows:
-            cur.execute("""
-                INSERT INTO invoice_detail
-                    (invoice_id, partai_no, size_round, berat_netto, harga, total_harga)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, row)
+        """, (
+            payment_type,
+            tempo_hari,
+            due_date,
+            subtotal,
+            pph_rate,
+            pph_amount,
+            cash_deduct_per_kg,
+            cash_total,
+            reject_kg,
+            reject_price,
+            reject_total,
+            total_kg,
+            total,
+            invoice_id
+        ))
 
         conn.commit()
+        return jsonify({"ok": True})
     except Exception as e:
         conn.rollback()
-        conn.close()
         return jsonify({"ok": False, "msg": f"Gagal update: {e}"}), 500
+    finally:
+        conn.close()
 
-    conn.close()
-    return jsonify({"ok": True})
 
 @app.route("/invoice/list/print")
 def invoice_list_print():
@@ -1512,74 +1620,6 @@ def invoice_list_print():
         end=end,
         supplier=supplier_q
     )
-
-
-
-@app.post("/invoice/save/<int:invoice_id>")
-def invoice_save(invoice_id):
-    if not require_login():
-        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
-
-    data = request.get_json(force=True) or {}
-    rows = data.get("rows") or []
-    deleted_ids = data.get("deleted_ids") or []
-
-    conn = get_conn()
-    cur = conn.cursor()
-
-    inv = conn.execute("SELECT id FROM invoice_header WHERE id=?", (invoice_id,)).fetchone()
-    if not inv:
-        conn.close()
-        return jsonify({"ok": False, "msg": "Invoice tidak ditemukan"}), 404
-
-    try:
-        # 1) delete baris yang memang dihapus user
-        for did in deleted_ids:
-            cur.execute("DELETE FROM invoice_detail WHERE id=? AND invoice_id=?", (did, invoice_id))
-
-        # 2) upsert baris: kalau ada id -> UPDATE, kalau kosong -> INSERT
-        for r in rows:
-            detail_id = r.get("id")  # boleh None
-            partai_no = int(r.get("partai_no") or 0)
-            qty = float(r.get("qty") or 0)
-            harga = float(r.get("harga") or 0)
-            jumlah = qty * harga
-
-            if detail_id:
-                cur.execute("""
-                    UPDATE invoice_detail
-                    SET partai_no=?, qty=?, harga=?, jumlah=?
-                    WHERE id=? AND invoice_id=?
-                """, (partai_no, qty, harga, jumlah, detail_id, invoice_id))
-            else:
-                cur.execute("""
-                    INSERT INTO invoice_detail (invoice_id, partai_no, qty, harga, jumlah)
-                    VALUES (?, ?, ?, ?, ?)
-                """, (invoice_id, partai_no, qty, harga, jumlah))
-
-        # 3) hitung ulang header (subtotal/pph/total)
-        subtotal = conn.execute("""
-            SELECT COALESCE(SUM(COALESCE(jumlah,0)),0) AS s
-            FROM invoice_detail WHERE invoice_id=?
-        """, (invoice_id,)).fetchone()["s"]
-
-        pph = float(data.get("pph") or 0)
-        total = float(subtotal) - float(pph)
-
-        cur.execute("""
-            UPDATE invoice_header
-            SET subtotal=?, pph=?, total=?
-            WHERE id=?
-        """, (subtotal, pph, total, invoice_id))
-
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        return jsonify({"ok": False, "msg": f"Gagal simpan: {e}"}), 500
-
-    conn.close()
-    return jsonify({"ok": True})
 
 @app.post("/invoice/void/<int:invoice_id>")
 def invoice_void(invoice_id):

@@ -1,17 +1,15 @@
 import sqlite3
 
-conn = sqlite3.connect("receiving.db")
+conn = sqlite3.connect("receiving.db")  # ganti sesuai nama DB kamu
 cur = conn.cursor()
 
-# lihat isi invoice_header
-rows = cur.execute("""
-SELECT id, receiving_id, status, total, created_at
-FROM invoice_header
-ORDER BY id DESC
-""").fetchall()
+cur.execute("""
+ALTER TABLE receiving_header
+ADD COLUMN is_test INTEGER DEFAULT 0
+""")
 
-print("INVOICE HEADER:")
-for r in rows:
-    print(r)
-
+conn.commit()
 conn.close()
+
+print("Kolom is_test berhasil ditambahkan")
+
