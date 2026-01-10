@@ -1,4 +1,4 @@
-# db.py
+
 import os
 import sqlite3
 
@@ -108,6 +108,13 @@ def init_db():
     # ALTER TABLE (PYTHON)
     # =====================
     ensure_column(conn, "receiving_header", "is_test", "INTEGER DEFAULT 0")
+    ensure_column(conn, "invoice_detail", "round_size", "INTEGER")
+    conn.execute("""
+                 UPDATE invoice_detail
+                 SET round_size = size_round
+                 WHERE round_size IS NULL
+                   AND size_round IS NOT NULL
+                 """)
 
     ensure_column(conn, "invoice_header", "payment_type", "TEXT")
     ensure_column(conn, "invoice_header", "tempo_hari", "INTEGER DEFAULT 0")

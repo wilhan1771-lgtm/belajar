@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <title>DB Table - {{ table_name }}</title>
+  <style>
+    body{font-family:Arial;background:#f3f4f6;padding:18px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:14px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #e5e7eb;padding:8px;font-size:13px;vertical-align:top}
+    th{background:#f9fafb;position:sticky;top:0}
+    .muted{color:#6b7280;font-size:12px}
+    a{color:#2563eb;text-decoration:none}
+    .scroll{overflow:auto;max-height:75vh;border:1px solid #e5e7eb;border-radius:10px}
+    input{padding:8px;border:1px solid #d1d5db;border-radius:8px}
+    button{padding:8px 12px;border:0;border-radius:8px;background:#111827;color:#fff;cursor:pointer}
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <div>
+      <h2 style="margin:0;">Table: {{ table_name }}</h2>
+      <div class="muted">Menampilkan {{ rows|length }} baris terbaru (ORDER BY rowid DESC)</div>
+    </div>
+    <div>
+      <a href="/admin/db">← Kembali</a>
+    </div>
+  </div>
+
+  <form method="get" style="margin-top:10px;display:flex;gap:8px;align-items:center;">
+    <label class="muted">Limit:</label>
+    <input type="number" name="limit" value="{{ limit }}" min="1" max="2000">
+    <button type="submit">Load</button>
+  </form>
+</div>
+
+<div class="card scroll">
+  <table>
+    <thead>
+      <tr>
+        {% for c in cols %}
+          <th>{{ c }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% if not rows %}
+        <tr><td colspan="{{ cols|length }}">Tidak ada data.</td></tr>
+      {% endif %}
+
+      {% for r in rows %}
+        <tr>
+          {% for c in cols %}
+            <td>{{ r.get(c, "") }}</td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>

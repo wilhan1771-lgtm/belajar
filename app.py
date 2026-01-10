@@ -118,6 +118,86 @@ def interpolate_price(size: int | None, points: dict) -> int | None:
 def require_login() -> bool:
     return bool(session.get("user"))
 
+from flask import render_template, request, redirect, url_for
+import sqlite3
+
+@app.route("/admin/db", methods=["GET"])
+def admin_db_home():
+    if not require_login():
+        return redirect(url_for("login"))
+
+    conn = get_conn()
+    tables = [r["name"] for r in conn.execute("""
+        SELECT name FROM sqlite_master
+        WHERE type='table'
+        ORDER BY name
+    """).fetchall()]
+
+    # quick check: invoice header tapi detail kosong / subtotal mismatch
+    bad = conn.execute("""
+        SELECT
+          h.id AS invoice_id,
+          h.receiving_id,
+          h.tanggal,
+          h.supplier,
+          h.subtotal AS header_subtotal,
+          COALESCE(SUM(d.total_harga), 0) AS detail_subtotal,
+          COUNT(d.id) AS detail_count
+        FROM invoice_header h
+        LEFT JOIN invoice_detail d ON d.invoice_id = h.id
+        WHERE h.status != 'VOID'
+        GROUP BY h.id
+        HAVING detail_count = 0 OR ABS(header_subtotal - detail_subtotal) > 0.01
+        ORDER BY h.id DESC
+        LIMIT 50
+    """).fetchall()
+
+    conn.close()
+    return render_template(
+        "admin_db_home.html",
+        tables=tables,
+        bad=[dict(r) for r in bad]
+    )
+
+
+@app.route("/admin/db/table/<table_name>", methods=["GET"])
+def admin_db_table(table_name):
+    if not require_login():
+        return redirect(url_for("login"))
+
+    # whitelist table name (anti SQL injection)
+    conn = get_conn()
+    tables = [r["name"] for r in conn.execute("""
+        SELECT name FROM sqlite_master WHERE type='table'
+    """).fetchall()]
+    if table_name not in tables:
+        conn.close()
+        return "Table tidak valid", 400
+
+    limit = request.args.get("limit", "200")
+    try:
+        limit = int(limit)
+    except:
+        limit = 200
+    limit = max(1, min(limit, 2000))
+
+    # ambil column list
+    cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
+
+    rows = conn.execute(f"""
+        SELECT * FROM {table_name}
+        ORDER BY rowid DESC
+        LIMIT ?
+    """, (limit,)).fetchall()
+
+    conn.close()
+    return render_template(
+        "admin_db_table.html",
+        table_name=table_name,
+        cols=cols,
+        rows=[dict(r) for r in rows],
+        limit=limit
+    )
 
 # =========================
 # Auth
@@ -586,44 +666,6 @@ def sync_invoice_from_receiving(conn, receiving_id: int):
         WHERE id=?
     """, (subtotal, pph, total, invoice_id))
 
-
-
-@app.post("/receiving/delete/<int:rid>")
-def receiving_delete(rid):
-    if not require_login():
-        return redirect(url_for("login"))
-
-    conn = get_conn()
-    cur = conn.cursor()
-    try:
-        # --- hapus PRODUCTION turunan ---
-        prod = cur.execute("SELECT id FROM production_header WHERE receiving_id=?", (rid,)).fetchone()
-        if prod:
-            prod_id = prod["id"]
-            cur.execute("DELETE FROM production_packing WHERE production_id=?", (prod_id,))
-            cur.execute("DELETE FROM production_step WHERE production_id=?", (prod_id,))
-            cur.execute("DELETE FROM production_header WHERE id=?", (prod_id,))
-
-        # --- hapus INVOICE turunan ---
-        inv = cur.execute("SELECT id FROM invoice_header WHERE receiving_id=?", (rid,)).fetchone()
-        if inv:
-            inv_id = inv["id"]
-            cur.execute("DELETE FROM invoice_detail WHERE invoice_id=?", (inv_id,))
-            cur.execute("DELETE FROM invoice_header WHERE id=?", (inv_id,))
-
-        # --- hapus RECEIVING detail lalu header ---
-        cur.execute("DELETE FROM receiving_partai WHERE header_id=?", (rid,))
-        cur.execute("DELETE FROM receiving_header WHERE id=?", (rid,))
-
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        return f"Gagal hapus receiving: {e}", 500
-
-    conn.close()
-    return redirect(url_for("receiving_list"))
-
 @app.get("/master/suppliers")
 def master_suppliers():
     conn = get_conn()
@@ -1025,7 +1067,7 @@ def invoice_new(receiving_id):
             except:
                 pass
 
-    # 7) PPH persen (boleh desimal: 0.4 → 0.4%)
+    # 7) PPH persen (boleh desimal: 0.4 → 0.004%)
     pph_raw = (request.form.get("pph") or "").replace(",", ".").strip()
     try:
         pph_rate = float(pph_raw) / 100.0 if pph_raw != "" else 0.0
@@ -1102,16 +1144,17 @@ def invoice_new(receiving_id):
 
     for d in details:
         cur.execute("""
-            INSERT INTO invoice_detail (invoice_id, partai_no, size_round, berat_netto, harga, total_harga)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            invoice_id,
-            d["partai_no"],
-            d["size_round"],
-            d["berat_netto"],
-            d["harga"],
-            d["total_harga"]
-        ))
+                    INSERT INTO invoice_detail
+                        (invoice_id, partai_no, round_size, berat_netto, harga, total_harga)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        invoice_id,
+                        d["partai_no"],
+                        d["round_size"],
+                        d["berat_netto"],
+                        d["harga"],
+                        d["total_harga"]
+                    ))
 
     conn.commit()
     conn.close()
@@ -1326,8 +1369,6 @@ def production_debug(receiving_id):
     conn.close()
     return jsonify(out)
 
-
-
 @app.route("/invoice/<int:invoice_id>")
 def invoice_view(invoice_id):
     if not require_login():
@@ -1448,6 +1489,9 @@ def invoice_edit(invoice_id):
         parts=[dict(p) for p in parts],
         det_map=det_map
     )
+from datetime import datetime, timedelta
+from flask import request, jsonify
+
 @app.post("/invoice/update/<int:invoice_id>")
 def invoice_update(invoice_id):
     if not require_login():
@@ -1466,7 +1510,6 @@ def invoice_update(invoice_id):
 
     receiving_id = inv["receiving_id"]
 
-    # ambil sumber partai dari receiving (sumber data utama)
     parts = conn.execute("""
         SELECT partai_no,
                COALESCE(round_size,0) AS round_size,
@@ -1478,12 +1521,14 @@ def invoice_update(invoice_id):
 
     harga_map = {int(it.get("partai_no")): float(it.get("harga") or 0) for it in items}
 
-    # header fields
-    payment_type = (data.get("payment_type") or "TRANSFER").strip()
+    payment_type = (data.get("payment_type") or "TRANSFER").strip().upper()
     tempo_hari = int(float(data.get("tempo_hari") or 0))
     due_date = (data.get("due_date") or "").strip() or None
 
-    pph_rate = float(data.get("pph_rate") or 0)  # contoh 0.25 = 0.25%
+    # UI input contoh 0.4 = 0.4%
+    pph_rate_pct = float(data.get("pph_rate") or 0)
+    pph_rate = pph_rate_pct / 100.0  # simpan DESIMAL ke DB
+
     cash_deduct_per_kg = float(data.get("cash_deduct_per_kg") or 0)
     reject_kg = float(data.get("reject_kg") or 0)
     reject_price = float(data.get("reject_price") or 0)
@@ -1491,7 +1536,6 @@ def invoice_update(invoice_id):
     try:
         cur.execute("BEGIN")
 
-        # rebuild invoice_detail dari receiving_partai
         cur.execute("DELETE FROM invoice_detail WHERE invoice_id=?", (invoice_id,))
 
         subtotal = 0.0
@@ -1513,17 +1557,22 @@ def invoice_update(invoice_id):
                 VALUES (?,?,?,?,?,?)
             """, (invoice_id, partai_no, size_round, berat_netto, harga, total_harga))
 
-        # hitung potongan
-        # PPH dari persen (misal input 0.25 artinya 0.25%)
-        pph_amount = subtotal * (pph_rate / 100.0)
+        # due date otomatis bila kosong
+        if not due_date:
+            tgl_inv = datetime.strptime(inv["tanggal"], "%Y-%m-%d")
+            due_date = (tgl_inv + timedelta(days=int(tempo_hari))).strftime("%Y-%m-%d")
 
-        cash_total = total_kg * cash_deduct_per_kg
+        # PPH aman
+        pph_amount = 0.0 if subtotal <= 0 else subtotal * pph_rate
 
-        reject_total = reject_kg * reject_price
+        # cash hanya untuk CASH (sesuaikan aturanmu)
+        cash_total = (total_kg * cash_deduct_per_kg) if payment_type == "CASH" else 0.0
+
+        # reject aman
+        reject_total = (reject_kg * reject_price) if (reject_kg > 0 and reject_price > 0) else 0.0
 
         total = subtotal - pph_amount - cash_total - reject_total
 
-        # update header (samakan dengan nama kolom DB kamu)
         cur.execute("""
             UPDATE invoice_header
             SET payment_type=?,
@@ -1532,6 +1581,7 @@ def invoice_update(invoice_id):
                 subtotal=?,
                 pph_rate=?,
                 pph=?,
+                pph_amount=?,
                 cash_deduct_per_kg=?,
                 cash_deduct_total=?,
                 reject_kg=?,
@@ -1547,6 +1597,7 @@ def invoice_update(invoice_id):
             subtotal,
             pph_rate,
             pph_amount,
+            pph_amount,
             cash_deduct_per_kg,
             cash_total,
             reject_kg,
@@ -1559,12 +1610,12 @@ def invoice_update(invoice_id):
 
         conn.commit()
         return jsonify({"ok": True})
+
     except Exception as e:
         conn.rollback()
         return jsonify({"ok": False, "msg": f"Gagal update: {e}"}), 500
     finally:
         conn.close()
-
 
 @app.route("/invoice/list/print")
 def invoice_list_print():

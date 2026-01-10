@@ -116,7 +116,7 @@
 
   <div class="card">
 
-    <form method="get" action="/invoice/list" class="filter-row">
+   <form method="get" action="/invoice/list" class="filter-row">
   <div class="filter-item">
     <label>Dari Tanggal</label>
     <input type="date" name="start" value="{{ start or '' }}">
@@ -132,7 +132,6 @@
     <select id="supplier" name="supplier"></select>
   </div>
 
-  <!-- Total pembelian (sebaris) -->
   <div class="filter-item summary-inline">
     <label>Total Pembelian</label>
     <div class="summary-pill">
@@ -140,22 +139,18 @@
     </div>
   </div>
 
-  <!-- Tombol -->
   <div class="filter-actions">
-    <a class="btn btn-secondary" type="submit">Cari</a>
-
+    <button class="btn btn-secondary" type="submit">Cari</button>
     <a class="btn btn-ghost" href="/invoice/list">Reset</a>
-
     <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
 
-    <!-- Tombol Print -->
     <a class="btn btn-outline"
-   href="/invoice/list/print?start={{ start or '' }}&end={{ end or '' }}&supplier={{ supplier or '' }}">
+       href="/invoice/list/print?start={{ start or '' }}&end={{ end or '' }}&supplier={{ supplier or '' }}">
       Print
-      </a>
-
+    </a>
   </div>
 </form>
+
 
     <table>
       <thead>

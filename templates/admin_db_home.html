@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <title>DB Viewer</title>
+  <style>
+    body{font-family:Arial;background:#f3f4f6;padding:18px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px;margin-bottom:14px}
+    a{color:#2563eb;text-decoration:none}
+    table{width:100%;border-collapse:collapse}
+    th,td{border:1px solid #e5e7eb;padding:8px;font-size:13px}
+    th{background:#f9fafb}
+    .muted{color:#6b7280;font-size:12px}
+    .bad{color:#b91c1c;font-weight:700}
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2 style="margin:0 0 6px 0;">DB Viewer</h2>
+  <div class="muted">Klik tabel untuk lihat datanya.</div>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Daftar Tabel</h3>
+  <ul>
+    {% for t in tables %}
+      <li><a href="/admin/db/table/{{ t }}">{{ t }}</a></li>
+    {% endfor %}
+  </ul>
+</div>
+
+<div class="card">
+  <h3 style="margin-top:0;">Invoice Bermasalah (header ≠ detail / detail kosong)</h3>
+  {% if not bad %}
+    <div class="muted">Tidak ada masalah terdeteksi 🎉</div>
+  {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Receiving</th>
+          <th>Tanggal</th>
+          <th>Supplier</th>
+          <th>Detail count</th>
+          <th>Header subtotal</th>
+          <th>Detail subtotal</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in bad %}
+          <tr>
+            <td class="bad">{{ r.invoice_id }}</td>
+            <td>{{ r.receiving_id }}</td>
+            <td>{{ r.tanggal }}</td>
+            <td>{{ r.supplier }}</td>
+            <td class="bad">{{ r.detail_count }}</td>
+            <td>{{ r.header_subtotal }}</td>
+            <td>{{ r.detail_subtotal }}</td>
+            <td>
+              <a href="/invoice/{{ r.invoice_id }}">Detail</a> |
+              <a href="/invoice/edit/{{ r.invoice_id }}">Edit</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+</body>
+</html>

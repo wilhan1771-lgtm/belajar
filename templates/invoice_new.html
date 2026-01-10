@@ -159,11 +159,12 @@
         Harga akan dihitung otomatis berdasarkan round size partai (interpolate).
       </div>
     {% else %}
-      <div class="muted" style="color:#b91c1c;font-weight:700;">
-        Round Size belum ada di Receiving, sehingga harga per size tidak bisa dihitung.
-        Silakan lengkapi Round Size di Receiving dulu.
-      </div>
+   <div class="muted" style="color:#b45309;font-weight:600;">
+      Round Size belum ada di Receiving.
+     Invoice tetap bisa dibuat, namun harga akan diisi manual di halaman Edit Invoice.
+    </div>
     {% endif %}
+
 
     <div style="margin-top:10px;max-width:220px;">
       <label>PPH (%) <span class="muted">(opsional)</span></label>

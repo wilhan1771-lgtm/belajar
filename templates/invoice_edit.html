@@ -146,8 +146,11 @@
       {% for p in parts %}
       <tr>
         <td>{{ p.partai_no }}</td>
-        <td>{{ p.round_size or '-' }}</td>
-        <td class="right netto">{{ "{:,.2f}".format(p.netto or 0).replace(",", ".") }}</td>
+        <td>{{ p.size_round or '-' }}</td>
+        <td class="right netto" data-netto="{{ p.netto or 0 }}">
+          {{ "{:,.2f}".format(p.netto or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
+        </td>
+
         <td class="right w-harga">
           <input class="harga" data-partai="{{ p.partai_no }}" type="number"
                  value="{{ det_map.get(p.partai_no, 0) }}">
@@ -181,37 +184,21 @@ function fmtID(n){
   try { return n.toLocaleString("id-ID"); } catch(e){ return String(Math.round(n)); }
 }
 
-function parseNettoFromCell(text){
-  let s = String(text).trim();
-
-  // kalau ada koma dan titik, tentukan mana decimal terakhir
-  const lastComma = s.lastIndexOf(",");
-  const lastDot = s.lastIndexOf(".");
-
-  if (lastComma > -1 && lastDot > -1) {
-    // decimal adalah yang paling akhir muncul
-    if (lastComma > lastDot) {
-      // format: 1.234,56  -> hapus titik ribuan, koma jadi decimal
-      s = s.replaceAll(".", "").replace(",", ".");
-    } else {
-      // format: 1,234.56 -> hapus koma ribuan
-      s = s.replaceAll(",", "");
-    }
-  } else if (lastComma > -1) {
-    // format: 207,50 -> koma decimal
-    s = s.replace(",", ".");
-  } else {
-    // format: 207.50 -> dot decimal (biarkan)
-    // tapi kalau format ribuan: 1.234 (tanpa desimal) ini ambigu,
-    // anggap titik ribuan bila 3 digit setelah titik.
-    const m = s.match(/^(\d+)\.(\d{3})$/);
-    if (m) s = m[1] + m[2];
-  }
-
-  const n = parseFloat(s);
-  return isNaN(n) ? 0 : n;
+function getNetto(tr){
+  const cell = tr.querySelector(".netto");
+  const raw = cell.dataset.netto; // angka murni dari backend
+  return Number(raw) || 0;
 }
 
+function num(v){
+  const x = Number(v);
+  return Number.isFinite(x) ? x : 0;
+}
+
+function fmtID(n){
+  n = Number(n) || 0;
+  return Math.round(n).toLocaleString("id-ID");
+}
 
 function recalc(){
   let subtotal = 0;
@@ -220,8 +207,9 @@ function recalc(){
   document.querySelectorAll(".harga").forEach(inp=>{
     const pn = inp.dataset.partai;
     const tr = inp.closest("tr");
-    const netto = parseNettoFromCell(tr.querySelector(".netto").innerText);
-    const harga = num(inp.value);
+
+    const netto = getNetto(tr);      // 🔑 AMAN
+    const harga = num(inp.value);    // harga angka murni
     const tot = netto * harga;
 
     totalBerat += netto;

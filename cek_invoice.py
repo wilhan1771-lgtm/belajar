@@ -2,94 +2,51 @@ import sqlite3
 
 DB = "receiving.db"
 
-def main():
+def recalc_invoice(invoice_id: int):
     conn = sqlite3.connect(DB)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
-    # 1) Cek header invoice 44 dan 45
-    print("== INVOICE HEADER 44 & 45 ==")
+    inv = cur.execute("SELECT * FROM invoice_header WHERE id=?", (invoice_id,)).fetchone()
+    if not inv:
+        print("Invoice tidak ditemukan")
+        return
+
     rows = cur.execute("""
-        SELECT *
-        FROM invoice_header
-        WHERE id IN (44,46)
-    """).fetchall()
-    for r in rows:
-        print(dict(r))
+        SELECT COALESCE(berat_netto,0) AS netto,
+               COALESCE(harga,0) AS harga,
+               COALESCE(total_harga,0) AS total_harga
+        FROM invoice_detail
+        WHERE invoice_id=?
+    """, (invoice_id,)).fetchall()
 
-    # 2) Pastikan receiving mapping (15 -> 44, 16 -> 45)
-    print("\n== CHECK receiving_id -> invoice_id ==")
-    for rid in (15, 17):
-        row = cur.execute(
-            "SELECT id FROM invoice_header WHERE receiving_id=?",
-            (rid,)
-        ).fetchone()
-        print("receiving_id", rid, "=>", dict(row) if row else None)
+    subtotal = sum(float(r["total_harga"]) for r in rows)
+    total_kg = sum(float(r["netto"]) for r in rows)
 
-    # 3) Cari tabel yang mengandung kata 'invoice' (buat nemuin detail table)
-    print("\n== TABLES containing 'invoice' ==")
-    tables = cur.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-    invoice_tables = [t["name"] for t in tables if "invoice" in t["name"].lower()]
-    for t in invoice_tables:
-        print("-", t)
+    pph_rate = float(inv["pph_rate"] or 0)  # sudah bentuk desimal (mis 0.0025)
+    pph = subtotal * pph_rate
 
-    # 4) Dari tabel invoice selain invoice_header, cek mana yang punya kolom invoice_id
-    print("\n== DETAIL TABLE candidates with invoice_id column ==")
-    detail_tables = []
-    for t in invoice_tables:
-        if t.lower() == "invoice_header":
-            continue
-        cols = cur.execute(f"PRAGMA table_info({t})").fetchall()
-        colnames = [c["name"] for c in cols]
-        if "invoice_id" in colnames:
-            detail_tables.append(t)
-            print("-", t, "| columns:", colnames)
+    cash_total = float(inv["cash_deduct_total"] or 0)
+    reject_total = float(inv["reject_total"] or 0)
 
-    # 5) Kalau ketemu detail table, cek apakah invoice 44/45 punya rows
-    print("\n== DETAIL ROW COUNT for invoice_id 44/46 ==")
-    for t in detail_tables:
-        cnt = cur.execute(
-            f"SELECT COUNT(*) AS c FROM {t} WHERE invoice_id IN (44,46)"
-        ).fetchone()["c"]
-        print(t, "=>", cnt, "rows")
-        if cnt > 0:
-            sample = cur.execute(
-                f"SELECT * FROM {t} WHERE invoice_id IN (44,46) LIMIT 10"
-            ).fetchall()
-            for s in sample:
-                print(" ", dict(s))
+    total = subtotal - pph - cash_total - reject_total
 
-    # 6) Bonus: cek tabel receiving detail (buat lihat receiving 15/16 punya item atau nggak)
-    print("\n== TABLES containing 'receiving' ==")
-    receiving_tables = [t["name"] for t in tables if "receiving" in t["name"].lower()]
-    for t in receiving_tables:
-        print("-", t)
+    # Proteksi penting: kalau subtotal 0, paksa pph 0
+    if subtotal == 0:
+        pph = 0
 
-    print("\n== RECEIVING detail candidates with receiving_id column ==")
-    rec_detail_tables = []
-    for t in receiving_tables:
-        if t.lower() == "receiving_header":
-            continue
-        cols = cur.execute(f"PRAGMA table_info({t})").fetchall()
-        colnames = [c["name"] for c in cols]
-        if "receiving_id" in colnames:
-            rec_detail_tables.append(t)
-            print("-", t, "| columns:", colnames)
+    cur.execute("""
+        UPDATE invoice_header
+        SET subtotal=?,
+            total_kg=?,
+            pph=?,
+            total=?
+        WHERE id=?
+    """, (subtotal, total_kg, pph, total, invoice_id))
 
-    print("\n== RECEIVING ROW COUNT for receiving_id 15/17 ==")
-    for t in rec_detail_tables:
-        cnt = cur.execute(
-            f"SELECT COUNT(*) AS c FROM {t} WHERE receiving_id IN (15,17)"
-        ).fetchone()["c"]
-        print(t, "=>", cnt, "rows")
-        if cnt > 0:
-            sample = cur.execute(
-                f"SELECT * FROM {t} WHERE receiving_id IN (15,17) LIMIT 10"
-            ).fetchall()
-            for s in sample:
-                print(" ", dict(s))
-
+    conn.commit()
     conn.close()
+    print("OK updated invoice", invoice_id)
 
 if __name__ == "__main__":
-    main()
+    recalc_invoice(45)   # ganti id yang mau diperbaiki
