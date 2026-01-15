@@ -159,7 +159,6 @@ def admin_db_home():
         bad=[dict(r) for r in bad]
     )
 
-
 @app.route("/admin/db/table/<table_name>", methods=["GET"])
 def admin_db_table(table_name):
     if not require_login():
@@ -217,6 +216,59 @@ def login():
         error = "Username / password salah"
 
     return render_template("login.html", error=error)
+
+@app.get("/debug/pragma")
+def debug_pragma():
+    conn = get_conn()
+    a = conn.execute("PRAGMA table_info(invoice_header)").fetchall()
+    b = conn.execute("PRAGMA table_info(receiving_header)").fetchall()
+    c = conn.execute("SELECT * FROM invoice_header WHERE id=51").fetchone()
+    conn.close()
+    return {
+        "invoice_header": [dict(x) for x in a],
+        "receiving_header": [dict(x) for x in b],
+        "invoice_51": dict(c) if c else None
+    }
+def recalc_receiving(header_id: int):
+    conn = get_conn()
+    cur = conn.cursor()
+
+    rows = conn.execute("""
+        SELECT id, pcs, kg_sample, tara_per_keranjang, timbangan_json
+        FROM receiving_partai
+        WHERE header_id=?
+    """, (header_id,)).fetchall()
+
+    for r in rows:
+        timbangan = json.loads(r["timbangan_json"] or "[]")
+        timbangan = [float(x) for x in timbangan if x]
+
+        keranjang = len(timbangan) if timbangan else 0
+        bruto = sum(timbangan) if timbangan else 0
+
+        tara = float(r["tara_per_keranjang"] or 0)
+        total_tara = keranjang * tara
+        netto = max(bruto - total_tara, 0)
+
+        size = None
+        round_size = None
+        if r["pcs"] and r["kg_sample"] and r["kg_sample"] > 0:
+            size = r["pcs"] / r["kg_sample"]
+            round_size = int(round(size))
+
+        cur.execute("""
+            UPDATE receiving_partai
+            SET keranjang=?, bruto=?, total_tara=?, netto=?,
+                size=?, round_size=?
+            WHERE id=?
+        """, (
+            keranjang, bruto, total_tara, netto,
+            size, round_size,
+            r["id"]
+        ))
+
+    conn.commit()
+    conn.close()
 
 @app.route("/production/<int:prod_id>")
 def production_view(prod_id):
@@ -441,6 +493,33 @@ def receiving_debug():
         "partai": [dict(r) for r in partai],
     }
 
+def hitung_partai(p):
+    pcs = p.get("pcs")
+    kg_sample = p.get("kg_sample")
+    tara = p.get("tara_per_keranjang")
+    timbangan = p.get("timbangan") or []
+
+    # size
+    size = round(pcs / kg_sample, 2) if pcs and kg_sample else None
+    round_size = round(size) if size else None
+
+    # timbangan
+    timbangan = [float(x) for x in timbangan if str(x).strip() != ""]
+    keranjang = len(timbangan)
+    bruto = sum(timbangan) if timbangan else 0
+
+    total_tara = (keranjang * tara) if tara else 0
+    netto = bruto - total_tara if bruto else 0
+
+    return {
+        "size": size,
+        "round_size": round_size,
+        "keranjang": keranjang,
+        "bruto": bruto,
+        "total_tara": total_tara,
+        "netto": netto,
+        "timbangan_json": json.dumps(timbangan)
+    }
 
 # =========================
 # Receiving UI
@@ -449,154 +528,129 @@ def receiving_debug():
 def receiving():
     if not require_login():
         return redirect(url_for("login"))
-
     today = date.today().strftime("%Y-%m-%d")
     return render_template("receiving.html", today=today)
 
-@app.route("/receiving/save", methods=["POST"])
+@app.post("/receiving/save")
 def receiving_save():
     if not require_login():
-        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
+        return jsonify({"ok": False}), 401
 
     data = request.get_json(force=True)
-
-    tanggal = (data.get("tanggal") or "").strip()
-    supplier = (data.get("supplier") or "").strip()
-    jenis = (data.get("jenis") or "").strip()
-    fiber = data.get("fiber")
-    partai_list = data.get("partai", [])
-
-    if not tanggal or not supplier:
-        return jsonify({"ok": False, "msg": "Tanggal & Supplier wajib diisi"}), 400
-    if not partai_list:
-        return jsonify({"ok": False, "msg": "Minimal harus ada 1 partai"}), 400
-
-    # FLAG MODE TEST DARI QUERYSTRING
-    is_test = 1 if (request.args.get("test") == "1") else 0
+    partai_list = data.get("partai") or []
 
     conn = get_conn()
     cur = conn.cursor()
 
     try:
-        ensure_is_test_column(conn)
-
         cur.execute("""
             INSERT INTO receiving_header (tanggal, supplier, jenis, fiber, is_test)
             VALUES (?, ?, ?, ?, ?)
-        """, (tanggal, supplier, jenis or None, fiber, is_test))
+        """, (
+            data.get("tanggal"),
+            data.get("supplier"),
+            data.get("jenis"),
+            data.get("fiber"),
+            1 if request.args.get("test") == "1" else 0
+        ))
 
         header_id = cur.lastrowid
 
         for p in partai_list:
-            timbangan = p.get("timbangan") or []
+            h = hitung_partai(p)
+
             cur.execute("""
                 INSERT INTO receiving_partai
-                (header_id, partai_no, pcs, kg_sample, size, round_size, keranjang,
-                 tara_per_keranjang, bruto, total_tara, netto, note, timbangan_json)
+                (header_id, partai_no, pcs, kg_sample,
+                 size, round_size,
+                 keranjang, tara_per_keranjang,
+                 bruto, total_tara, netto,
+                 note, timbangan_json)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 header_id,
                 p.get("partai_no"),
                 p.get("pcs"),
                 p.get("kg_sample"),
-                p.get("size"),
-                p.get("round_size"),
-                p.get("keranjang"),
+                h["size"],
+                h["round_size"],
+                h["keranjang"],
                 p.get("tara_per_keranjang"),
-                p.get("bruto"),
-                p.get("total_tara"),
-                p.get("netto"),
+                h["bruto"],
+                h["total_tara"],
+                h["netto"],
                 p.get("note"),
-                json.dumps(timbangan)
+                h["timbangan_json"]
             ))
 
         conn.commit()
-        return jsonify({"ok": True, "header_id": header_id, "is_test": is_test})
+        return jsonify({"ok": True, "header_id": header_id})
 
     except Exception as e:
         conn.rollback()
-        return jsonify({"ok": False, "msg": f"Gagal simpan: {str(e)}"}), 500
+        return jsonify({"ok": False, "msg": str(e)}), 500
     finally:
         conn.close()
 
 @app.post("/receiving/update/<int:header_id>")
 def receiving_update(header_id):
     if not require_login():
-        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
+        return jsonify({"ok": False}), 401
 
-    data = request.get_json(force=True) or {}
+    data = request.get_json(force=True)
     partai_rows = data.get("partai") or []
 
     conn = get_conn()
     cur = conn.cursor()
 
-    # pastikan receiving ada
-    h = conn.execute("SELECT id FROM receiving_header WHERE id=?", (header_id,)).fetchone()
-    if not h:
-        conn.close()
-        return jsonify({"ok": False, "msg": "Receiving tidak ditemukan"}), 404
-
     try:
-        # update receiving_partai satu-satu
         for p in partai_rows:
-            pid = int(p.get("id") or 0)
+            pid = p.get("id")
             if not pid:
                 continue
 
-            pcs = p.get("pcs")
-            kg_sample = p.get("kg_sample")
-            tara = p.get("tara_per_keranjang")
-            note = (p.get("note") or "").strip() or None
+            h = hitung_partai(p)
 
-            # timbangan list -> hitung bruto & keranjang
-            timbangan = p.get("timbangan") or []
-            timbangan = [float(x) for x in timbangan if x is not None and str(x).strip() != ""]
-            keranjang = len(timbangan) if timbangan else None
-            bruto = sum(timbangan) if timbangan else None
-
-            # hitung total tara & netto
-            total_tara = None
-            netto = None
-            if keranjang and tara and float(tara) > 0 and bruto is not None:
-                total_tara = float(keranjang) * float(tara)
-                netto = float(bruto) - float(total_tara)
-                if netto < 0:
-                    netto = 0.0
-
-            # hitung size & round_size dari pcs/kg_sample
-            size = None
-            round_size = None
-            if pcs and kg_sample and float(kg_sample) > 0:
-                size = float(pcs) / float(kg_sample)
-                round_size = int(round(size))
-
-            # simpan
             cur.execute("""
                 UPDATE receiving_partai
-                SET pcs=?, kg_sample=?, size=?, round_size=?,
-                    keranjang=?, tara_per_keranjang=?,
-                    bruto=?, total_tara=?, netto=?, note=?,
+                SET pcs=?,
+                    kg_sample=?,
+                    size=?,
+                    round_size=?,
+                    keranjang=?,
+                    tara_per_keranjang=?,
+                    bruto=?,
+                    total_tara=?,
+                    netto=?,
+                    note=?,
                     timbangan_json=?
                 WHERE id=? AND header_id=?
             """, (
-                pcs, kg_sample, size, round_size,
-                keranjang, tara,
-                bruto, total_tara, netto, note,
-                json.dumps(timbangan),
-                pid, header_id
+                p.get("pcs"),
+                p.get("kg_sample"),
+                h["size"],
+                h["round_size"],
+                h["keranjang"],
+                p.get("tara_per_keranjang"),
+                h["bruto"],
+                h["total_tara"],
+                h["netto"],
+                p.get("note"),
+                h["timbangan_json"],
+                pid,
+                header_id
             ))
-
-        # setelah receiving berubah → sinkronkan invoice (kalau ada)
-        sync_invoice_from_receiving(conn, header_id)
+            recalc_receiving(header_id)
+            sync_invoice_from_receiving(conn, header_id)
 
         conn.commit()
+        return jsonify({"ok": True})
+
     except Exception as e:
         conn.rollback()
+        return jsonify({"ok": False, "msg": str(e)}), 500
+    finally:
         conn.close()
-        return jsonify({"ok": False, "msg": f"Gagal update: {e}"}), 500
-
-    conn.close()
-    return jsonify({"ok": True})
 
 def sync_invoice_from_receiving(conn, receiving_id: int):
     """
@@ -642,10 +696,10 @@ def sync_invoice_from_receiving(conn, receiving_id: int):
 
         p = part_map.get(pn)
         if not p:
-            size_round = None
+            round_size = None
             berat_netto = 0.0
         else:
-            size_round = p["round_size"]
+            round_size = p["round_size"]
             berat_netto = float(p["netto"] or 0)
 
         total_harga = berat_netto * harga
@@ -653,9 +707,9 @@ def sync_invoice_from_receiving(conn, receiving_id: int):
 
         cur.execute("""
             UPDATE invoice_detail
-            SET size_round=?, berat_netto=?, total_harga=?
+            SET round_size=?, berat_netto=?, total_harga=?
             WHERE id=? AND invoice_id=?
-        """, (size_round, berat_netto, total_harga, d["id"], invoice_id))
+        """, (round_size, berat_netto, total_harga, d["id"], invoice_id))
 
     pph = subtotal * pph_rate
     total = subtotal - pph   # sesuai logic kamu: total = subtotal - pph
@@ -808,6 +862,29 @@ def receiving_detail(header_id):
         invoice=inv   # ⬅️ penting
     )
 
+def hitung_receiving(partai):
+    pcs = partai.pcs
+    kg_sample = partai.kg_sample
+    timbangan = json.loads(partai.timbangan_json or "[]")
+
+    # SIZE
+    if pcs and kg_sample and kg_sample > 0:
+        partai.size = pcs / kg_sample
+        partai.round_size = round(partai.size)
+    else:
+        partai.size = None
+        partai.round_size = None
+
+    # TIMBANGAN
+    partai.keranjang = len(timbangan)
+    partai.bruto = sum(timbangan) if timbangan else 0
+
+    if partai.tara_per_keranjang:
+        partai.total_tara = partai.keranjang * partai.tara_per_keranjang
+    else:
+        partai.total_tara = 0
+
+    partai.netto = partai.bruto - partai.total_tara
 
 @app.route("/receiving/edit/<int:header_id>", methods=["GET", "POST"])
 def receiving_edit(header_id):
@@ -1081,19 +1158,19 @@ def invoice_new(receiving_id):
 
     for r in partai_rows:
         pno = r["partai_no"]
-        size_round = r["round_size"]
+        round_size = r["round_size"]
         netto = float(r["netto"] or 0.0)
 
         total_berat += netto
 
-        harga = interpolate_price(size_round, points)
+        harga = interpolate_price(round_size, points)
         total_harga = (netto * float(harga)) if harga is not None else 0.0
 
         subtotal += total_harga
 
         details.append({
             "partai_no": pno,
-            "size_round": size_round,
+            "round_size": round_size,
             "berat_netto": netto,
             "harga": int(harga) if harga is not None else None,
             "total_harga": float(total_harga)
@@ -1454,6 +1531,34 @@ def invoice_list():
         supplier=supplier_q,
         total_beli=total_beli
     )
+@app.route("/invoice/save_price", methods=["POST"])
+def invoice_save_price():
+    data = request.json
+    invoice_id = data["invoice_id"]
+    partai_no = data["partai_no"]
+    harga = float(data["harga"])
+
+    conn = get_db()
+    row = conn.execute("""
+        SELECT berat_netto FROM invoice_detail
+        WHERE invoice_id=? AND partai_no=?
+    """, (invoice_id, partai_no)).fetchone()
+
+    if not row:
+        return {"status": "error"}
+
+    total = row["berat_netto"] * harga
+
+    conn.execute("""
+        UPDATE invoice_detail
+        SET harga=?, total_harga=?
+        WHERE invoice_id=? AND partai_no=?
+    """, (harga, total, invoice_id, partai_no))
+
+    conn.commit()
+    print("SAVE PRICE", invoice_id, partai_no, harga)
+
+    return {"status": "ok"}
 
 @app.get("/invoice/edit/<int:invoice_id>")
 def invoice_edit(invoice_id):
@@ -1461,7 +1566,11 @@ def invoice_edit(invoice_id):
         return redirect(url_for("login"))
 
     conn = get_conn()
-    inv = conn.execute("SELECT * FROM invoice_header WHERE id=?", (invoice_id,)).fetchone()
+
+    inv = conn.execute("""
+        SELECT * FROM invoice_header WHERE id=?
+    """, (invoice_id,)).fetchone()
+
     if not inv:
         conn.close()
         return "Invoice tidak ditemukan", 404
@@ -1477,20 +1586,19 @@ def invoice_edit(invoice_id):
         SELECT partai_no, harga
         FROM invoice_detail
         WHERE invoice_id=?
-        ORDER BY partai_no
     """, (invoice_id,)).fetchall()
+
     conn.close()
 
     det_map = {d["partai_no"]: (d["harga"] or 0) for d in det}
 
+    # ✅ RETURN HARUS ADA DI SINI (PALING BAWAH)
     return render_template(
         "invoice_edit.html",
         inv=dict(inv),
         parts=[dict(p) for p in parts],
         det_map=det_map
     )
-from datetime import datetime, timedelta
-from flask import request, jsonify
 
 @app.post("/invoice/update/<int:invoice_id>")
 def invoice_update(invoice_id):
@@ -1544,7 +1652,7 @@ def invoice_update(invoice_id):
         for p in parts:
             partai_no = int(p["partai_no"])
             berat_netto = float(p["netto"] or 0)
-            size_round = int(p["round_size"] or 0)
+            round_size = int(p["round_size"] or 0)
 
             harga = float(harga_map.get(partai_no, 0))
             total_harga = berat_netto * harga
@@ -1553,9 +1661,9 @@ def invoice_update(invoice_id):
             subtotal += total_harga
 
             cur.execute("""
-                INSERT INTO invoice_detail (invoice_id, partai_no, size_round, berat_netto, harga, total_harga)
+                INSERT INTO invoice_detail (invoice_id, partai_no, round_size, berat_netto, harga, total_harga)
                 VALUES (?,?,?,?,?,?)
-            """, (invoice_id, partai_no, size_round, berat_netto, harga, total_harga))
+            """, (invoice_id, partai_no, round_size, berat_netto, harga, total_harga))
 
         # due date otomatis bila kosong
         if not due_date:

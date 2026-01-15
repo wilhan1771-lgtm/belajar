@@ -146,7 +146,7 @@
       {% for p in parts %}
       <tr>
         <td>{{ p.partai_no }}</td>
-        <td>{{ p.size_round or '-' }}</td>
+        <td>{{ p.round_size }}</td>
         <td class="right netto" data-netto="{{ p.netto or 0 }}">
           {{ "{:,.2f}".format(p.netto or 0).replace(",", "X").replace(".", ",").replace("X", ".") }}
         </td>
@@ -283,6 +283,24 @@ document.getElementById("btnSave").addEventListener("click", async ()=>{
 
   alert("Invoice berhasil diupdate!");
   window.location.href = "/invoice/{{ inv.id }}";
+});
+</script>
+<script>
+document.querySelectorAll(".harga").forEach(inp => {
+  inp.addEventListener("change", () => {
+    fetch("/invoice/save_price", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        invoice_id: {{ inv.id }},
+        partai_no: inp.dataset.partai,
+        harga: inp.value
+      })
+    }).then(r => r.json())
+      .then(res => {
+        if (res.status !== "ok") alert("Gagal simpan harga");
+      });
+  });
 });
 </script>
 

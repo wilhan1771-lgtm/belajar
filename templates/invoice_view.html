@@ -117,7 +117,7 @@
     {% for r in det %}
     <tr>
       <td>{{ r.partai_no }}</td>
-      <td>{{ r.size_round if r.size_round is not none else "-" }}</td>
+      <td>{{ r.round_size if r.round_size is not none else "-" }}</td>
 
       <td class="right">{{ "%.2f"|format((r.berat_netto or 0)|float) }}</td>
 

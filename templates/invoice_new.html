@@ -185,7 +185,7 @@
         {% for p in partai %}
         <tr>
           <td>{{ p["partai_no"] }}</td>
-          <td>{{ p["round_size"] if p["round_size"] is not none else "-" }}</td>
+          <td>{{ p.get("round_size") if p.get("round_size") is not none else "-" }}</td>
           <td>{{ "%.2f"|format(p["netto"] or 0) }}</td>
         </tr>
         {% endfor %}
