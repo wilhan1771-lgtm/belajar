@@ -494,32 +494,40 @@ def receiving_debug():
     }
 
 def hitung_partai(p):
-    pcs = p.get("pcs")
-    kg_sample = p.get("kg_sample")
-    tara = p.get("tara_per_keranjang")
     timbangan = p.get("timbangan") or []
+    tara = float(p.get("tara_per_keranjang") or 0)
 
-    # size
-    size = round(pcs / kg_sample, 2) if pcs and kg_sample else None
-    round_size = round(size) if size else None
-
-    # timbangan
-    timbangan = [float(x) for x in timbangan if str(x).strip() != ""]
+    bruto = sum(float(x) for x in timbangan)
     keranjang = len(timbangan)
-    bruto = sum(timbangan) if timbangan else 0
+    total_tara = keranjang * tara
 
-    total_tara = (keranjang * tara) if tara else 0
-    netto = bruto - total_tara if bruto else 0
+    bruto = round(bruto, 2)
+    total_tara = round(total_tara, 2)
+    netto = round(bruto - total_tara, 2)
+
+    size = None
+    round_size = None
+
+    try:
+        pcs = float(p.get("pcs") or 0)
+        kg  = float(p.get("kg_sample") or 0)
+
+        if pcs > 0 and kg > 0:
+            size = round(pcs / kg, 1)        # 🔥 1 angka desimal
+            round_size = int(round(size))    # 🔥 round normal (66.6 → 67)
+    except Exception:
+        pass
 
     return {
-        "size": size,
-        "round_size": round_size,
-        "keranjang": keranjang,
         "bruto": bruto,
+        "keranjang": keranjang,
         "total_tara": total_tara,
         "netto": netto,
+        "size": size,
+        "round_size": round_size,
         "timbangan_json": json.dumps(timbangan)
     }
+
 
 # =========================
 # Receiving UI
@@ -560,28 +568,38 @@ def receiving_save():
             h = hitung_partai(p)
 
             cur.execute("""
-                INSERT INTO receiving_partai
-                (header_id, partai_no, pcs, kg_sample,
-                 size, round_size,
-                 keranjang, tara_per_keranjang,
-                 bruto, total_tara, netto,
-                 note, timbangan_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                header_id,
-                p.get("partai_no"),
-                p.get("pcs"),
-                p.get("kg_sample"),
-                h["size"],
-                h["round_size"],
-                h["keranjang"],
-                p.get("tara_per_keranjang"),
-                h["bruto"],
-                h["total_tara"],
-                h["netto"],
-                p.get("note"),
-                h["timbangan_json"]
-            ))
+                        INSERT INTO receiving_partai
+                        (header_id,
+                         partai_no,
+                         pcs,
+                         kg_sample,
+                         size,
+                         round_size,
+                         keranjang,
+                         tara_per_keranjang,
+                         bruto,
+                         total_tara,
+                         netto,
+                         note,
+                         timbangan_json,
+                         kategori_kupasan)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            header_id,
+                            p.get("partai_no"),
+                            p.get("pcs"),
+                            p.get("kg_sample"),
+                            h["size"],
+                            h["round_size"],
+                            h["keranjang"],
+                            p.get("tara_per_keranjang"),
+                            h["bruto"],
+                            h["total_tara"],
+                            h["netto"],
+                            p.get("note"),
+                            h["timbangan_json"],
+                            p.get("kategori_kupasan")  # ✅ TERAKHIR
+                        ))
 
         conn.commit()
         return jsonify({"ok": True, "header_id": header_id})
@@ -862,29 +880,6 @@ def receiving_detail(header_id):
         invoice=inv   # ⬅️ penting
     )
 
-def hitung_receiving(partai):
-    pcs = partai.pcs
-    kg_sample = partai.kg_sample
-    timbangan = json.loads(partai.timbangan_json or "[]")
-
-    # SIZE
-    if pcs and kg_sample and kg_sample > 0:
-        partai.size = pcs / kg_sample
-        partai.round_size = round(partai.size)
-    else:
-        partai.size = None
-        partai.round_size = None
-
-    # TIMBANGAN
-    partai.keranjang = len(timbangan)
-    partai.bruto = sum(timbangan) if timbangan else 0
-
-    if partai.tara_per_keranjang:
-        partai.total_tara = partai.keranjang * partai.tara_per_keranjang
-    else:
-        partai.total_tara = 0
-
-    partai.netto = partai.bruto - partai.total_tara
 
 @app.route("/receiving/edit/<int:header_id>", methods=["GET", "POST"])
 def receiving_edit(header_id):

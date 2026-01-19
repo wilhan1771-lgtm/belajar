@@ -1,7 +1,10 @@
 import sqlite3
 
-conn = sqlite3.connect("receiving.db")
+conn = sqlite3.connect("receiving.db")   # ganti sesuai nama db kamu
 conn.row_factory = sqlite3.Row
 
-for r in conn.execute("PRAGMA table_info(invoice_detail)"):
-    print(r["name"])
+cur = conn.cursor()
+rows = cur.execute("SELECT id, nama FROM supplier").fetchall()
+
+for r in rows:
+    print(dict(r))

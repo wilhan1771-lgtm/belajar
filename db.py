@@ -107,6 +107,8 @@ def init_db():
     # =====================
     # ALTER TABLE (PYTHON)
     # =====================
+
+    ensure_column(conn, "receiving_partai","kategori_kupasan","TEXT")
     ensure_column(conn, "receiving_header", "is_test", "INTEGER DEFAULT 0")
     ensure_column(conn, "invoice_detail", "round_size", "INTEGER")
     conn.execute("""
