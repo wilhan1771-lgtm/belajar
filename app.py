@@ -1,10 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from datetime import date, datetime, timedelta
 import json
-import sqlite3
-from typing import Optional, Any, Dict, List
-
-
 from db import init_db, get_conn
 
 # init database
@@ -16,35 +12,10 @@ app.secret_key = "belajar-secret"
 DEMO_USER = {"username": "admin", "password": "1234"}
 
 DATE_FMT = "%Y-%m-%d"
-def ensure_is_test_column(conn):
-    cols = [r["name"] for r in conn.execute("PRAGMA table_info(receiving_header)").fetchall()]
-    if "is_test" not in cols:
-        conn.execute("ALTER TABLE receiving_header ADD COLUMN is_test INTEGER DEFAULT 0")
-        conn.commit()
 
 def today_str() -> str:
     return date.today().strftime(DATE_FMT)
 
-def parse_date_str(s: str, default: Optional[str] = None) -> str:
-    """
-    Pastikan string tanggal valid format YYYY-MM-DD.
-    Kalau kosong/invalid -> pakai default, kalau default None -> pakai hari ini.
-    Return selalu string YYYY-MM-DD.
-    """
-    s = (s or "").strip()
-    if not s:
-        return default or today_str()
-
-    try:
-        datetime.strptime(s, DATE_FMT)
-        return s
-    except:
-        return default or today_str()
-
-def add_days(date_str: str, days: int) -> str:
-    d = datetime.strptime(date_str, DATE_FMT)
-    return (d.replace(hour=0, minute=0, second=0, microsecond=0) +
-            __import__("datetime").timedelta(days=days)).strftime(DATE_FMT)
 def calc_invoice_totals(det_rows, pph_rate=0.0, cash_deduct_per_kg=0.0, reject_kg=0.0, reject_price=0.0):
     total_kg = sum(float(r.get("berat_netto") or 0) for r in det_rows)
 
@@ -658,8 +629,10 @@ def receiving_update(header_id):
                 pid,
                 header_id
             ))
-            recalc_receiving(header_id)
-            sync_invoice_from_receiving(conn, header_id)
+
+        # ✅ HARUS DI SINI (SETELAH LOOP SELESAI)
+        recalc_receiving(header_id)
+        sync_invoice_from_receiving(conn, header_id)
 
         conn.commit()
         return jsonify({"ok": True})
@@ -1526,6 +1499,7 @@ def invoice_list():
         supplier=supplier_q,
         total_beli=total_beli
     )
+
 @app.route("/invoice/save_price", methods=["POST"])
 def invoice_save_price():
     data = request.json
@@ -1533,8 +1507,10 @@ def invoice_save_price():
     partai_no = data["partai_no"]
     harga = float(data["harga"])
 
-    conn = get_db()
-    row = conn.execute("""
+    conn = get_conn()   # ✅ GANTI INI
+    cur = conn.cursor()
+
+    row = cur.execute("""
         SELECT berat_netto FROM invoice_detail
         WHERE invoice_id=? AND partai_no=?
     """, (invoice_id, partai_no)).fetchone()
@@ -1544,15 +1520,13 @@ def invoice_save_price():
 
     total = row["berat_netto"] * harga
 
-    conn.execute("""
+    cur.execute("""
         UPDATE invoice_detail
         SET harga=?, total_harga=?
         WHERE invoice_id=? AND partai_no=?
     """, (harga, total, invoice_id, partai_no))
-
     conn.commit()
     print("SAVE PRICE", invoice_id, partai_no, harga)
-
     return {"status": "ok"}
 
 @app.get("/invoice/edit/<int:invoice_id>")
