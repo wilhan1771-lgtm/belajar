@@ -21,7 +21,7 @@
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; vertical-align: top; }
     th { background:#f9fafb; }
-    .muted { color:#6b7280; font-size:13px; }
+    .muted { color:#6b7280; font-size:17px; padding:2px}
     .pill { display:inline-block; font-size:12px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
     .chips { display:flex; flex-wrap:wrap; gap:6px; }
     .chip { font-size:12px; padding:4px 8px; border:1px solid #e5e7eb; border-radius:999px; background:white; }
@@ -88,12 +88,6 @@
     <a class="btn btn-outline" href="{{ url_for('receiving_edit', header_id=header['id']) }}">
       ✏️ Edit Receiving
     </a>
-
-    <form method="post" action="/receiving/delete/{{ header['id'] }}" style="display:inline;"
-          onsubmit="return confirm('Yakin hapus Receiving ini? Jika ada invoice, invoice juga akan terhapus!')">
-      <button class="btn btn-danger" type="submit">Hapus</button>
-    </form>
-
     <a class="btn btn-secondary" href="/receiving/list">Kembali</a>
     <a class="btn btn-primary" href="#" onclick="window.print(); return false;">Print</a>
   </div>
@@ -288,7 +282,6 @@ document.querySelectorAll("[data-partai-id]").forEach(card => {
       <tr>
         <th style="width:220px;">Sampling (edit)</th>
         <th style="width:240px;">Berat (auto)</th>
-        <th style="width:220px;">Catatan (edit)</th>
         <th>Timbangan (edit)</th>
       </tr>
     </thead>
@@ -331,12 +324,9 @@ document.querySelectorAll("[data-partai-id]").forEach(card => {
           <div class="muted">Netto: <b>{{ p["netto"] if p["netto"] is not none else "-" }}</b></div>
 
           <div class="muted" style="margin-top:8px;">
-            (Nilai di atas akan dihitung ulang saat Simpan)
+            (catatan:)
           </div>
-        </td>
 
-        <!-- NOTE -->
-        <td>
           <textarea class="inp" name="note" rows="6" style="resize:vertical;">{{ p["note"] or "" }}</textarea>
         </td>
 
@@ -354,7 +344,7 @@ document.querySelectorAll("[data-partai-id]").forEach(card => {
 
           <div class="small-actions">
             <button type="button" class="btn btn-outline btn-sm" data-add-timb="1">+ Baris</button>
-            <span class="muted">Kosongkan value untuk abaikan.</span>
+
           </div>
         </td>
       </tr>

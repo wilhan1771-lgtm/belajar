@@ -33,10 +33,13 @@ th{background:#f9fafb}
     <label>Tanggal</label>
     <input id="tanggal" type="date">
   </div>
-  <div class="field">
-    <label>Supplier</label>
-    <select id="supplier"></select>
+ <div class="field">
+  <label>Supplier</label>
+  <div style="display:flex; gap:6px">
+    <select id="supplier" style="flex:1"></select>
+    <button type="button" class="btn btn-secondary" onclick="showAddSupplier()">+</button>
   </div>
+</div>
   <div class="field">
     <label>Jenis Udang</label>
     <select id="jenis"></select>
@@ -163,6 +166,7 @@ try {
   }
 
   alert("Data berhasil disimpan");
+  window.location.href = "/receiving/list";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -352,8 +356,8 @@ function hitungBerat(p){
 }
 
 function hitungSize(p) {
-  const pcs = parseFloat($(`pcs-${p}`).value);
-  const kg  = parseFloat($(`kg-${p}`).value);
+  const pcs = parseFloat($(`pcs-${p}`).value.replace(",", "."));
+  const kg  = parseFloat($(`kg-${p}`).value.replace(",", "."));
 
   if (pcs > 0 && kg > 0) {
     const size = pcs / kg;
@@ -374,12 +378,61 @@ document.addEventListener("DOMContentLoaded", () => {
   buatPartai();
 });
 
-/* ================= INIT ================= */
-window.onload = () => {
-  loadMasters();
-  buatPartai();
-};
+  function showAddSupplier(){
+  $("supplierName").value = "";
+  $("supplierModal").style.display = "block";
+  $("supplierName").focus();
+}
+
+function hideAddSupplier(){
+  $("supplierModal").style.display = "none";
+}
+
+async function addSupplier(){
+  const btn = event.target;
+  btn.disabled = true;
+
+  const nama = $("supplierName").value.trim();
+  if (!nama) {
+    alert("Nama supplier wajib diisi");
+    btn.disabled = false;
+    return;
+  }
+
+  const res = await fetch("/master/supplier/add", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ nama })
+  });
+
+  const json = await res.json();
+  if (!json.ok) {
+    alert(json.msg);
+    btn.disabled = false;
+    return;
+  }
+
+  await loadSuppliers();          // 🔥 refresh dropdown
+  $("supplier").value = nama;     // 🔥 langsung terpilih
+  hideAddSupplier();
+  btn.disabled = false;
+}
+
 </script>
+<div id="supplierModal"
+     style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.3)">
+  <div style="background:#fff; padding:16px; border-radius:12px;
+              max-width:320px; margin:100px auto">
+    <h4>Tambah Supplier</h4>
+
+    <input id="supplierName" placeholder="Nama supplier" style="width:100%">
+
+    <div style="margin-top:12px; display:flex; gap:8px; justify-content:end">
+      <button class="btn btn-secondary" onclick="hideAddSupplier()">Batal</button>
+      <button class="btn btn-primary" onclick="addSupplier()">Simpan</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
