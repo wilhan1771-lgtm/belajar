@@ -204,18 +204,21 @@ def recalc_receiving(header_id: int):
     conn = get_conn()
     cur = conn.cursor()
 
-    rows = conn.execute("""
-        SELECT id, pcs, kg_sample, tara_per_keranjang, timbangan_json
+    rows = cur.execute("""
+        SELECT id, pcs, kg_sample, tara_per_keranjang, timbangan_json, fiber
         FROM receiving_partai
         WHERE header_id=?
     """, (header_id,)).fetchall()
 
+    total_fiber = 0.0
+
     for r in rows:
+        # ---- TIMBANGAN ----
         timbangan = json.loads(r["timbangan_json"] or "[]")
         timbangan = [float(x) for x in timbangan if x]
 
-        keranjang = len(timbangan) if timbangan else 0
-        bruto = sum(timbangan) if timbangan else 0
+        keranjang = len(timbangan)
+        bruto = sum(timbangan)
 
         tara = float(r["tara_per_keranjang"] or 0)
         total_tara = keranjang * tara
@@ -227,6 +230,7 @@ def recalc_receiving(header_id: int):
             size = r["pcs"] / r["kg_sample"]
             round_size = int(round(size))
 
+        # ---- UPDATE PARTAI ----
         cur.execute("""
             UPDATE receiving_partai
             SET keranjang=?, bruto=?, total_tara=?, netto=?,
@@ -237,6 +241,19 @@ def recalc_receiving(header_id: int):
             size, round_size,
             r["id"]
         ))
+
+        # ---- AKUMULASI FIBER (DARI NOL) ----
+        try:
+            total_fiber += float(r["fiber"] or 0)
+        except:
+            pass
+
+    # ✅ TIMPA HEADER (BUKAN TAMBAH)
+    cur.execute("""
+        UPDATE receiving_header
+        SET fiber=?
+        WHERE id=?
+    """, (total_fiber, header_id))
 
     conn.commit()
     conn.close()
@@ -463,31 +480,36 @@ def receiving_debug():
         "headers": [dict(r) for r in headers],
         "partai": [dict(r) for r in partai],
     }
-
+def to_float(v):
+    if v is None:
+        return 0.0
+    if isinstance(v, str):
+        v = v.replace(",", ".").strip()
+    try:
+        return float(v)
+    except:
+        return 0.0
 def hitung_partai(p):
     timbangan = p.get("timbangan") or []
-    tara = float(p.get("tara_per_keranjang") or 0)
+    timbangan = [to_float(x) for x in timbangan if to_float(x) > 0]
 
-    bruto = sum(float(x) for x in timbangan)
+    tara = to_float(p.get("tara_per_keranjang"))
+
+    bruto = round(sum(timbangan), 2)
     keranjang = len(timbangan)
-    total_tara = keranjang * tara
-
-    bruto = round(bruto, 2)
-    total_tara = round(total_tara, 2)
+    total_tara = round(keranjang * tara, 2)
     netto = round(bruto - total_tara, 2)
 
     size = None
     round_size = None
 
-    try:
-        pcs = float(p.get("pcs") or 0)
-        kg  = float(p.get("kg_sample") or 0)
+    pcs = to_float(p.get("pcs"))
+    kg  = to_float(p.get("kg_sample") or p.get("kg"))
 
-        if pcs > 0 and kg > 0:
-            size = round(pcs / kg, 1)        # 🔥 1 angka desimal
-            round_size = int(round(size))    # 🔥 round normal (66.6 → 67)
-    except Exception:
-        pass
+    if pcs > 0 and kg > 0:
+        raw = pcs / kg
+        size = round(raw, 1)        # ✅ 1 desimal
+        round_size = round(raw)     # ✅ normal round
 
     return {
         "bruto": bruto,
@@ -498,7 +520,6 @@ def hitung_partai(p):
         "round_size": round_size,
         "timbangan_json": json.dumps(timbangan)
     }
-
 
 # =========================
 # Receiving UI
@@ -521,6 +542,11 @@ def receiving_save():
     conn = get_conn()
     cur = conn.cursor()
 
+    total_fiber = sum(
+    float(p.get("fiber") or 0)
+    for p in partai_list
+    )
+
     try:
         cur.execute("""
             INSERT INTO receiving_header (tanggal, supplier, jenis, fiber, is_test)
@@ -529,13 +555,16 @@ def receiving_save():
             data.get("tanggal"),
             data.get("supplier"),
             data.get("jenis"),
-            data.get("fiber"),
+            total_fiber,
             1 if request.args.get("test") == "1" else 0
         ))
 
         header_id = cur.lastrowid
 
         for p in partai_list:
+            for b in p.get("timbangan") or []:
+                if float(b) > 60:
+                    raise ValueError("Berat timbangan maksimal 60 kg")
             h = hitung_partai(p)
 
             cur.execute("""
@@ -553,8 +582,8 @@ def receiving_save():
                          netto,
                          note,
                          timbangan_json,
-                         kategori_kupasan)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                         kategori_kupasan,fiber)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?)
                         """, (
                             header_id,
                             p.get("partai_no"),
@@ -569,7 +598,8 @@ def receiving_save():
                             h["netto"],
                             p.get("note"),
                             h["timbangan_json"],
-                            p.get("kategori_kupasan")  # ✅ TERAKHIR
+                            p.get("kategori_kupasan"),
+                            p.get("fiber") # ✅ TERAKHIR
                         ))
 
         conn.commit()
@@ -612,27 +642,30 @@ def receiving_update(header_id):
                     total_tara=?,
                     netto=?,
                     note=?,
-                    timbangan_json=?
+                    timbangan_json=?,
+                    fiber=?                 -- 🔥 WAJIB
                 WHERE id=? AND header_id=?
-            """, (
-                p.get("pcs"),
-                p.get("kg_sample"),
-                h["size"],
-                h["round_size"],
-                h["keranjang"],
-                p.get("tara_per_keranjang"),
-                h["bruto"],
-                h["total_tara"],
-                h["netto"],
-                p.get("note"),
-                h["timbangan_json"],
-                pid,
-                header_id
-            ))
+                """, (
+                        p.get("pcs"),
+                        p.get("kg_sample"),
+                        h["size"],
+                        h["round_size"],
+                        h["keranjang"],
+                        p.get("tara_per_keranjang"),
+                        h["bruto"],
+                        h["total_tara"],
+                        h["netto"],
+                        p.get("note"),
+                        h["timbangan_json"],
+                        p.get("fiber"),  # 🔥 INI
+                        pid,
+                        header_id
+                        ))
 
-        # ✅ HARUS DI SINI (SETELAH LOOP SELESAI)
-        recalc_receiving(header_id)
-        sync_invoice_from_receiving(conn, header_id)
+
+                     # ✅ HARUS DI SINI (SETELAH LOOP SELESAI)
+            recalc_receiving(header_id)
+            sync_invoice_from_receiving(conn, header_id)
 
         conn.commit()
         return jsonify({"ok": True})

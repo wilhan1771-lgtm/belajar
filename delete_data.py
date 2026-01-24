@@ -1,22 +1,42 @@
 import sqlite3
-import sqlite3
 
 DB_PATH = r"C:\Users\Win 10\PycharmProjects\belajar\receiving.db"
-receiving_id = 47
+receiving_ids = (51, 52, 53, 54)
 
 conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
 
-cur.execute("""
+# helper untuk IN (?, ?, ?)
+placeholders = ",".join("?" * len(receiving_ids))
+
+# 1️⃣ Hapus invoice_detail
+cur.execute(f"""
 DELETE FROM invoice_detail
 WHERE invoice_id IN (
-    SELECT id FROM invoice_header WHERE receiving_id = ?
+    SELECT id FROM invoice_header
+    WHERE receiving_id IN ({placeholders})
 )
-""", (receiving_id,))
+""", receiving_ids)
 
-cur.execute("DELETE FROM invoice_header WHERE receiving_id = ?", (receiving_id,))
+# 2️⃣ Hapus invoice_header
+cur.execute(f"""
+DELETE FROM invoice_header
+WHERE receiving_id IN ({placeholders})
+""", receiving_ids)
+
+# 3️⃣ Hapus receiving_partai
+cur.execute(f"""
+DELETE FROM receiving_partai
+WHERE header_id IN ({placeholders})
+""", receiving_ids)
+
+# 4️⃣ Hapus receiving_header
+cur.execute(f"""
+DELETE FROM receiving_header
+WHERE id IN ({placeholders})
+""", receiving_ids)
 
 conn.commit()
 conn.close()
 
-print("Invoice terkait receiving", receiving_id, "berhasil dihapus")
+print("Receiving + Invoice untuk", receiving_ids, "berhasil dihapus total")

@@ -45,6 +45,10 @@ th{background:#f9fafb}
     <select id="jenis"></select>
   </div>
   <div class="field">
+  <label>Total Fiber</label>
+  <input id="fiber-total" readonly>
+</div>
+  <div class="field">
     <label>&nbsp;</label>
     <button type="button" class="btn btn-primary" id="btnSave">Save</button>
   </div>
@@ -116,8 +120,7 @@ async function saveReceiving() {
     tanggal: $("tanggal").value,
     supplier: $("supplier").value,
     jenis: $("jenis").value,
-    fiber: $("fiber")?.checked ? 1 : 0,
-    partai: []
+
   };
 payload.partai = [];
 
@@ -142,6 +145,7 @@ try {
       kg_sample: Number($(`kg-${p}`)?.value || 0),
       tara_per_keranjang: tara,
       kategori_kupasan: $(`kupasan-${p}`)?.value || null,
+      fiber: Number($(`fiber-${p}`)?.value) || 0,
       note: $(`note-${p}`)?.value || "",
       timbangan: timbangan
     });
@@ -185,7 +189,6 @@ function buatPartai(){
 
   d.innerHTML = `
     <h3>Partai #${partaiKe}</h3>
-
     <!-- ===== SAMPLING (VANNAMEI / DOGOL) ===== -->
     <div class="section sampling">
       <div class="grid4">
@@ -208,6 +211,7 @@ function buatPartai(){
           <label>Round Size</label>
           <input id="round-${partaiKe}" readonly>
         </div>
+
       </div>
     </div>
 
@@ -249,12 +253,16 @@ function buatPartai(){
         <div class="field">
           <label>Netto</label>
           <input id="netto-${partaiKe}" readonly>
+          </div>
+        <div class="field">
+        <label>jumlah fiber</label>
+        <input class="fiber-partai" id="fiber-${partaiKe}" type="number" step="0.01">
         </div>
-
         <div class="field">
           <label>Catatan</label>
           <input id="note-${partaiKe}" placeholder="Kondisi udang">
         </div>
+
       </div>
     </div>
 
@@ -280,6 +288,7 @@ const jenisAktif = $("jenis")?.value;
 const sampling = d.querySelector(".sampling");
 const kupasan  = d.querySelector(".kupasan");
 
+
 if (jenisAktif === "kupasan") {
   sampling.style.display = "none";
   kupasan.style.display  = "block";
@@ -299,6 +308,16 @@ if (jenisAktif === "kupasan") {
   $(`kg-${partaiKe}`).oninput   = () => hitungSize(partaiKe);
   $(`tara-${partaiKe}`).oninput = () => hitungBerat(partaiKe);
 }
+function hitungFiberTotal() {
+  let total = 0;
+
+  document.querySelectorAll(".fiber-partai").forEach(inp => {
+    const v = parseFloat(inp.value);
+    if (!isNaN(v)) total += v;
+  });
+
+  $("fiber-total").value = total > 0 ? total.toFixed(2) : "";
+}
 
 function tambahBaris(p){
   const tb = document.getElementById(`tb-${p}`);
@@ -308,7 +327,11 @@ function tambahBaris(p){
   tr.innerHTML = `
     <td>${no}</td>
     <td>
-      <input type="number" step="0.01" class="inp-berat">
+      <input type="number"
+             step="0.01"
+             min="0"
+             max="60"
+             class="inp-berat">
     </td>
   `;
 
@@ -316,12 +339,19 @@ function tambahBaris(p){
 
   const inp = tr.querySelector("input");
 
-  inp.oninput = () => hitungBerat(p);
+  inp.oninput = () => {
+    const v = parseFloat(inp.value);
+    if (v > 60) {
+      alert("Berat maksimal 60 kg per timbangan");
+      inp.value = 60;
+    }
+    hitungBerat(p);
+  };
 
   inp.onkeydown = (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
-      tambahBaris(p);   // ➕ BARIS BARU
+      tambahBaris(p);
     }
   };
 
@@ -347,31 +377,31 @@ function hitungBerat(p){
   const taraValid = !isNaN(taraPerKeranjang) && taraPerKeranjang > 0;
 
   const totalTara = taraValid ? keranjang * taraPerKeranjang : 0;
-  const netto = bruto - totalTara;
-
+  const netto = Number((bruto - totalTara).toFixed(2));
   $(`keranjang-${p}`).value = keranjang || "";
   $(`bruto-${p}`).value = bruto > 0 ? bruto.toFixed(2) : "";
   $(`total-tara-${p}`).value = totalTara > 0 ? totalTara.toFixed(2) : "";
   $(`netto-${p}`).value = netto > 0 ? netto.toFixed(2) : "";
 }
-
 function hitungSize(p) {
   const pcs = parseFloat($(`pcs-${p}`).value.replace(",", "."));
   const kg  = parseFloat($(`kg-${p}`).value.replace(",", "."));
 
   if (pcs > 0 && kg > 0) {
-    const size = pcs / kg;
+    const sizeRaw = pcs / kg;
 
-    // pembulatan normal
-    const round = Math.round(size);
+    // 🔥 pembulatan rapi
+    const size = Math.round(sizeRaw * 10) / 10;   // 1 desimal
+    const round = Math.round(sizeRaw);             // round asli
 
-    $(`size-${p}`).value  = size.toFixed(1);
-    $(`round-${p}`).value = round;
+    $(`size-${p}`).value  = size.toFixed(1);       // contoh: 67.7
+    $(`round-${p}`).value = round;                 // contoh: 68
   } else {
     $(`size-${p}`).value  = "";
     $(`round-${p}`).value = "";
   }
 }
+
 document.addEventListener("DOMContentLoaded", () => {
   loadSuppliers();
   loadJenis();
@@ -416,6 +446,10 @@ async function addSupplier(){
   $("supplier").value = nama;     // 🔥 langsung terpilih
   hideAddSupplier();
   btn.disabled = false;
+}
+  const fiberInput = d.querySelector(".fiber-partai");
+if (fiberInput) {
+  fiberInput.oninput = hitungFiberTotal;
 }
 
 </script>
