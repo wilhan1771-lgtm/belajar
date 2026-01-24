@@ -662,10 +662,9 @@ def receiving_update(header_id):
                         header_id
                         ))
 
-
-                     # ✅ HARUS DI SINI (SETELAH LOOP SELESAI)
-            recalc_receiving(header_id)
-            sync_invoice_from_receiving(conn, header_id)
+        # ✅ HARUS DI SINI (SETELAH LOOP SELESAI)
+        recalc_receiving(header_id)
+        sync_invoice_from_receiving(conn, header_id)
 
         conn.commit()
         return jsonify({"ok": True})
