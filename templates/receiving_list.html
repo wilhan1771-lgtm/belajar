@@ -45,7 +45,21 @@
     <label style="font-size:12px;">Supplier</label><br>
     <input type="text" name="supplier" placeholder="contoh: ABC" value="{{ supplier or '' }}">
   </div>
-
+<div>
+    <label style="font-size:12px;">Jenis Udang</label><br>
+    <select name="jenis">
+      <option value="">-- Semua Jenis --</option>
+      <option value="vannamei" {{ "selected" if jenis=="vannamei" else "" }}>
+        Vannamei
+      </option>
+      <option value="dogol" {{ "selected" if jenis=="dogol" else "" }}>
+        Dogol
+      </option>
+      <option value="kupasan" {{ "selected" if jenis=="kupasan" else "" }}>
+        Kupasan
+      </option>
+    </select>
+  </div>
   <div>
     <button type="submit" class="btn btn-primary">Search</button>
     <a href="/receiving/list" class="btn btn-secondary" style="text-decoration:none; display:inline-block;">Reset</a>

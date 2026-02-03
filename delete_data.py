@@ -1,7 +1,7 @@
 import sqlite3
 
 DB_PATH = r"C:\Users\Win 10\PycharmProjects\belajar\receiving.db"
-receiving_ids = (7,)
+receiving_ids = (45,)
 
 conn = sqlite3.connect(DB_PATH)
 cur = conn.cursor()
