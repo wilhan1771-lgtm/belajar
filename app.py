@@ -318,6 +318,7 @@ def production_save(prod_id):
 
     conn.close()
     return jsonify({"ok": True})
+
 @app.get("/production/open/<int:receiving_id>")
 def production_open(receiving_id):
     if not require_login():

@@ -329,7 +329,7 @@ function updatePackTotal() {
           });
 
     try {
-      const res = await fetch("/production/save/{{ receiving.id }}", {
+      const res = await fetch("/production/save/{{ production.id }}", {
         method: "POST",
         headers: {"Content-Type": "application/json"},
         body: JSON.stringify(payload)
