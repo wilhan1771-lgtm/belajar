@@ -221,104 +221,6 @@ def production_view(prod_id):
         packing=[dict(r) for r in packing],
     )
 
-@app.post("/production/save/<int:prod_id>")
-def production_save(prod_id):
-    if not require_login():
-        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
-
-    data = request.get_json(force=True) or {}
-
-    try:
-        hl = float(data.get("hl") or 0)
-    except ValueError:
-        return jsonify({"ok": False, "msg": "Input HL harus angka"}), 400
-
-    packing_rows = data.get("packing") or []
-
-    conn = get_conn()
-    cur = conn.cursor()
-
-    prod = conn.execute(
-        "SELECT id, bahan_masuk_kg FROM production_header WHERE id=?",
-        (prod_id,)
-    ).fetchone()
-
-    if not prod:
-        conn.close()
-        return jsonify({"ok": False, "msg": "Production tidak ditemukan"}), 404
-
-    bahan_masuk = float(prod["bahan_masuk_kg"] or 0)
-
-    def pct(x):
-        return 0.0 if bahan_masuk <= 0 else (float(x) / bahan_masuk) * 100.0
-
-    # hitung total
-    try:
-        total_pack = 0.0
-        total_kupas = 0.0
-        for r in packing_rows:
-            k = float(r.get("kupas_kg") or 0)
-            mc = float(r.get("mc") or 0)
-            bpd = float(r.get("berat_per_dus") or 0)
-            total_kupas += k
-            total_pack += (mc * bpd) if (mc > 0 and bpd > 0) else 0.0
-    except Exception:
-        conn.close()
-        return jsonify({"ok": False, "msg": "Data packing tidak valid"}), 400
-
-    kupas = total_kupas
-    soaking = total_pack
-
-    if soaking > bahan_masuk + 1e-6:
-        conn.close()
-        return jsonify({"ok": False, "msg": "Total packing lebih besar dari Bahan Masuk"}), 400
-
-    try:
-        # update steps
-        cur.execute("""
-            UPDATE production_step SET berat_kg=?, yield_pct=?
-            WHERE production_id=? AND step_name='HL'
-        """, (hl, pct(hl), prod_id))
-
-        cur.execute("""
-            UPDATE production_step SET berat_kg=?, yield_pct=?
-            WHERE production_id=? AND step_name='KUPAS'
-        """, (kupas, pct(kupas), prod_id))
-
-        cur.execute("""
-            UPDATE production_step SET berat_kg=?, yield_pct=?
-            WHERE production_id=? AND step_name='SOAKING'
-        """, (soaking, pct(soaking), prod_id))
-
-        # replace packing (ini tetap ok untuk sekarang)
-        cur.execute("DELETE FROM production_packing WHERE production_id=?", (prod_id,))
-
-        for r in packing_rows:
-            size = (r.get("size") or "").strip() or None
-            kupas_kg = float(r.get("kupas_kg") or 0)
-            mc = float(r.get("mc") or 0)
-            berat_per_dus = float(r.get("berat_per_dus") or 0)
-            total_kg = (mc * berat_per_dus) if (mc > 0 and berat_per_dus > 0) else 0.0
-            yield_ratio = (total_kg / kupas_kg) if kupas_kg > 0 else None
-
-            if (not size) and kupas_kg == 0 and mc == 0 and berat_per_dus == 0:
-                continue
-
-            cur.execute("""
-                INSERT INTO production_packing
-                    (production_id, size, kupas_kg, mc, berat_per_dus, total_kg, yield_ratio)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (prod_id, size, kupas_kg, mc, berat_per_dus, total_kg, yield_ratio))
-
-        conn.commit()
-    except Exception as e:
-        conn.rollback()
-        conn.close()
-        return jsonify({"ok": False, "msg": f"Gagal simpan: {e}"}), 500
-
-    conn.close()
-    return jsonify({"ok": True})
-
 @app.get("/production/open/<int:receiving_id>")
 def production_open(receiving_id):
     if not require_login():
@@ -1880,9 +1782,9 @@ def production_save(prod_id):
     kupas = total_kupas
     soaking = total_pack
 
-    if soaking > bahan_masuk + 1e-6:
-        conn.close()
-        return jsonify({"ok": False, "msg": "Total packing lebih besar dari Bahan Masuk"}), 400
+  #  if soaking > bahan_masuk + 1e-6:
+  #     conn.close()
+  #      return jsonify({"ok": False, "msg": "Total packing lebih besar dari Bahan Masuk"}), 400
 
     try:
         # update steps

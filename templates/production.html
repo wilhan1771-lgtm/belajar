@@ -47,7 +47,10 @@
     <div class="muted">Kupas (tahapan) otomatis dari total Kupas(kg) tabel packing.</div>
   </div>
   <div style="display:flex; gap:10px; flex-wrap:wrap;">
-    <a class="btn btn-secondary" href="/receiving/{{ receiving.id }}">← Kembali ke Receiving</a>
+   <a class="btn btn-secondary"
+   href="{{ url_for('production_list') }}">← Kembali Produksi
+    </a>
+
     <button class="btn btn-primary" id="btnSave" type="button">Save</button>
   </div>
 </div>
