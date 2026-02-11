@@ -11,9 +11,19 @@ from datetime import date, datetime, timedelta
 import json
 from db import init_db, get_conn
 from receiving.service import update_receiving
+import os, sqlite3
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "receiving.db")  # sesuaikan nama db kamu
+
+def get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # init database
 init_db()
+print("APP FILE ACTIVE:", __file__)
 
 app = Flask(__name__)
 app.secret_key = "belajar-secret"
@@ -21,6 +31,7 @@ app.secret_key = "belajar-secret"
 DEMO_USER = {"username": "admin", "password": "1234"}
 
 DATE_FMT = "%Y-%m-%d"
+print("INI FILE YANG AKTIF")
 
 def today_str() -> str:
     return date.today().strftime(DATE_FMT)
@@ -169,57 +180,104 @@ def debug_pragma():
         "receiving_header": [dict(x) for x in b],
         "invoice_51": dict(c) if c else None
     }
+from flask import redirect, url_for, render_template
 
-@app.route("/production/<int:prod_id>")
-def production_view(prod_id):
+@app.get("/production/open/<int:receiving_id>")
+def production_open(receiving_id):
     if not require_login():
         return redirect(url_for("login"))
 
     conn = get_conn()
 
-    # ambil production by prod_id (INI KUNCI)
-    prod = conn.execute(
-        "SELECT * FROM production_header WHERE id=?",
-        (prod_id,)
-    ).fetchone()
+    try:
+        # cek sudah ada production?
+        prod = conn.execute(
+            "SELECT * FROM production_header WHERE receiving_id=? ORDER BY tanggal DESC LIMIT 1",
+            (receiving_id,)
+        ).fetchone()
 
-    if not prod:
+        # kalau belum ada, buat
+        if not prod:
+            rec = conn.execute("""
+                SELECT h.id, h.tanggal, h.supplier, h.jenis,
+                       COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
+                FROM receiving_header h
+                LEFT JOIN receiving_partai p ON p.header_id = h.id
+                WHERE h.id = ?
+                GROUP BY h.id
+            """, (receiving_id,)).fetchone()
+
+            if not rec:
+                return "Receiving tidak ditemukan", 404
+
+            cur = conn.cursor()
+            cur.execute("""
+                INSERT INTO production_header (receiving_id, tanggal, supplier, jenis, bahan_masuk_kg)
+                VALUES (?, ?, ?, ?, ?)
+            """, (rec["id"], rec["tanggal"], rec["supplier"], rec["jenis"], float(rec["total_netto"] or 0)))
+            prod_id = cur.lastrowid
+
+            for step in ["HL", "KUPAS", "SOAKING"]:
+                cur.execute("""
+                    INSERT INTO production_step (production_id, step_name, berat_kg, yield_pct)
+                    VALUES (?, ?, 0, 0)
+                """, (prod_id, step))
+
+            conn.commit()
+            prod = conn.execute("SELECT * FROM production_header WHERE id=?", (prod_id,)).fetchone()
+
+        return redirect(url_for("production_view", prod_id=prod["id"]))
+
+    finally:
         conn.close()
-        return "Production tidak ditemukan", 404
 
-    # ambil receiving dari prod.receiving_id
-    rec = conn.execute("""
-        SELECT h.id, h.tanggal, h.supplier, h.jenis,
-               COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
-        FROM receiving_header h
-        LEFT JOIN receiving_partai p ON p.header_id = h.id
-        WHERE h.id = ?
-        GROUP BY h.id
-    """, (prod["receiving_id"],)).fetchone()
 
-    # ambil steps + packing by prod_id
-    steps = conn.execute("""
-        SELECT step_name, berat_kg, yield_pct
-        FROM production_step
-        WHERE production_id=?
-        ORDER BY id
-    """, (prod_id,)).fetchall()
+@app.get("/production/<int:prod_id>")
+def production_view(prod_id):
+    if not require_login():
+        return redirect(url_for("login"))
 
-    packing = conn.execute("""
-        SELECT * FROM production_packing
-        WHERE production_id=?
-        ORDER BY id
-    """, (prod_id,)).fetchall()
+    conn = get_conn()
+    try:
+        prod = conn.execute(
+            "SELECT * FROM production_header WHERE id=?",
+            (prod_id,)
+        ).fetchone()
 
-    conn.close()
+        if not prod:
+            return "Production tidak ditemukan", 404
 
-    return render_template(
-        "production.html",
-        receiving=dict(rec) if rec else None,
-        production=dict(prod),
-        steps=[dict(r) for r in steps],
-        packing=[dict(r) for r in packing],
-    )
+        rec = conn.execute("""
+            SELECT h.id, h.tanggal, h.supplier, h.jenis,
+                   COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
+            FROM receiving_header h
+            LEFT JOIN receiving_partai p ON p.header_id = h.id
+            WHERE h.id = ?
+            GROUP BY h.id
+        """, (prod["receiving_id"],)).fetchone()
+
+        steps = conn.execute("""
+            SELECT step_name, berat_kg, yield_pct
+            FROM production_step
+            WHERE production_id=?
+            ORDER BY id
+        """, (prod_id,)).fetchall()
+
+        packing = conn.execute("""
+            SELECT * FROM production_packing
+            WHERE production_id=?
+            ORDER BY id
+        """, (prod_id,)).fetchall()
+
+        return render_template(
+            "production.html",
+            receiving=dict(rec) if rec else None,
+            production=dict(prod),
+            steps=[dict(r) for r in steps],
+            packing=[dict(r) for r in packing],
+        )
+    finally:
+        conn.close()
 
 @app.post("/production/save/<int:prod_id>")
 def production_save(prod_id):
@@ -269,9 +327,9 @@ def production_save(prod_id):
     kupas = total_kupas
     soaking = total_pack
 
-    if soaking > bahan_masuk + 1e-6:
-        conn.close()
-        return jsonify({"ok": False, "msg": "Total packing lebih besar dari Bahan Masuk"}), 400
+    #if soaking > bahan_masuk + 1e-6:
+    #   conn.close()
+    #   return jsonify({"ok": False, "msg": "Total packing lebih besar dari Bahan Masuk"}), 400
 
     try:
         # update steps
@@ -285,30 +343,42 @@ def production_save(prod_id):
             WHERE production_id=? AND step_name='KUPAS'
         """, (kupas, pct(kupas), prod_id))
 
+
         cur.execute("""
             UPDATE production_step SET berat_kg=?, yield_pct=?
             WHERE production_id=? AND step_name='SOAKING'
         """, (soaking, pct(soaking), prod_id))
 
+
         # replace packing (ini tetap ok untuk sekarang)
         cur.execute("DELETE FROM production_packing WHERE production_id=?", (prod_id,))
 
         for r in packing_rows:
-            size = (r.get("size") or "").strip() or None
-            kupas_kg = float(r.get("kupas_kg") or 0)
-            mc = float(r.get("mc") or 0)
-            berat_per_dus = float(r.get("berat_per_dus") or 0)
-            total_kg = (mc * berat_per_dus) if (mc > 0 and berat_per_dus > 0) else 0.0
-            yield_ratio = (total_kg / kupas_kg) if kupas_kg > 0 else None
+            size = str(r.get("size") or "").strip()
 
-            if (not size) and kupas_kg == 0 and mc == 0 and berat_per_dus == 0:
+            # safe convert angka
+            def to_float(v):
+                try:
+                    return float(str(v).strip())
+                except:
+                    return 0.0
+
+            kupas_kg = to_float(r.get("kupas_kg"))
+            mc = to_float(r.get("mc"))
+            berat_per_dus = to_float(r.get("berat_per_dus"))
+
+            # skip kalau benar-benar kosong
+            if not size and kupas_kg == 0 and mc == 0 and berat_per_dus == 0:
                 continue
+
+            total_kg = mc * berat_per_dus if (mc > 0 and berat_per_dus > 0) else 0.0
+            yield_ratio = (total_kg / kupas_kg) if kupas_kg > 0 else None
 
             cur.execute("""
                 INSERT INTO production_packing
-                    (production_id, size, kupas_kg, mc, berat_per_dus, total_kg, yield_ratio)
+                (production_id, size, kupas_kg, mc, berat_per_dus, total_kg, yield_ratio)
                 VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (prod_id, size, kupas_kg, mc, berat_per_dus, total_kg, yield_ratio))
+            """, (prod_id, size or None, kupas_kg, mc, berat_per_dus, total_kg, yield_ratio))
 
         conn.commit()
     except Exception as e:
@@ -318,53 +388,6 @@ def production_save(prod_id):
 
     conn.close()
     return jsonify({"ok": True})
-
-@app.get("/production/open/<int:receiving_id>")
-def production_open(receiving_id):
-    if not require_login():
-        return redirect(url_for("login"))
-
-    conn = get_conn()
-
-    # cek sudah ada production?
-    prod = conn.execute(
-        "SELECT * FROM production_header WHERE receiving_id=? ORDER BY id DESC LIMIT 1",
-        (receiving_id,)
-    ).fetchone()
-
-    # kalau belum ada, buat
-    if not prod:
-        rec = conn.execute("""
-            SELECT h.id, h.tanggal, h.supplier, h.jenis,
-                   COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
-            FROM receiving_header h
-            LEFT JOIN receiving_partai p ON p.header_id = h.id
-            WHERE h.id = ?
-            GROUP BY h.id
-        """, (receiving_id,)).fetchone()
-
-        if not rec:
-            conn.close()
-            return "Receiving tidak ditemukan", 404
-
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO production_header (receiving_id, tanggal, supplier, jenis, bahan_masuk_kg)
-            VALUES (?, ?, ?, ?, ?)
-        """, (rec["id"], rec["tanggal"], rec["supplier"], rec["jenis"], float(rec["total_netto"] or 0)))
-        prod_id = cur.lastrowid
-
-        for step in ["HL", "KUPAS", "SOAKING"]:
-            cur.execute("""
-                INSERT INTO production_step (production_id, step_name, berat_kg, yield_pct)
-                VALUES (?, ?, 0, 0)
-            """, (prod_id, step))
-
-        conn.commit()
-        prod = conn.execute("SELECT * FROM production_header WHERE id=?", (prod_id,)).fetchone()
-
-    conn.close()
-    return redirect(url_for("production_view", prod_id=prod["id"]))
 
 
 @app.route("/dashboard")
@@ -1060,17 +1083,17 @@ def production_list():
           GROUP BY h.id
         ) r
         LEFT JOIN production_header ph ON ph.id = (
-  SELECT id FROM production_header
-  WHERE receiving_id = r.id
-  ORDER BY id DESC
-  LIMIT 1
-)
+          SELECT id FROM production_header
+          WHERE receiving_id = r.id
+          ORDER BY tanggal DESC
+          LIMIT 1
+        )
 
         LEFT JOIN production_step hl ON hl.production_id=ph.id AND hl.step_name='HL'
         LEFT JOIN production_step kp ON kp.production_id=ph.id AND kp.step_name='KUPAS'
         LEFT JOIN production_step sk ON sk.production_id=ph.id AND sk.step_name='SOAKING'
         {where_sql}
-        ORDER BY r.id DESC
+        ORDER BY COALESCE(ph.tanggal, r.tanggal) DESC
     """, params).fetchall()
 
     # summary kamu tetap seperti sebelumnya (kalau kamu sudah punya)
@@ -1157,7 +1180,7 @@ def production_list_print():
         LEFT JOIN production_header ph ON ph.id = (
           SELECT id FROM production_header
           WHERE receiving_id = r.id
-          ORDER BY id DESC
+          ORDER BY tanggal DESC
           LIMIT 1
         )
         LEFT JOIN production_step hl ON hl.production_id=ph.id AND hl.step_name='HL'
@@ -1191,7 +1214,7 @@ def production_list_print():
 @app.get("/production/debug/<int:receiving_id>")
 def production_debug(receiving_id):
     conn = get_conn()
-    heads = conn.execute("SELECT * FROM production_header WHERE receiving_id=? ORDER BY id DESC", (receiving_id,)).fetchall()
+    heads = conn.execute("SELECT * FROM production_header WHERE receiving_id=? ORDER BY tanggal DESC", (receiving_id,)).fetchall()
     out = []
     for h in heads:
         pid = h["id"]
@@ -1767,6 +1790,9 @@ def login():
         error = "Username / password salah"
 
     return render_template("login.html", error=error)
+@app.get("/debug/routes")
+def debug_routes():
+    return "<br>".join(sorted([str(r) for r in app.url_map.iter_rules()]))
 
 @app.get("/debug/pragma")
 def debug_pragma():
@@ -1781,104 +1807,6 @@ def debug_pragma():
         "invoice_51": dict(c) if c else None
     }
 
-@app.route("/production/<int:prod_id>")
-def production_view(prod_id):
-    if not require_login():
-        return redirect(url_for("login"))
-
-    conn = get_conn()
-
-    # ambil production by prod_id (INI KUNCI)
-    prod = conn.execute(
-        "SELECT * FROM production_header WHERE id=?",
-        (prod_id,)
-    ).fetchone()
-
-    if not prod:
-        conn.close()
-        return "Production tidak ditemukan", 404
-
-    # ambil receiving dari prod.receiving_id
-    rec = conn.execute("""
-        SELECT h.id, h.tanggal, h.supplier, h.jenis,
-               COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
-        FROM receiving_header h
-        LEFT JOIN receiving_partai p ON p.header_id = h.id
-        WHERE h.id = ?
-        GROUP BY h.id
-    """, (prod["receiving_id"],)).fetchone()
-
-    # ambil steps + packing by prod_id
-    steps = conn.execute("""
-        SELECT step_name, berat_kg, yield_pct
-        FROM production_step
-        WHERE production_id=?
-        ORDER BY id
-    """, (prod_id,)).fetchall()
-
-    packing = conn.execute("""
-        SELECT * FROM production_packing
-        WHERE production_id=?
-        ORDER BY id
-    """, (prod_id,)).fetchall()
-
-    conn.close()
-
-    return render_template(
-        "production.html",
-        receiving=dict(rec) if rec else None,
-        production=dict(prod),
-        steps=[dict(r) for r in steps],
-        packing=[dict(r) for r in packing],
-    )
-
-
-@app.get("/production/open/<int:receiving_id>")
-def production_open(receiving_id):
-    if not require_login():
-        return redirect(url_for("login"))
-
-    conn = get_conn()
-
-    # cek sudah ada production?
-    prod = conn.execute(
-        "SELECT * FROM production_header WHERE receiving_id=? ORDER BY id DESC LIMIT 1",
-        (receiving_id,)
-    ).fetchone()
-
-    # kalau belum ada, buat
-    if not prod:
-        rec = conn.execute("""
-            SELECT h.id, h.tanggal, h.supplier, h.jenis,
-                   COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
-            FROM receiving_header h
-            LEFT JOIN receiving_partai p ON p.header_id = h.id
-            WHERE h.id = ?
-            GROUP BY h.id
-        """, (receiving_id,)).fetchone()
-
-        if not rec:
-            conn.close()
-            return "Receiving tidak ditemukan", 404
-
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO production_header (receiving_id, tanggal, supplier, jenis, bahan_masuk_kg)
-            VALUES (?, ?, ?, ?, ?)
-        """, (rec["id"], rec["tanggal"], rec["supplier"], rec["jenis"], float(rec["total_netto"] or 0)))
-        prod_id = cur.lastrowid
-
-        for step in ["HL", "KUPAS", "SOAKING"]:
-            cur.execute("""
-                INSERT INTO production_step (production_id, step_name, berat_kg, yield_pct)
-                VALUES (?, ?, 0, 0)
-            """, (prod_id, step))
-
-        conn.commit()
-        prod = conn.execute("SELECT * FROM production_header WHERE id=?", (prod_id,)).fetchone()
-
-    conn.close()
-    return redirect(url_for("production_view", prod_id=prod["id"]))
 
 
 @app.route("/dashboard")
@@ -2555,16 +2483,18 @@ def production_list():
           LEFT JOIN receiving_partai p ON p.header_id=h.id
           GROUP BY h.id
         ) r
+
         LEFT JOIN production_header ph ON ph.id = (
-  SELECT id FROM production_header
-  WHERE receiving_id = r.id
-  ORDER BY id DESC
-  LIMIT 1
-)
+            SELECT id FROM production_header
+            WHERE receiving_id = r.id
+            ORDER BY id DESC
+            LIMIT 1
+        )
 
         LEFT JOIN production_step hl ON hl.production_id=ph.id AND hl.step_name='HL'
         LEFT JOIN production_step kp ON kp.production_id=ph.id AND kp.step_name='KUPAS'
         LEFT JOIN production_step sk ON sk.production_id=ph.id AND sk.step_name='SOAKING'
+
         {where_sql}
         ORDER BY r.id DESC
     """, params).fetchall()
@@ -3073,6 +3003,7 @@ def menu4():
         return redirect(url_for("login"))
     return render_template("menu4.html")
 
+print("=== ROUTE LIST ===")
 print(app.url_map)
 
 # Run

@@ -156,35 +156,43 @@ a.btn{
   </tr>
 </thead>
 
-    <tbody>
-      {% for r in rows %}
-      <tr>
-  <td>{{ r.receiving_id }}</td>
-  <td>{{ r.tanggal }}</td>
-  <td>{{ r.supplier }}</td>
-  <td>{{ r.jenis }}</td>
+  <tbody>
+  {% for r in rows %}
+  <tr>
+    <td>{{ r.get('receiving_id') }}</td>
+    <td>{{ r.get('tanggal','') }}</td>
+    <td>{{ r.get('supplier','') }}</td>
+    <td>{{ r.get('jenis','') }}</td>
 
-  <td class="right">{{ "{:,.2f}".format(r.rm_kg or 0).replace(",", ".") }}</td>
+    <td class="right">{{ "{:,.2f}".format(r.get('rm_kg', 0) or 0).replace(",", ".") }}</td>
 
-  <td class="right">{{ "{:,.2f}".format(r.hl_kg or 0).replace(",", ".") }}</td>
-  <td class="right"><b>{{ "{:,.2f}".format(r.hl_yield or 0).replace(",", ".") }}</b></td>
+    <td class="right">{{ "{:,.2f}".format(r.get('hl_kg', 0) or 0).replace(",", ".") }}</td>
+    <td class="right"><b>{{ "{:,.2f}".format(r.get('hl_yield', 0) or 0).replace(",", ".") }}</b></td>
 
-  <td class="right">{{ "{:,.2f}".format(r.kupas_kg or 0).replace(",", ".") }}</td>
-  <td class="right"><b>{{ "{:,.2f}".format(r.kupas_yield or 0).replace(",", ".") }}</b></td>
+    <td class="right">{{ "{:,.2f}".format(r.get('kupas_kg', 0) or 0).replace(",", ".") }}</td>
+    <td class="right"><b>{{ "{:,.2f}".format(r.get('kupas_yield', 0) or 0).replace(",", ".") }}</b></td>
 
-  <td class="right">{{ "{:,.2f}".format(r.fg_kg or 0).replace(",", ".") }}</td>
-  <td class="right"><b>{{ "{:,.2f}".format(r.fg_yield or 0).replace(",", ".") }}</b></td>
+    <td class="right">{{ "{:,.2f}".format(r.get('fg_kg', 0) or 0).replace(",", ".") }}</td>
+    <td class="right"><b>{{ "{:,.2f}".format(r.get('fg_yield', 0) or 0).replace(",", ".") }}</b></td>
 
-    <td style="display:flex; gap:10px; align-items:center;">
-    <a href="/production/open/{{ r.receiving_id }}">PRODUKSI</a>
-    <a href="/receiving/{{ r.receiving_id }}">Detail</a>
-  </td>
-</tr>
+    <td style="display:flex; gap:10px;">
+      <a class="btn btn-primary"
+         href="{{ url_for('production_open', receiving_id=r['receiving_id']) }}">
+        PRODUKSI
+      </a>
 
-      {% endfor %}
-    </tbody>
+      <a class="btn btn-secondary"
+         href="{{ url_for('receiving_detail', header_id=r['receiving_id']) }}">
+        Detail
+      </a>
+    </td>
+  </tr>
+  {% endfor %}
+</tbody>
+
+
   </table>
-</div>
 
+</div>
 </body>
 </html>
