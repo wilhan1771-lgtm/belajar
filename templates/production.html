@@ -306,49 +306,54 @@ function updatePackTotal() {
   // Save
   // =========================
   document.getElementById("btnSave").addEventListener("click", async () => {
+    // --- 1. Siapkan payload ---
     const payload = {
-      hl: num(hlKg.value),
-      kupas: num(kupasKg.value),     // sudah otomatis dari packing
-      soaking: num(soakKg.value),
-      packing: []
+        hl: num(hlKg.value),
+        packing_rows: []   // sesuai nama field di production_save
     };
 
     packingBody.querySelectorAll("tr").forEach(tr => {
-      const size = (tr.querySelector(".p-size").value || "").trim();
-      const kupas = num(tr.querySelector(".p-kupas").value);
-      const mc = tr.querySelector(".p-mc").value;
-      const beratDus = tr.querySelector(".p-beratdus").value;
+        const size = (tr.querySelector(".p-size").value || "").trim();
+        const kupas = num(tr.querySelector(".p-kupas").value);
+        const mc = num(tr.querySelector(".p-mc").value);
+        const beratDus = num(tr.querySelector(".p-beratdus").value);
 
-      const kosong = !size && kupas === 0 && !mc && !beratDus;
-      if (kosong) return;
+        // skip row kosong
+        if (!size && kupas === 0 && mc === 0 && beratDus === 0) return;
 
-      payload.packing.push({
-          size: size,
-          kupas_kg: kupas,
-          mc: num(mc),
-          berat_per_dus: num(beratDus)
+        payload.packing_rows.push({
+            size: size,
+            kupas_kg: kupas,
+            mc: mc,
+            berat_per_dus: beratDus
         });
-
-          });
+    });
 
     try {
-      const res = await fetch("/production/save/{{ production.id }}", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify(payload)
-      });
+        const res = await fetch("/production/save/{{ receiving.id }}", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
 
-      const out = await res.json();
-      if (!res.ok || !out.ok) {
-        alert(out.msg || "Gagal simpan");
-        return;
-      }
+        const out = await res.json();  // parse aman
+        if (!res.ok || !out.ok) {
+            alert(out.msg || "Gagal simpan");
+            return;
+        }
 
-      alert("Produksi berhasil disimpan!");
-    } catch (e) {
-      alert("Error koneksi: " + e);
+        alert("Produksi berhasil disimpan!");
+        // Optional: update UI langsung
+        kupasKg.value = payload.packing_rows.reduce((s,r)=>s+r.kupas_kg,0).toFixed(2);
+        soakKg.value = payload.packing_rows.reduce((s,r)=>s+r.mc*r.berat_per_dus,0).toFixed(2);
+        updateYieldUI();
+
+    } catch(e) {
+        console.error("Save Error:", e);
+        alert("Error koneksi: " + e);
     }
-  });
+});
+
 </script>
 
 </body>

@@ -64,16 +64,30 @@ async function loadSuppliers() {
   const sel = $("supplier");
   sel.innerHTML = `<option value="">-- Pilih Supplier --</option>`;
 
-  const res = await fetch("/master/suppliers");
-  const data = await res.json();
+  try {
+    const res = await fetch("/master/suppliers");
+    const json = await res.json();
 
-  data.forEach(r => {
-    const opt = document.createElement("option");
-    opt.value = r.nama;
-    opt.textContent = r.nama;
-    sel.appendChild(opt);
-  });
+    if (!res.ok || !json.ok) {
+      alert(json.msg || "Gagal load supplier");
+      return;
+    }
+
+    const suppliers = json.data;
+
+    for (const s of suppliers) {
+      const opt = document.createElement("option");
+      opt.value = s.nama;     // simpan nama
+      opt.textContent = s.nama;
+      sel.appendChild(opt);
+    }
+
+  } catch (err) {
+    console.error("Supplier load error:", err);
+    alert("Error koneksi supplier");
+  }
 }
+
 document.getElementById("jenis").addEventListener("change", e => {
   const jenis = e.target.value;
 

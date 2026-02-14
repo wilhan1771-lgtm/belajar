@@ -1,122 +1,197 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Invoice List</title>
-  <style>
-    body{font-family:Arial;padding:24px;background:#f3f4f6}
-    .top{display:flex;justify-content:space-between;align-items:center;gap:5px}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 8px 20px rgba(0,0,0,.06);margin-top:12px}
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Invoice List</title>
 
-    table{width:100%;border-collapse:collapse;margin-top:12px}
-    th,td{border:1px solid #e5e7eb;padding:10px;text-align:left;vertical-align:top}
-    th{background:#f9fafb}
-    .right{text-align:right}
-    a{color:#2563eb;text-decoration:none;font-weight:700}
+<style>
+*{box-sizing:border-box}
+body{
+  font-family: 'Segoe UI', Arial, sans-serif;
+  margin:0;
+  padding:30px;
+  background:linear-gradient(135deg,#eef2ff,#f8fafc);
+  color:#111827;
+}
 
-    /* ===== Filter bar (tanggal + supplier) ===== */
-        .filter-row{
-      display:flex;
-      gap:12px;
-      align-items:flex-end;
-      flex-wrap:wrap;
-    }
+h2{
+  margin:0;
+  font-weight:800;
+  letter-spacing:.5px;
+}
 
-    .filter-item{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-    }
+.top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:20px;
+}
 
-    .filter-item label{
-      font-size:13px;
-      font-weight:700;
-      color:#111827;
-    }
+.card{
+  background:#fff;
+  border-radius:16px;
+  padding:22px;
+  box-shadow:0 10px 30px rgba(0,0,0,.08);
+}
 
-    /* input & select seragam */
-    .filter-item input,
-    .filter-item select{
-      width:220px;
-      height:40px;
-      padding:10px;
-      border:1px solid #d1d5db;
-      border-radius:10px;
-      box-sizing:border-box;
-      background:#fff;
-    }
+/* ===== FILTER ===== */
+.filter-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:18px;
+  align-items:flex-end;
+}
 
-    /* total pembelian model "pill" biar sejajar input */
-    .summary-inline { width:220px; }
-    .summary-pill{
-      height:40px;
-      display:flex;
-      align-items:center;
-      justify-content:flex-end;
-      padding:0 12px;
-      border:1px solid #e5e7eb;
-      border-radius:10px;
-      background:#f9fafb;
-      font-weight:800;
-    }
+.filter-item{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
 
-    /* area tombol */
-    .filter-actions{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-    }
+.filter-item label{
+  font-size:13px;
+  font-weight:600;
+  color:#6b7280;
+}
 
-    /* tombol sama besar */
-    .btn {
-      width: 120px;          /* samakan */
-      height: 50px;          /* samakan */
-      padding: 2 !important; /* biar gak beda2 */
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      box-sizing: border-box;
+.filter-item input,
+.filter-item select{
+  width:220px;
+  height:42px;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid #d1d5db;
+  background:#f9fafb;
+  transition:.2s;
+}
 
-      font-size: 14px;
-      font-weight: 700;
-      line-height: 1;        /* penting, supaya button tidak lebih pendek */
-      border-radius: 10px;
-    }
+.filter-item input:focus,
+.filter-item select:focus{
+  outline:none;
+  border-color:#2563eb;
+  background:#fff;
+}
 
+/* summary */
+.summary-pill{
+  height:42px;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  padding:0 14px;
+  border-radius:10px;
+  background:#eef2ff;
+  font-weight:800;
+  color:#1e3a8a;
+}
 
-    /* variasi warna tombol */
-    .btn-primary{background:#2563eb;color:#fff}
-    .btn-secondary{background:#111827;color:#fff}
-    .btn-ghost{background:#e5e7eb;color:#111827}
-    .btn-outline{background:#fff;color:#111827;border:1px solid #d1d5db}
+/* BUTTONS */
+.filter-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
 
+.btn{
+  height:42px;
+  padding:0 18px;
+  border-radius:10px;
+  border:none;
+  cursor:pointer;
+  font-weight:700;
+  transition:.2s;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  text-decoration:none;
+}
 
-    /* summary box */
-    .summary-row{margin-top:12px;display:flex;gap:12px;flex-wrap:wrap;}
-    .summary-box{
-      background:#f9fafb;
-      border:1px solid #e5e7eb;
-      border-radius:12px;
-      padding:12px 14px;
-    }
-    .summary-label{font-size:12px;color:#6b7280;}
-    .summary-value{font-size:18px;font-weight:800;margin-top:4px;}
+.btn-primary{background:#2563eb;color:#fff;}
+.btn-primary:hover{background:#1e40af;}
 
-    /* aksi */
-    .aksi{display:flex;gap:10px;align-items:center;}
-  </style>
+.btn-secondary{background:#111827;color:#fff;}
+.btn-secondary:hover{background:#000;}
+
+.btn-ghost{background:#e5e7eb;color:#111827;}
+.btn-ghost:hover{background:#d1d5db;}
+
+.btn-outline{
+  background:#fff;
+  border:1px solid #d1d5db;
+  color:#111827;
+}
+.btn-outline:hover{
+  background:#f3f4f6;
+}
+
+/* ===== TABLE ===== */
+table{
+  width:100%;
+  border-collapse:collapse;
+  margin-top:25px;
+  font-size:14px;
+}
+
+thead{
+  background:#f3f4f6;
+}
+
+th,td{
+  padding:12px 10px;
+  text-align:left;
+}
+
+th{
+  font-size:13px;
+  text-transform:uppercase;
+  letter-spacing:.5px;
+  color:#6b7280;
+}
+
+tbody tr{
+  border-bottom:1px solid #e5e7eb;
+  transition:.15s;
+}
+
+tbody tr:hover{
+  background:#f9fafb;
+}
+
+.right{text-align:right;}
+
+.total-bold{
+  font-weight:800;
+  color:#111827;
+}
+
+/* aksi */
+.aksi{
+  display:flex;
+  gap:12px;
+}
+
+.aksi a{
+  font-weight:600;
+  color:#2563eb;
+  text-decoration:none;
+}
+.aksi a:hover{
+  text-decoration:underline;
+}
+</style>
 </head>
 
-
 <body>
-  <div class="top">
-    <h2>Purchasing RAW</h2>
-  </div>
 
-  <div class="card">
+<div class="top">
+  <h2>Invoice List</h2>
+</div>
 
-   <form method="get" action="/invoice/list" class="filter-row">
+<div class="card">
+
+<form method="get" action="/invoice/list" class="filter-row">
+
   <div class="filter-item">
     <label>Dari Tanggal</label>
     <input type="date" name="start" value="{{ start or '' }}">
@@ -132,7 +207,7 @@
     <select id="supplier" name="supplier"></select>
   </div>
 
-  <div class="filter-item summary-inline">
+  <div class="filter-item">
     <label>Total Pembelian</label>
     <div class="summary-pill">
       {{ "{:,.0f}".format(total_beli or 0).replace(",", ".") }}
@@ -140,91 +215,78 @@
   </div>
 
   <div class="filter-actions">
-    <button class="btn btn-secondary" type="submit">Cari</button>
+    <button class="btn btn-primary" type="submit">Cari</button>
     <a class="btn btn-ghost" href="/invoice/list">Reset</a>
     <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
-
     <a class="btn btn-outline"
        href="/invoice/list/print?start={{ start or '' }}&end={{ end or '' }}&supplier={{ supplier or '' }}">
       Print
     </a>
   </div>
+
 </form>
 
+<table>
+<thead>
+<tr>
+  <th>Tanggal</th>
+  <th>ID.NO</th>
+  <th>Supplier</th>
+  <th class="right">Subtotal</th>
+  <th class="right">PPH</th>
+  <th class="right">Total</th>
+  <th>Aksi</th>
+</tr>
+</thead>
 
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Tanggal</th>
-          <th>Supplier</th>
-          <th>Receiving</th>
-          <th class="right">Subtotal</th>
-          <th class="right">PPH</th>
-          <th class="right">Total</th>
-          <th>Aksi</th>
-        </tr>
-      </thead>
+<tbody>
+{% for r in rows %}
+<tr>
+  <td>{{ r.tanggal }}</td>
+  <td>{{ r.receiving_id }}</td>
+  <td>{{ r.supplier }}</td>
+  <td class="right">{{ "{:,.0f}".format(r.subtotal or 0).replace(",", ".") }}</td>
+  <td class="right">{{ "{:,.0f}".format(r.pph or 0).replace(",", ".") }}</td>
+  <td class="right total-bold">{{ "{:,.0f}".format(r.total or 0).replace(",", ".") }}</td>
+  <td>
+    <div class="aksi">
+      <a href="/invoice/{{ r.id }}">Detail</a>
+      <a href="/invoice/edit/{{ r.id }}">Edit</a>
+    </div>
+  </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
 
-      <tbody>
-        {% for r in rows %}
-        <tr>
-          <td>{{ r.id }}</td>
-          <td>{{ r.tanggal }}</td>
-          <td>{{ r.supplier }}</td>
-          <td>{{ r.receiving_id }}</td>
-          <td class="right">{{ "{:,.0f}".format(r.subtotal or 0).replace(",", ".") }}</td>
-          <td class="right">{{ "{:,.0f}".format(r.pph or 0).replace(",", ".") }}</td>
-          <td class="right"><b>{{ "{:,.0f}".format(r.total or 0).replace(",", ".") }}</b></td>
-          <td>
-            <div class="aksi">
-              <a href="/invoice/{{ r.id }}">Detail</a>
-              <a href="/invoice/edit/{{ r.id }}">Edit</a>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+</div>
 
-  <script>
-    function escapeHtml(s) {
-      return (s || "")
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
+<script>
+async function loadSuppliersInvoice(){
+  const sel=document.getElementById("supplier");
+  if(!sel) return;
 
-    async function loadSuppliersInvoice() {
-      const sel = document.getElementById("supplier");
-      if (!sel) return;
+  const params=new URLSearchParams(window.location.search);
+  const selected=(params.get("supplier")||"").trim().toLowerCase();
 
-      const params = new URLSearchParams(window.location.search);
-      const selected = (params.get("supplier") || "").trim().toLowerCase();
+  let rows=[];
+  try{
+    const res=await fetch("/master/suppliers");
+    const json=await res.json();
+    rows=json.data||[];
+  }catch(e){rows=[];}
 
-      let rows = [];
-      try {
-        const res = await fetch("/master/suppliers");
-        rows = await res.json();
-      } catch (e) {
-        // kalau gagal fetch, tetap tampilkan minimal option
-        rows = [];
-      }
+  const options=[`<option value="">-- Semua Supplier --</option>`]
+  .concat(rows.map(r=>{
+    const v=(r.nama||"").trim();
+    const isSel=(v.toLowerCase()===selected)?"selected":"";
+    return `<option value="${v}" ${isSel}>${v}</option>`;
+  }));
 
-      const options = [`<option value="">-- Semua Supplier --</option>`]
-        .concat(rows.map(r => {
-          const v = (r.nama || "").trim();
-          const isSel = (v.toLowerCase() === selected) ? "selected" : "";
-          return `<option value="${escapeHtml(v)}" ${isSel}>${escapeHtml(v)}</option>`;
-        }));
+  sel.innerHTML=options.join("");
+}
+loadSuppliersInvoice();
+</script>
 
-      sel.innerHTML = options.join("");
-    }
-
-    loadSuppliersInvoice();
-  </script>
 </body>
 </html>

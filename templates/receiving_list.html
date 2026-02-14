@@ -1,120 +1,268 @@
 <!doctype html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Receiving List</title>
-  <style>
-    body { font-family: Arial, sans-serif; padding: 24px; background:#f3f4f6; }
-    h2 { margin:0 0 12px 0; }
-    .card { background:white; border:1px solid #e5e7eb; border-radius:14px; padding:16px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.06); }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; }
-    th { background:#f9fafb; }
-    .top { display:flex; justify-content:space-between; align-items:center; gap:12px; }
-    .btn { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 600; text-decoration:none; display:inline-block; }
-    .btn-primary { background: #2563eb; color: white; }
-    .btn-secondary { background: #7dd3fc; color: blue; }
-    .muted { color:#6b7280; font-size:13px; margin-top:6px; }
-    .actions a { color:#2563eb; text-decoration:none; font-weight:600; }
-    .actions a:hover { text-decoration:underline; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Receiving List</title>
+
+<style>
+body {
+  font-family: 'Segoe UI', Arial, sans-serif;
+  background: #f1f5f9;
+  margin: 0;
+  padding: 30px;
+}
+
+.container {
+  max-width: 1200px;
+  margin: auto;
+}
+
+.header {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:20px;
+}
+
+h2 {
+  margin:0;
+}
+
+.card {
+  background:white;
+  border-radius:16px;
+  padding:20px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+  margin-bottom:20px;
+}
+
+.form-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px,1fr));
+  gap:15px;
+  align-items:end;
+}
+
+label {
+  font-size:12px;
+  color:#6b7280;
+  font-weight:600;
+}
+
+input, select {
+  width:100%;
+  padding:8px 2px;
+  border-radius:7px;
+  border:1px solid #d1d5db;
+  font-size:14px;
+}
+
+input:focus, select:focus {
+  outline:none;
+  border-color:#2563eb;
+}
+
+.btn {
+  padding:9px 14px;
+  border-radius:10px;
+  border:none;
+  font-weight:600;
+  cursor:pointer;
+  text-decoration:none;
+  display:inline-block;
+}
+
+.btn-primary {
+  background:#2563eb;
+  color:white;
+}
+
+.btn-primary:hover {
+  background:#1e40af;
+}
+
+.btn-secondary {
+  background:#e0f2fe;
+  color:#0369a1;
+}
+
+.summary {
+  font-size:14px;
+  font-weight:600;
+}
+
+table {
+  width:100%;
+  border-collapse:collapse;
+}
+
+thead {
+  background:#f8fafc;
+}
+
+th, td {
+  padding:10px;
+  border-bottom:1px solid #e5e7eb;
+  font-size:14px;
+}
+
+th {
+  text-align:left;
+  font-weight:600;
+}
+
+tbody tr:hover {
+  background:#f9fafb;
+}
+
+.actions {
+  display:flex;
+  gap:8px;
+}
+</style>
 </head>
+
 <body>
+<div class="container">
 
-  <div class="top">
+  <div class="header">
     <h2>Receiving List</h2>
-    <div style="display:flex; gap:10px;">
-      <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
-
-    </div>
-  </div>
-  <form method="get" action="/receiving/list" style="display:flex; gap:10px; align-items:end; flex-wrap:wrap; margin:12px 0;">
-  <div>
-    <label style="font-size:12px;">Tanggal Mulai</label><br>
-    <input type="date" name="start" value="{{ start or '' }}">
+    <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
   </div>
 
-  <div>
-    <label style="font-size:12px;">Tanggal Akhir</label><br>
-    <input type="date" name="end" value="{{ end or '' }}">
+  <!-- FILTER CARD -->
+  <div class="card">
+    <form method="get" action="/receiving/list">
+      <div class="form-grid">
+
+        <div>
+          <label>Tanggal Mulai</label>
+          <input type="date" name="start" value="{{ start or '' }}">
+        </div>
+
+        <div>
+          <label>Tanggal Akhir</label>
+          <input type="date" name="end" value="{{ end or '' }}">
+        </div>
+
+        <div>
+          <label>Supplier</label>
+          <select name="supplier" id="supplier">
+            <option value="">-- Semua Supplier --</option>
+          </select>
+        </div>
+
+        <div>
+          <label>Jenis Udang</label>
+          <select name="jenis" id="jenis">
+            <option value="">-- Semua Jenis --</option>
+          </select>
+        </div>
+
+        <div>
+          <button type="submit" class="btn btn-primary">Search</button>
+          <a href="/receiving/list" class="btn btn-secondary">Reset</a>
+        </div>
+
+      </div>
+    </form>
   </div>
 
-  <div>
-    <label style="font-size:12px;">Supplier</label><br>
-    <input type="text" name="supplier" placeholder="contoh: ABC" value="{{ supplier or '' }}">
+  <!-- SUMMARY -->
+  <div class="card summary">
+    Total Berat (kg): {{ "%.2f"|format(total_berat or 0) }}
   </div>
-<div>
-    <label style="font-size:12px;">Jenis Udang</label><br>
-    <select name="jenis">
-      <option value="">-- Semua Jenis --</option>
-      <option value="vannamei" {{ "selected" if jenis=="vannamei" else "" }}>
-        Vannamei
-      </option>
-      <option value="dogol" {{ "selected" if jenis=="dogol" else "" }}>
-        Dogol
-      </option>
-      <option value="kupasan" {{ "selected" if jenis=="kupasan" else "" }}>
-        Kupasan
-      </option>
-    </select>
-  </div>
-  <div>
-    <button type="submit" class="btn btn-primary">Search</button>
-    <a href="/receiving/list" class="btn btn-secondary" style="text-decoration:none; display:inline-block;">Reset</a>
-  </div>
-</form>
 
-<div style="margin:10px 0; padding:10px 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px;">
-  <b>Total Berat (kg):</b> {{ "%.2f"|format(total_berat or 0) }}
-</div>
-
-  <div class="muted">Menampilkan data receiving terbaru. Total netto = jumlah netto semua partai.</div>
-
-  <div class="card" style="margin-top:14px;">
+  <!-- TABLE -->
+  <div class="card">
     <table>
       <thead>
         <tr>
-          <th style="width:70px;">ID</th>
-          <th style="width:120px;">Tanggal</th>
+          <th>Tanggal</th>
+          <th>ID</th>
           <th>Supplier</th>
-          <th style="width:140px;">Jenis</th>
-          <th style="width:90px;">Fiber</th>
-          <th style="width:140px;">Total Netto (kg)</th>
-          <th style="width:90px;">Partai</th>
-
+          <th>Jenis</th>
+          <th>Size</th>
+          <th>Total Netto (kg)</th>
+          <th>MENU</th>
         </tr>
       </thead>
       <tbody>
+
         {% if not rows %}
-          <tr>
-            <td colspan="8">Belum ada data receiving.</td>
-          </tr>
+        <tr>
+          <td colspan="8">Belum ada data receiving.</td>
+        </tr>
         {% endif %}
 
         {% for r in rows %}
         <tr>
-          <td>{{ r.id }}</td>
           <td>{{ r.tanggal }}</td>
+          <td>{{ r.id }}</td>
           <td>{{ r.supplier }}</td>
           <td>{{ r["jenis"] or "-" }}</td>
-          <td>{{ r["fiber"] if r["fiber"] is not none else "-" }}</td>
+          <td>{{ r["size_display"] or "-" }}</td>
           <td>{{ "%.2f"|format(r["total_netto"] or 0) }}</td>
-          <td>{{ r["jml_partai"] }}</td>
 
-          <td class="actions">
-            <td>
-            <a class="btn btn-secondary btn-sm" href="/receiving/{{ r.id }}">Detail</a>
-            <a class="btn btn-secondary btn-sm" href="/production/{{ r.id }}">Produksi</a>
-            </td>
+          <td>
+            <div class="actions">
+              <a class="btn btn-secondary" href="/receiving/{{ r.id }}">Detail</a>
+            </div>
           </td>
         </tr>
         {% endfor %}
+
       </tbody>
     </table>
   </div>
 
+</div>
+
+<script>
+async function loadSuppliers() {
+  const sel = document.getElementById("supplier");
+  const params = new URLSearchParams(window.location.search);
+  const selected = (params.get("supplier") || "").trim().toLowerCase();
+
+  try {
+    const res = await fetch("/master/suppliers");
+    const json = await res.json();
+    if (!json.ok) return;
+
+    json.data.forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r.nama;
+      opt.textContent = r.nama;
+      if (r.nama.toLowerCase() === selected) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch(e){}
+}
+
+async function loadJenis() {
+  const sel = document.getElementById("jenis");
+  const params = new URLSearchParams(window.location.search);
+  const selected = (params.get("jenis") || "").trim().toLowerCase();
+
+  try {
+    const res = await fetch("/master/jenis");
+    const json = await res.json();
+    if (!json.ok) return;
+
+    json.data.forEach(r => {
+      const opt = document.createElement("option");
+      opt.value = r.nama;
+      opt.textContent = r.nama;
+      if (r.nama.toLowerCase() === selected) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch(e){}
+}
+
+loadSuppliers();
+loadJenis();
+</script>
+
 </body>
 </html>
-
