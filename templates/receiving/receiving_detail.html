@@ -6,127 +6,206 @@
   <title>Receiving Detail</title>
   <style>
     body { font-family: Arial, sans-serif; padding: 24px; background:#f3f4f6; }
-    .top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
     .btn { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 600; text-decoration:none; display:inline-block; }
     .btn-primary { background: #2563eb; color: white; }
     .btn-secondary { background: #111827; color: white; }
-    .card { background:white; border:1px solid #e5e7eb; border-radius:14px; padding:16px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.06); margin-bottom:14px; }
-    .grid { display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:12px; }
+    .card { background:white; border:1px solid #e5e7eb; border-radius:14px; padding:16px; box-shadow: 0 8px 20px rgba(0,0,0,0.06); margin-bottom:14px; }
+    .grid { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; }
     .field { display:flex; flex-direction:column; gap:6px; }
     label { font-size: 13px; color:#111827; }
     .val { padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; background:#f9fafb; }
-    h2 { margin:0; }
-    h3 { margin:0 0 8px 0; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; vertical-align: top; }
-    th { background:#f9fafb; }
-    .muted { color:#6b7280; font-size:17px; padding:2px}
+    h2,h3 { margin:0; }
+    .muted { color:#6b7280; font-size:14px; padding:2px }
     .pill { display:inline-block; font-size:12px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
     .chips { display:flex; flex-wrap:wrap; gap:6px; }
     .chip { font-size:12px; padding:4px 8px; border:1px solid #e5e7eb; border-radius:999px; background:white; }
-    @media (max-width: 900px){
-      .grid { grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 520px){
-      .grid { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 520px){
-  .grid { grid-template-columns: 1fr; }
-  .top {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-}
-.btn-outline{background:#fff;color:#111827;border:1px solid #e5e7eb}
-.btn-outline:hover{background:#f9fafb}
-.btn-danger{background:#ef4444;color:#fff}
-.btn-danger:hover{filter:brightness(.95)}
-
-.inp{
-  width:100%;
-  padding:8px 10px;
-  border:1px solid #d1d5db;
-  border-radius:10px;
-  box-sizing:border-box;
-  background:#fff;
-}
-.inp:focus{
-  outline:none;
-  border-color:#2563eb;
-  box-shadow:0 0 0 3px rgba(37,99,235,.15);
-}
-.inp-read{
-  background:#f9fafb;
-}
-.timb-grid{
-  display:grid;
-  grid-template-columns: repeat(6, minmax(0,1fr));
-  gap:8px;
-}
-@media (max-width:900px){
-  .timb-grid{grid-template-columns: repeat(3, minmax(0,1fr));}
-}
-@media (max-width:520px){
-  .timb-grid{grid-template-columns: repeat(2, minmax(0,1fr));}
-}
-.small-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
-.btn-sm{padding:8px 10px; border-radius:10px; font-size:13px; font-weight:700;}
-
+    @media (max-width:900px){ .grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width:520px){ .grid { grid-template-columns: 1fr; } .top { flex-direction: column; align-items: flex-start; gap:8px; } }
+    .btn-outline{background:#fff;color:#111827;border:1px solid #e5e7eb}
+    .btn-outline:hover{background:#f9fafb}
+    .btn-danger{background:#ef4444;color:#fff}
+    .btn-danger:hover{filter:brightness(.95)}
+    .inp{ width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; box-sizing:border-box; background:#fff; }
+    .inp:focus{ outline:none; border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
+    .inp-read{ background:#f9fafb; }
+    .timb-grid{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:8px; }
+    @media (max-width:900px){ .timb-grid{grid-template-columns: repeat(2, minmax(0,1fr)); } }
+    @media (max-width:520px){ .timb-grid{grid-template-columns: 1fr; } }
+    .small-actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;}
+    .btn-sm{padding:8px 10px; border-radius:10px; font-size:13px; font-weight:700;}
   </style>
 </head>
 <body>
 
   <div class="top">
-  <div>
-    <h2>Receiving Detail <span class="pill">ID {{ header["id"] }}</span></h2>
-    <div class="muted"></div>
+    <div>
+      <h2>Receiving Detail <span class="pill">ID {{ header["id"] }}</span></h2>
+    </div>
+    <div style="display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn btn-primary" type="button" id="btnSaveInline">💾 Simpan Perubahan</button>
+      <a class="btn btn-secondary" href="/receiving/list">Kembali</a>
+      <a class="btn btn-primary" href="#" onclick="window.print(); return false;">Print</a>
+    </div>
   </div>
 
-  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-    <button class="btn btn-primary" type="button" id="btnSaveInline">
-    💾 Simpan Perubahan
-    </button>
-    <a class="btn btn-secondary" href="/receiving/list">Kembali</a>
-    <a class="btn btn-primary" href="#" onclick="window.print(); return false;">Print</a>
+  <!-- HEADER TOTALS -->
+  <div class="card">
+    <div style="display:flex; flex-wrap:wrap; gap:16px; justify-content:space-between; align-items:center;">
+      <div>
+        <div class="muted">Tanggal: {{ header["tanggal"] }}</div>
+        <div class="muted">Supplier: {{ header["supplier"] }}</div>
+        <div class="muted">Jenis: {{ header["jenis"] or "-" }}</div>
+        <div class="muted">Dibuat: {{ header["created_at"] or "-" }}</div>
+      </div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <div class="val">Total Netto: <b id="totalNetto">{{ "%.2f"|format(total_netto) }}</b> kg</div>
+        <div class="val">Total Fiber: <b id="totalFiber">{{ "%.2f"|format(total_fiber) }}</b> kg</div>
+        <div class="val">Total Size: <b id="totalSize">{{ "%.2f"|format(total_size) }}</b></div>
+        {% if invoice %}
+          <a class="btn btn-secondary" href="{{ url_for('invoice_view', invoice_id=invoice.id) }}">Lihat Invoice</a>
+        {% else %}
+          <a class="btn btn-primary" href="{{ url_for('invoice_new', receiving_id=header.id) }}">Buat Invoice</a>
+        {% endif %}
+      </div>
+    </div>
   </div>
-</div>
 
+  <!-- PARTAI -->
+  {% for p in partai %}
+  <div class="card" data-partai-id="{{ p['id'] }}">
+    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <h3>Partai #{{ p["partai_no"] }}</h3>
+      <div class="muted">ID: {{ p["id"] }}</div>
+      {% if p['kategori_kupasan'] %}
+        <span class="pill">Kupasan: {{ p['kategori_kupasan'] }}</span>
+      {% endif %}
+    </div>
+
+    <!-- Hidden inputs wajib -->
+    <input type="hidden" name="partai_no" value="{{ p['partai_no'] }}">
+    <input type="hidden" name="partai_id" value="{{ p['id'] }}">
+
+    <div class="grid" style="gap:16px;">
+      <!-- SAMPLING -->
+      <div class="field">
+        <label>PCS</label>
+        <input class="inp" name="pcs" type="number" value="{{ p['pcs'] or '' }}">
+        <label>Kg Sample</label>
+        <input class="inp" name="kg_sample" type="number" step="0.01" value="{{ p['kg_sample'] or '' }}">
+        <label>Fiber</label>
+        <input class="inp" name="fiber" type="number" step="0.01" value="{{ p['fiber'] or '' }}">
+        <label>Kategori Kupasan</label>
+        <select class="inp" name="kategori_kupasan">
+          <option value="">-- Pilih --</option>
+          <option value="kecil" {% if p['kategori_kupasan']=='kecil' %}selected{% endif %}>Kecil</option>
+          <option value="besar" {% if p['kategori_kupasan']=='besar' %}selected{% endif %}>Besar</option>
+        </select>
+        <label>Note</label>
+        <textarea class="inp" name="note" rows="3">{{ p['note'] or '' }}</textarea>
+      </div>
+
+      <!-- BERAT -->
+      <div class="field">
+        <label>Tara per Keranjang</label>
+        <input class="inp" name="tara_per_keranjang" type="number" step="0.01" value="{{ p['tara_per_keranjang'] or '' }}">
+        <div class="muted">Keranjang: <b>{{ p["keranjang"] or "-" }}</b></div>
+        <div class="muted">Bruto: <b>{{ p["bruto"] or "-" }}</b></div>
+        <div class="muted">Total Tara: <b>{{ p["total_tara"] or "-" }}</b></div>
+        <div class="muted">Netto: <b>{{ p["netto"] or "-" }}</b></div>
+      </div>
+
+      <!-- TIMBANGAN -->
+      <div class="field">
+        <label>Timbangan</label>
+        <div class="timb-grid">
+          {% for t in p["timbangan"] or [0] %}
+            <input class="inp" data-timbangan="1" type="number" step="0.01" value="{{ t }}">
+          {% endfor %}
+        </div>
+        <div class="small-actions">
+          <button type="button" class="btn btn-outline btn-sm" data-add-timb="1">+ Baris</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
 
 <script>
 function numOrNull(v){
   v = (v ?? "").toString().trim();
-  if (v === "") return null;
+  if(v==="") return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
 
-async function saveReceivingInline() {
-  try {
-    const payload = {
-      header_id: {{ header["id"] | tojson }},
-      partai: []
-    };
+// Live update totals
+function updateTotals(){
+  let totalNetto=0, totalFiber=0, totalSize=0;
+  document.querySelectorAll("[data-partai-id]").forEach(card=>{
+    // Fiber
+    const fiber=parseFloat(card.querySelector("[name='fiber']")?.value)||0;
+    totalFiber+=fiber;
 
-    document.querySelectorAll("[data-partai-id]").forEach(card => {
-      const pid = Number(card.dataset.partaiId);
-      const pcs = numOrNull(card.querySelector("[name='pcs']")?.value);
-      const kg_sample = numOrNull(card.querySelector("[name='kg_sample']")?.value);
-      const tara = numOrNull(card.querySelector("[name='tara_per_keranjang']")?.value);
-      const fiber = numOrNull(card.querySelector("[name='fiber']")?.value);
-      const note = (card.querySelector("[name='note']")?.value || "").trim();
-      const kategoriKupasan = card.querySelector("[name='kategori_kupasan']")?.value || null;
-      const partai_no = card.querySelector("input[name='partai_no']")?.value;
-      const timbangan = [];
-      card.querySelectorAll("[data-timbangan]").forEach(inp => {
-        const v = numOrNull(inp.value);
-        if (v !== null) timbangan.push(v);
+    // Netto
+    const tara=parseFloat(card.querySelector("[name='tara_per_keranjang']")?.value)||0;
+    let nettoPartai=0;
+    card.querySelectorAll("[data-timbangan]").forEach(inp=>{
+      let v=parseFloat(inp.value)||0;
+      if(v<5)v=5; else if(v>60)v=60;
+      inp.value=v;
+      nettoPartai+=v;
+    });
+    nettoPartai-=tara;
+    if(nettoPartai<0) nettoPartai=0;
+    totalNetto+=nettoPartai;
+
+    // Size (gunakan kg_sample)
+    const size=parseFloat(card.querySelector("[name='kg_sample']")?.value)||0;
+    totalSize+=size;
+  });
+  document.getElementById("totalNetto").innerText=totalNetto.toFixed(2);
+  document.getElementById("totalFiber").innerText=totalFiber.toFixed(2);
+  document.getElementById("totalSize").innerText=totalSize.toFixed(2);
+}
+
+// Event listeners
+document.querySelectorAll("[name='fiber'], [name='kg_sample'], [name='tara_per_keranjang'], [data-timbangan]").forEach(inp=>{
+  inp.addEventListener("input", updateTotals);
+});
+updateTotals(); // init
+
+// Save inline
+async function saveReceivingInline(){
+  try{
+    const payload={ header_id: {{ header["id"]|tojson }}, partai: [] };
+    document.querySelectorAll("[data-partai-id]").forEach(card=>{
+      const pid=Number(card.dataset.partaiId);
+      const partai_no_input=card.querySelector("input[name='partai_no']");
+      if(!partai_no_input || partai_no_input.value.trim()==="") throw `Partai ID ${pid} belum punya partai_no`;
+      const partai_no=Number(partai_no_input.value);
+      if(isNaN(partai_no)) throw `Partai ID ${pid} partai_no harus angka`;
+
+      const pcs=numOrNull(card.querySelector("[name='pcs']")?.value);
+      const kg_sample=numOrNull(card.querySelector("[name='kg_sample']")?.value);
+      const tara=numOrNull(card.querySelector("[name='tara_per_keranjang']")?.value);
+      const fiber=numOrNull(card.querySelector("[name='fiber']")?.value);
+      const note=(card.querySelector("[name='note']")?.value||"").trim();
+      const kategoriKupasan=card.querySelector("[name='kategori_kupasan']")?.value||null;
+
+      const timbangan=[];
+      card.querySelectorAll("[data-timbangan]").forEach(inp=>{
+        let v=numOrNull(inp.value);
+        if(v!==null){
+          if(v<5)v=5; else if(v>60)v=60;
+          inp.value=v;
+          timbangan.push(v);
+        }
       });
 
       payload.partai.push({
         id: pid,
-        partai_no: Number(partai_no), // ⬅️ WAJIB
+        partai_no,
         pcs,
         kg_sample,
         tara_per_keranjang: tara,
@@ -137,171 +216,24 @@ async function saveReceivingInline() {
       });
     });
 
-    console.log("PAYLOAD:", payload);
-
-    const headerId = {{ header["id"] | tojson }};
-
-    const res = await fetch(`/receiving/update/${headerId}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
+    const res=await fetch(`/receiving/update/{{ header["id"] }}`,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(payload)
     });
-    const out = await res.json();
-    if (!out.ok) throw (out.msg || "Gagal simpan");
+    const out=await res.json();
+    if(!out.ok) throw (out.msg || "Gagal simpan");
 
     alert("✅ Perubahan berhasil disimpan");
-    location.reload();
 
-  } catch (err) {
+    location.reload();
+  }catch(err){
     console.error(err);
-    alert("❌ ERROR: " + err);
+    alert("❌ ERROR: "+err);
   }
 }
 
-document.getElementById("btnSaveInline")
-  ?.addEventListener("click", saveReceivingInline);
+document.getElementById("btnSaveInline")?.addEventListener("click", saveReceivingInline);
 </script>
-
-  <!-- HEADER -->
-<div class="card">
-  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:10px;">
-<h3 style="margin:0;">Header</h3>
-
-<h3 style="margin:0;">Header</h3>
-
-{% if invoice %}
-  <a class="btn btn-secondary"
-     href="{{ url_for('invoice_view', invoice_id=invoice.id) }}">
-    Lihat Invoice
-  </a>
-{% else %}
-  <a class="btn btn-primary"
-     href="{{ url_for('invoice_new', receiving_id=header.id) }}">
-    Buat Invoice
-  </a>
-{% endif %}
-  </div>
-
-  <div class="grid">
-    <div class="field">
-      <label>Tanggal</label>
-      <div class="val">{{ header["tanggal"] }}</div>
-    </div>
-    <div class="field">
-      <label>Supplier</label>
-      <div class="val">{{ header["supplier"] }}</div>
-    </div>
-    <div class="field">
-      <label>Jenis</label>
-      <div class="val">{{ header["jenis"] or "-" }}</div>
-    </div>
-    <div class="field">
-      <label>Fiber</label>
-      <div class="val">{{ header["fiber"] if header["fiber"] is not none else "-" }}</div>
-    </div>
-    <div class="field">
-      <label>Dibuat</label>
-      <div class="val">{{ header["created_at"] or "-" }}</div>
-    </div>
-  </div>
-
-  <div class="muted" style="margin-top:14px;">
-    Total Netto semua partai: <b>{{ "%.2f"|format(total_netto) }} kg</b>
-  </div>
-</div>
-
-  <!-- PARTAI -->
-  {% for p in partai %}
-<div class="card" data-partai-id="{{ p['id'] }}">
-  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-    <h3 style="margin:0;">Partai #{{ p["partai_no"] }}</h3>
-      <input type="hidden" name="partai_no" value="{{ p['partai_no'] }}">
-      <input type="hidden" name="partai_id" value="{{ p['id'] }}">
-    <div class="muted">Partai ID: {{ p["id"] }}</div>
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th style="width:220px;">Sampling (edit)</th>
-        <th style="width:240px;">Berat (auto)</th>
-        <th>Timbangan (edit)</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <!-- SAMPLING -->
-        <td>
-          <div class="field" style="margin-bottom:8px;">
-            <label>PCS</label>
-            <input class="inp" name="pcs" type="number" value="{{ p['pcs'] if p['pcs'] is not none else '' }}">
-          </div>
-
-          <div class="field" style="margin-bottom:8px;">
-            <label>Kg Sample</label>
-            <input class="inp" name="kg_sample" type="number" step="0.01" value="{{ p['kg_sample'] if p['kg_sample'] is not none else '' }}">
-          </div>
-
-          <div class="field" style="margin-bottom:8px;">
-            <label>Size (auto)</label>
-            <input class="inp inp-read" name="size" type="text" readonly value="{{ p['size'] if p['size'] is not none else '' }}">
-          </div>
-
-           <div class="field">
-            <label>Round (auto)</label>
-            <input class="inp inp-read" name="round_size" type="text" readonly value="{{ p['round_size'] if p['round_size'] is not none else '' }}">
-           </div>
-          <div class="field">
-            <label>Fiber</label>
-              <input class="inp"
-                     name="fiber"
-                     type="number"
-                     step="0.01"
-                     value="{{ p['fiber'] if p['fiber'] is not none else '' }}">
-          </div>
-
-
-        </td>
-
-        <!-- BERAT -->
-        <td>
-          <div class="field" style="margin-bottom:8px;">
-            <label>Tara/Keranjang</label>
-            <input class="inp" name="tara_per_keranjang" type="number" step="0.01"
-                   value="{{ p['tara_per_keranjang'] if p['tara_per_keranjang'] is not none else '' }}">
-          </div>
-
-          <div class="muted">Keranjang: <b>{{ p["keranjang"] if p["keranjang"] is not none else "-" }}</b></div>
-          <div class="muted">Bruto: <b>{{ p["bruto"] if p["bruto"] is not none else "-" }}</b></div>
-          <div class="muted">Total Tara: <b>{{ p["total_tara"] if p["total_tara"] is not none else "-" }}</b></div>
-          <div class="muted">Netto: <b>{{ p["netto"] if p["netto"] is not none else "-" }}</b></div>
-          <div class="muted" style="margin-top:8px;">(catatan:)</div>
-
-          <textarea class="inp" name="note" rows="6" style="resize:vertical;">{{ p["note"] or "" }}</textarea>
-        </td>
-
-        <!-- TIMBANGAN -->
-        <td>
-          <div class="timb-grid">
-            {% if p["timbangan"] and p["timbangan"]|length > 0 %}
-              {% for t in p["timbangan"] %}
-                <input class="inp" data-timbangan="1" type="number" step="0.01" value="{{ t }}">
-              {% endfor %}
-            {% else %}
-              <input class="inp" data-timbangan="1" type="number" step="0.01" value="">
-            {% endif %}
-          </div>
-
-          <div class="small-actions">
-            <button type="button" class="btn btn-outline btn-sm" data-add-timb="1">+ Baris</button>
-
-          </div>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
-{% endfor %}
-
 </body>
 </html>

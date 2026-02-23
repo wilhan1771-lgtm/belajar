@@ -353,14 +353,26 @@ function tambahBaris(p){
 
   const inp = tr.querySelector("input");
 
-  inp.oninput = () => {
-    const v = parseFloat(inp.value);
-    if (v > 60) {
-      alert("Berat maksimal 60 kg per timbangan");
-      inp.value = 60;
+ inp.oninput = () => {
+    let v = parseFloat(inp.value);
+
+    if (isNaN(v)) {
+        inp.value = 5; // default jika bukan angka
+        v = 5;
     }
+
+    // batas minimal 5 kg dan maksimal 60 kg
+    if (v < 5) {
+        alert("Berat minimal 5 kg per timbangan");
+        v = 5;
+    } else if (v > 60) {
+        alert("Berat maksimal 60 kg per timbangan");
+        v = 60;
+    }
+
+    inp.value = v;
     hitungBerat(p);
-  };
+};
 
   inp.onkeydown = (e) => {
     if (e.key === "Enter") {

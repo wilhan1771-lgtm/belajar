@@ -332,16 +332,24 @@ def receiving_detail(header_id):
 
     conn.close()
 
-    partai, total_netto = [], 0
+    partai = []
+    total_netto = 0
+    total_fiber = 0
+    total_size = 0
+
     for r in partai_rows:
         d = dict(r)
         d["timbangan"] = json.loads(d.get("timbangan_json") or "[]")
         total_netto += d.get("netto") or 0
+        total_fiber += d.get("fiber") or 0
+        total_size += d.get("kg_sample") or 0   # size bisa diganti sesuai formula kamu
         partai.append(d)
 
     return render_template(
         "receiving/receiving_detail.html",
         header=dict(header),
         partai=partai,
-        total_netto=total_netto
+        total_netto=total_netto,
+        total_fiber=total_fiber,
+        total_size=total_size
     )

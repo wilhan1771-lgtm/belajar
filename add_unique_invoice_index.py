@@ -40,9 +40,17 @@ def receiving_save():
 
         for p in partai_list:
             for b in p.get("timbangan") or []:
-                if float(b) > 60:
+                try:
+                    berat = float(b)
+                except (ValueError, TypeError):
+                    raise ValueError("Berat timbangan harus berupa angka")
+
+                if berat < 5:
+                    raise ValueError("Berat timbangan minimal 5 kg")
+                elif berat > 60:
                     raise ValueError("Berat timbangan maksimal 60 kg")
-            h = hitung_partai(p)
+
+            h = hitung_partai(p)  # lanjut hitung partai
 
             cur.execute("""
                         INSERT INTO receiving_item
