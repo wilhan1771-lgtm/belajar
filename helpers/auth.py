@@ -1,12 +1,8 @@
-# helpers/auth.py
+
 from flask import session, redirect, url_for
 
 def require_login():
-    """
-    Mengecek apakah user sudah login.
-    Return True kalau login, False kalau tidak.
-    """
-    return session.get("user_id") is not None
+    return session.get("user") is not None
 
 def login_required(func):
     """

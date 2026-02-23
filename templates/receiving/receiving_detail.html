@@ -85,15 +85,14 @@
   </div>
 
   <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-    <a class="btn btn-outline" href="{{ url_for('receiving_edit', header_id=header['id']) }}">
-      ✏️ Edit Receiving
-    </a>
+    <button class="btn btn-primary" type="button" id="btnSaveInline">
+    💾 Simpan Perubahan
+    </button>
     <a class="btn btn-secondary" href="/receiving/list">Kembali</a>
     <a class="btn btn-primary" href="#" onclick="window.print(); return false;">Print</a>
   </div>
 </div>
 
-<button class="btn btn-primary" type="button" id="btnSaveInline">Simpan Perubahan</button>
 
 <script>
 function numOrNull(v){
@@ -105,18 +104,20 @@ function numOrNull(v){
 
 async function saveReceivingInline() {
   try {
-    const header_id = {{ header["id"] | tojson }};
-    const payload = { partai: [] };
+    const payload = {
+      header_id: {{ header["id"] | tojson }},
+      partai: []
+    };
 
     document.querySelectorAll("[data-partai-id]").forEach(card => {
       const pid = Number(card.dataset.partaiId);
-
       const pcs = numOrNull(card.querySelector("[name='pcs']")?.value);
       const kg_sample = numOrNull(card.querySelector("[name='kg_sample']")?.value);
       const tara = numOrNull(card.querySelector("[name='tara_per_keranjang']")?.value);
       const fiber = numOrNull(card.querySelector("[name='fiber']")?.value);
       const note = (card.querySelector("[name='note']")?.value || "").trim();
-
+      const kategoriKupasan = card.querySelector("[name='kategori_kupasan']")?.value || null;
+      const partai_no = card.querySelector("input[name='partai_no']")?.value;
       const timbangan = [];
       card.querySelectorAll("[data-timbangan]").forEach(inp => {
         const v = numOrNull(inp.value);
@@ -125,32 +126,35 @@ async function saveReceivingInline() {
 
       payload.partai.push({
         id: pid,
+        partai_no: Number(partai_no), // ⬅️ WAJIB
         pcs,
         kg_sample,
         tara_per_keranjang: tara,
         fiber,
         note,
-        timbangan
+        timbangan,
+        kategori_kupasan: kategoriKupasan
       });
     });
 
     console.log("PAYLOAD:", payload);
 
-    const res = await fetch(`/receiving/update/${header_id}`, {
+    const headerId = {{ header["id"] | tojson }};
+
+    const res = await fetch(`/receiving/update/${headerId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-
     const out = await res.json();
-    if (!out.ok) throw out.msg || "Gagal simpan";
+    if (!out.ok) throw (out.msg || "Gagal simpan");
 
-    alert("Berhasil disimpan");
+    alert("✅ Perubahan berhasil disimpan");
     location.reload();
 
   } catch (err) {
     console.error(err);
-    alert("ERROR: " + err);
+    alert("❌ ERROR: " + err);
   }
 }
 
@@ -211,6 +215,8 @@ document.getElementById("btnSaveInline")
 <div class="card" data-partai-id="{{ p['id'] }}">
   <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
     <h3 style="margin:0;">Partai #{{ p["partai_no"] }}</h3>
+      <input type="hidden" name="partai_no" value="{{ p['partai_no'] }}">
+      <input type="hidden" name="partai_id" value="{{ p['id'] }}">
     <div class="muted">Partai ID: {{ p["id"] }}</div>
   </div>
 
