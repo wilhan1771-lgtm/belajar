@@ -39,7 +39,7 @@ def recalc_receiving(conn, header_id: int):
 
     rows = cur.execute("""
         SELECT id, pcs, kg_sample, tara_per_keranjang, timbangan_json, fiber
-        FROM receiving_partai
+        FROM receiving_item
         WHERE header_id=?
     """, (header_id,)).fetchall()
 
@@ -64,7 +64,7 @@ def recalc_receiving(conn, header_id: int):
             round_size = round(raw)
 
         cur.execute("""
-            UPDATE receiving_partai
+            UPDATE receiving_item
             SET keranjang=?, bruto=?, total_tara=?, netto=?,
                 size=?, round_size=?
             WHERE id=?

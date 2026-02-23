@@ -8,9 +8,12 @@ from invoice.pricing import interpolate_price
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify
 from datetime import date, datetime, timedelta
 import json
-from db import init_db, get_conn
+
 from receiving.service import update_receiving
 from receiving.routes import receiving_bp
+from helpers.db import init_db, get_conn
+
+
 # init database
 init_db()
 
@@ -183,7 +186,7 @@ def production_view(prod_id):
             SELECT h.id, h.tanggal, h.supplier, h.jenis,
                    COALESCE(SUM(COALESCE(p.netto,0)),0) AS total_netto
             FROM receiving_header h
-            LEFT JOIN receiving_partai p ON p.header_id = h.id
+            LEFT JOIN receiving_item p ON p.header_id = h.id
             WHERE h.id = ?
             GROUP BY h.id
         """, (prod["receiving_id"],)).fetchone()
@@ -339,7 +342,7 @@ if app.debug:
                 "SELECT * FROM receiving_header ORDER BY id DESC LIMIT 50"
             ).fetchall()
             partai = conn.execute(
-                "SELECT * FROM receiving_partai ORDER BY id DESC LIMIT 200"
+                "SELECT * FROM receiving_item ORDER BY id DESC LIMIT 200"
             ).fetchall()
 
             return {
@@ -371,22 +374,6 @@ def debug_tables():
         return {
             "tables": [r["name"] for r in rows]
         }
-    finally:
-        conn.close()
-
-@app.get("/master/suppliers")
-def master_suppliers():
-    if not require_login():
-        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
-
-    conn = get_conn()
-    try:
-        rows = conn.execute(
-            "SELECT id, nama FROM supplier WHERE aktif=1 ORDER BY nama"
-        ).fetchall()
-        return jsonify({"ok": True, "data": [dict(r) for r in rows]})
-    except Exception as e:
-        return jsonify({"ok": False, "msg": str(e)}), 500
     finally:
         conn.close()
 
@@ -429,7 +416,21 @@ def master_supplier_add():
     finally:
         conn.close()
 
+@app.get("/master/suppliers")
+def master_suppliers():
+    if not require_login():
+        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
 
+    conn = get_conn()
+    try:
+        rows = conn.execute(
+            "SELECT id, nama, aktif FROM supplier ORDER BY id"
+        ).fetchall()
+        return jsonify({"ok": True, "data": [dict(r) for r in rows]})
+    except Exception as e:
+        return jsonify({"ok": False, "msg": str(e)}), 500
+    finally:
+        conn.close()
 
 # =========================
 # Invoice
@@ -466,7 +467,7 @@ def invoice_new(receiving_id):
     # 3) Ambil partai dari receiving
     partai_rows = conn.execute("""
         SELECT partai_no, round_size, COALESCE(netto, 0) AS netto
-        FROM receiving_partai
+        FROM receiving_item
         WHERE header_id=?
         ORDER BY partai_no ASC
     """, (receiving_id,)).fetchall()
@@ -789,7 +790,7 @@ def invoice_edit(invoice_id):
 
     parts = conn.execute("""
         SELECT partai_no, round_size, COALESCE(netto,0) AS netto
-        FROM receiving_partai
+        FROM receiving_item
         WHERE header_id=?
         ORDER BY partai_no
     """, (inv["receiving_id"],)).fetchall()
@@ -834,7 +835,7 @@ def invoice_update(invoice_id):
         SELECT partai_no,
                COALESCE(round_size,0) AS round_size,
                COALESCE(netto,0) AS netto
-        FROM receiving_partai
+        FROM receiving_item
         WHERE header_id=?
         ORDER BY partai_no
     """, (receiving_id,)).fetchall()
@@ -1048,7 +1049,7 @@ def production_list():
                 r.supplier,
                 r.jenis,
 
-                -- RM dari receiving_partai
+                -- RM dari receiving_item
                 COALESCE(SUM(rp.netto), 0) AS rm_kg,
 
                 -- Data produksi (jika ada)
@@ -1075,7 +1076,7 @@ def production_list():
                 END AS fg_yield
 
             FROM receiving_header r
-            LEFT JOIN receiving_partai rp ON rp.header_id = r.id
+            LEFT JOIN receiving_item rp ON rp.header_id = r.id
             LEFT JOIN production_header ph ON ph.receiving_id = r.id
 
             {where_sql}
@@ -1117,7 +1118,7 @@ def production_open(receiving_id):
             SELECT h.id, h.tanggal, h.supplier, h.jenis,
                    COALESCE(SUM(p.netto),0) AS total_netto
             FROM receiving_header h
-            LEFT JOIN receiving_partai p ON p.header_id=h.id
+            LEFT JOIN receiving_item p ON p.header_id=h.id
             WHERE h.id=?
             GROUP BY h.id
         """, (receiving_id,)).fetchone()
@@ -1203,7 +1204,7 @@ def production_save(receiving_id):
         # --- 2. Ambil bahan_masuk dari receiving_header ---
         receiving = conn.execute("""
             SELECT COALESCE(SUM(netto),0) AS total_netto
-            FROM receiving_partai
+            FROM receiving_item
             WHERE header_id=?
         """, (receiving_id,)).fetchone()
         bahan_masuk = receiving["total_netto"] if receiving else 0

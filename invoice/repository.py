@@ -4,10 +4,10 @@ def get_receiving_header(conn, receiving_id):
         (receiving_id,)
     ).fetchone()
 
-def get_receiving_partai(conn, receiving_id):
+def get_receiving_item(conn, receiving_id):
     return conn.execute("""
         SELECT partai_no, round_size, COALESCE(netto, 0) AS netto
-        FROM receiving_partai
+        FROM receiving_item
         WHERE header_id=?
         ORDER BY partai_no ASC
     """, (receiving_id,)).fetchall()

@@ -1,7 +1,7 @@
 import sqlite3
 import os
 
-DB_PATH = r"C:\Users\Asus\belajar\receiving.db"
+DB_PATH = r"C:\Users\Win 10\PycharmProjects\udang\belajar\receiving.db"
 receiving_ids = (97,)  # bisa ganti tuple dengan banyak ID, misal (97, 98, 99)
 
 # 1️⃣ Cek apakah file database ada
@@ -29,9 +29,9 @@ try:
         WHERE receiving_id IN ({placeholders})
     """, receiving_ids)
 
-    # 4️⃣ Hapus receiving_partai
+    # 4️⃣ Hapus receiving_item
     cur.execute(f"""
-        DELETE FROM receiving_partai
+        DELETE FROM receiving_item
         WHERE header_id IN ({placeholders})
     """, receiving_ids)
 

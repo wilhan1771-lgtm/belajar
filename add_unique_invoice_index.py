@@ -45,7 +45,7 @@ def receiving_save():
             h = hitung_partai(p)
 
             cur.execute("""
-                        INSERT INTO receiving_partai
+                        INSERT INTO receiving_item
                         (header_id,
                          partai_no,
                          pcs,
@@ -141,7 +141,7 @@ def receiving_list():
             ELSE GROUP_CONCAT(DISTINCT COALESCE(p.round_size, p.size))
             END AS size_display
         FROM receiving_header h
-        LEFT JOIN receiving_partai p ON p.header_id = h.id
+        LEFT JOIN receiving_item p ON p.header_id = h.id
         {where_sql}
         GROUP BY h.id
         ORDER BY h.tanggal DESC, h.id DESC
@@ -178,7 +178,7 @@ def receiving_detail(header_id):
         return "Receiving tidak ditemukan", 404
 
     partai_rows = conn.execute("""
-        SELECT * FROM receiving_partai
+        SELECT * FROM receiving_item
         WHERE header_id=?
         ORDER BY partai_no
     """, (header_id,)).fetchall()
@@ -237,7 +237,7 @@ def receiving_edit(header_id):
         return "Data receiving tidak ditemukan", 404
 
     partai_rows_raw = conn.execute("""
-        SELECT * FROM receiving_partai
+        SELECT * FROM receiving_item
         WHERE header_id = ?
         ORDER BY partai_no ASC, id ASC
     """, (header_id,)).fetchall()
@@ -316,7 +316,7 @@ def receiving_edit(header_id):
             timbangan_json = json.dumps(timbangan_list)
 
             conn.execute("""
-                UPDATE receiving_partai
+                UPDATE receiving_item
                 SET pcs = ?, round_size = ?, netto = ?, note = ?, timbangan_json = ?
                 WHERE id = ? AND header_id = ?
             """, (pcs, round_size, netto, note or None, timbangan_json, pid, header_id))

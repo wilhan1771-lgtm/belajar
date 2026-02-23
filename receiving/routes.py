@@ -5,9 +5,9 @@ import json
 from . import receiving_bp
 
 from helpers.auth import require_login, login_required
-
+from helpers.db import init_db, get_conn
 from helpers.number_utils import to_int, to_float
-from helpers.db import get_conn
+from helpers.db import get_conn, DB_PATH
 from receiving.calculator import hitung_partai
 from receiving.service import update_receiving
 from invoice.service import sync_invoice_from_receiving
@@ -19,79 +19,122 @@ def receiving():
 
     today = date.today().strftime("%Y-%m-%d")
     return render_template("receiving/receiving.html", today=today)
-
+print("DB Path aktif:", DB_PATH)
 @receiving_bp.post("/save")
 def receiving_save():
+    print("MASUK ROUTE RECEIVING_SAVE")
+    print("DB Path aktif:", DB_PATH)
     if not require_login():
         return jsonify({"ok": False, "msg": "Unauthorized"}), 401
 
-    data = request.get_json(force=True)
-    header = data["header"]
-    partai_list = data["partai"]
+    data = request.get_json(force=True) or {}
+    print("DATA MASUK:", data)
+
+    tanggal = data.get("tanggal")
+    supplier = data.get("supplier")
+    jenis = data.get("jenis")
+    partai_list = data.get("partai", [])
+
+    if not tanggal or not supplier:
+        return jsonify({"ok": False, "msg": "Header kosong"}), 400
+
+    if not partai_list:
+        return jsonify({"ok": False, "msg": "Partai kosong"}), 400
+
+    total_fiber = sum(float(p.get("fiber") or 0) for p in partai_list)
 
     conn = get_conn()
     cur = conn.cursor()
 
     try:
+        # ===== GENERATE RECEIVING_NO =====
+        row = cur.execute(
+            "SELECT COALESCE(MAX(receiving_no), 0) + 1 AS next_no FROM receiving_header"
+        ).fetchone()
+        receiving_no = row["next_no"]
+
         # ===== INSERT HEADER =====
         cur.execute("""
             INSERT INTO receiving_header
-            (tanggal, supplier, jenis, fiber)
-            VALUES (?, ?, ?, ?)
+            (receiving_no, tanggal, supplier, jenis, fiber)
+            VALUES (?, ?, ?, ?, ?)
         """, (
-            header["tanggal"],
-            header["supplier"],
-            header["jenis"],
-            header.get("fiber")
+            receiving_no,
+            tanggal,
+            supplier,
+            jenis,
+            total_fiber
         ))
 
         header_id = cur.lastrowid
 
         # ===== INSERT PARTAI =====
         for p in partai_list:
-            h = hitung_partai(p)
+            timbangan = p.get("timbangan") or []
+
+            h = hitung_partai({
+                **p,
+                "timbangan": timbangan
+            })
 
             cur.execute("""
-                INSERT INTO receiving_partai
-                (header_id, partai_no, pcs, kg_sample,
-                 size, round_size,
-                 keranjang, tara_per_keranjang,
-                 bruto, total_tara, netto,
-                 note, timbangan_json,
-                 kategori_kupasan, fiber)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO receiving_item (
+                    header_id,
+                    partai_no,
+                    pcs,
+                    kg_sample,
+                    size,
+                    round_size,
+                    keranjang,
+                    tara_per_keranjang,
+                    bruto,
+                    total_tara,
+                    netto,
+                    note,
+                    timbangan_json,
+                    kategori_kupasan,
+                    fiber
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 header_id,
-                p["partai_no"],
+                p.get("partai_no"),
                 p.get("pcs"),
                 p.get("kg_sample"),
-                h["size"],              # vannamei / dogol
-                h["round_size"],
-                h["keranjang"],
+                h.get("size"),
+                h.get("round_size"),
+                h.get("keranjang"),
                 p.get("tara_per_keranjang"),
-                h["bruto"],
-                h["total_tara"],
-                h["netto"],
+                h.get("bruto"),
+                h.get("total_tara"),
+                h.get("netto"),
                 p.get("note"),
-                h["timbangan_json"],
-                p.get("kategori_kupasan"),  # kupasan
+                json.dumps(timbangan),
+                p.get("kategori_kupasan"),
                 p.get("fiber")
             ))
 
         conn.commit()
-        return jsonify({"ok": True, "id": header_id})
+        return jsonify({
+            "ok": True,
+            "id": header_id,
+            "receiving_no": receiving_no
+        })
 
     except Exception as e:
         conn.rollback()
+        print("ERROR SAVE RECEIVING:", e)
         return jsonify({"ok": False, "msg": str(e)}), 500
+
     finally:
         conn.close()
+
 @receiving_bp.post("/update/<int:header_id>")
 def receiving_update(header_id):
     if not require_login():
         return jsonify({"ok": False, "msg": "Unauthorized"}), 401
 
     data = request.get_json(force=True) or {}
+    header = data.get("header")
     partai_list = data.get("partai", [])
 
     if not partai_list:
@@ -101,46 +144,84 @@ def receiving_update(header_id):
     cur = conn.cursor()
 
     try:
-        for p in partai_list:
-            partai_id = p.get("id")
-            if not partai_id:
-                continue
+        # ===== UPDATE HEADER (opsional) =====
+        if header:
+            cur.execute("""
+                UPDATE receiving_header
+                SET tanggal = ?, supplier = ?, jenis = ?, fiber = ?
+                WHERE id = ?
+            """, (
+                header.get("tanggal"),
+                header.get("supplier"),
+                header.get("jenis"),
+                header.get("fiber"),
+                header_id
+            ))
 
-            h = hitung_partai(p)
+        # ===== AMBIL KATEGORI LAMA =====
+        old_kupasan = {}
+        rows = cur.execute("""
+            SELECT partai_no, kategori_kupasan
+            FROM receiving_item
+            WHERE header_id = ?
+        """, (header_id,)).fetchall()
+
+        for r in rows:
+            old_kupasan[r["partai_no"]] = r["kategori_kupasan"]
+
+        # ===== HAPUS ITEM LAMA =====
+        cur.execute(
+            "DELETE FROM receiving_item WHERE header_id = ?",
+            (header_id,)
+        )
+
+        # ===== INSERT ULANG ITEM =====
+        for p in partai_list:
+            timbangan = p.get("timbangan") or []
+
+            h = hitung_partai({
+                **p,
+                "timbangan": timbangan
+            })
+
+            kategori = p.get("kategori_kupasan")
+            if header and header.get("jenis") == "kupasan" and not kategori:
+                kategori = old_kupasan.get(p["partai_no"])
 
             cur.execute("""
-                UPDATE receiving_partai
-                SET
-                    pcs = ?,
-                    kg_sample = ?,
-                    size = ?,
-                    round_size = ?,
-                    keranjang = ?,
-                    tara_per_keranjang = ?,
-                    bruto = ?,
-                    total_tara = ?,
-                    netto = ?,
-                    note = ?,
-                    timbangan_json = ?,
-                    kategori_kupasan = ?,
-                    fiber = ?
-                WHERE id = ? AND header_id = ?
+                INSERT INTO receiving_item (
+                    header_id,
+                    partai_no,
+                    pcs,
+                    kg_sample,
+                    size,
+                    round_size,
+                    keranjang,
+                    tara_per_keranjang,
+                    bruto,
+                    total_tara,
+                    netto,
+                    note,
+                    timbangan_json,
+                    kategori_kupasan,
+                    fiber
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
+                header_id,
+                p.get("partai_no"),
                 p.get("pcs"),
                 p.get("kg_sample"),
-                h["size"],
-                h["round_size"],
-                h["keranjang"],
+                h.get("size"),
+                h.get("round_size"),
+                h.get("keranjang"),
                 p.get("tara_per_keranjang"),
-                h["bruto"],
-                h["total_tara"],
-                h["netto"],
+                h.get("bruto"),
+                h.get("total_tara"),
+                h.get("netto"),
                 p.get("note"),
-                h["timbangan_json"],
-                p.get("kategori_kupasan"),
-                p.get("fiber"),
-                partai_id,
-                header_id
+                json.dumps(timbangan),
+                kategori,
+                p.get("fiber")
             ))
 
         conn.commit()
@@ -148,7 +229,9 @@ def receiving_update(header_id):
 
     except Exception as e:
         conn.rollback()
+        print("ERROR UPDATE RECEIVING:", e)
         return jsonify({"ok": False, "msg": str(e)}), 500
+
     finally:
         conn.close()
 
@@ -205,7 +288,7 @@ def receiving_list():
             ELSE GROUP_CONCAT(DISTINCT COALESCE(p.round_size, p.size))
             END AS size_display
         FROM receiving_header h
-        LEFT JOIN receiving_partai p ON p.header_id = h.id
+        LEFT JOIN receiving_item p ON p.header_id = h.id
         {where_sql}
         GROUP BY h.id
         ORDER BY h.tanggal DESC, h.id DESC
@@ -242,7 +325,7 @@ def receiving_detail(header_id):
         return "Receiving tidak ditemukan", 404
 
     partai_rows = conn.execute("""
-        SELECT * FROM receiving_partai
+        SELECT * FROM receiving_item
         WHERE header_id=?
         ORDER BY partai_no
     """, (header_id,)).fetchall()

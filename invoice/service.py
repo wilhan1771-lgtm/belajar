@@ -30,7 +30,7 @@ def sync_invoice_from_receiving(conn, receiving_id: int):
 
     parts = conn.execute("""
         SELECT partai_no, round_size, COALESCE(netto,0) AS netto
-        FROM receiving_partai
+        FROM receiving_item
         WHERE header_id=?
     """, (receiving_id,)).fetchall()
     part_map = {p["partai_no"]: p for p in parts}

@@ -15,7 +15,7 @@ def update_receiving(conn, header_id: int, partai_list: list):
         hasil = hitung_partai(p)
 
         cur.execute("""
-            UPDATE receiving_partai
+            UPDATE receiving_item
             SET pcs=?,
                 kg_sample=?,
                 tara_per_keranjang=?,
