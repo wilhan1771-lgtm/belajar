@@ -158,71 +158,121 @@ def receiving_update(header_id):
                 header_id
             ))
 
-        # ===== AMBIL KATEGORI LAMA =====
+        # ===== AMBIL DATA LAMA UNTUK KUPASAN + EXISTING IDS =====
         old_kupasan = {}
+        existing_ids = set()
+
         rows = cur.execute("""
-            SELECT partai_no, kategori_kupasan
+            SELECT id, partai_no, kategori_kupasan
             FROM receiving_item
             WHERE header_id = ?
         """, (header_id,)).fetchall()
 
         for r in rows:
+            existing_ids.add(r["id"])
             old_kupasan[r["partai_no"]] = r["kategori_kupasan"]
 
-        # ===== HAPUS ITEM LAMA =====
-        cur.execute(
-            "DELETE FROM receiving_item WHERE header_id = ?",
-            (header_id,)
-        )
+        # ===== UPSERT ITEM =====
+        incoming_existing_ids = set()
 
-        # ===== INSERT ULANG ITEM =====
         for p in partai_list:
+            pid = p.get("id")  # bisa negatif (baru) atau positif (existing)
             timbangan = p.get("timbangan") or []
 
-            h = hitung_partai({
-                **p,
-                "timbangan": timbangan
-            })
+            h = hitung_partai({**p, "timbangan": timbangan})
 
             kategori = p.get("kategori_kupasan")
             if header and header.get("jenis") == "kupasan" and not kategori:
-                kategori = old_kupasan.get(p["partai_no"])
+                kategori = old_kupasan.get(p.get("partai_no"))
 
-            cur.execute("""
-                INSERT INTO receiving_item (
+            if pid and isinstance(pid, (int, float)) and int(pid) > 0:
+                pid = int(pid)
+
+                # UPDATE (id tetap)
+                cur.execute("""
+                    UPDATE receiving_item SET
+                        partai_no = ?,
+                        pcs = ?,
+                        kg_sample = ?,
+                        size = ?,
+                        round_size = ?,
+                        keranjang = ?,
+                        tara_per_keranjang = ?,
+                        bruto = ?,
+                        total_tara = ?,
+                        netto = ?,
+                        note = ?,
+                        timbangan_json = ?,
+                        kategori_kupasan = ?,
+                        fiber = ?
+                    WHERE id = ? AND header_id = ?
+                """, (
+                    p.get("partai_no"),
+                    p.get("pcs"),
+                    p.get("kg_sample"),
+                    h.get("size"),
+                    h.get("round_size"),
+                    h.get("keranjang"),
+                    p.get("tara_per_keranjang"),
+                    h.get("bruto"),
+                    h.get("total_tara"),
+                    h.get("netto"),
+                    p.get("note"),
+                    json.dumps(timbangan),
+                    kategori,
+                    p.get("fiber"),
+                    pid,
+                    header_id
+                ))
+
+                incoming_existing_ids.add(pid)
+
+            else:
+                # INSERT baru (id baru dibuat DB)
+                cur.execute("""
+                    INSERT INTO receiving_item (
+                        header_id,
+                        partai_no,
+                        pcs,
+                        kg_sample,
+                        size,
+                        round_size,
+                        keranjang,
+                        tara_per_keranjang,
+                        bruto,
+                        total_tara,
+                        netto,
+                        note,
+                        timbangan_json,
+                        kategori_kupasan,
+                        fiber
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
                     header_id,
-                    partai_no,
-                    pcs,
-                    kg_sample,
-                    size,
-                    round_size,
-                    keranjang,
-                    tara_per_keranjang,
-                    bruto,
-                    total_tara,
-                    netto,
-                    note,
-                    timbangan_json,
-                    kategori_kupasan,
-                    fiber
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                header_id,
-                p.get("partai_no"),
-                p.get("pcs"),
-                p.get("kg_sample"),
-                h.get("size"),
-                h.get("round_size"),
-                h.get("keranjang"),
-                p.get("tara_per_keranjang"),
-                h.get("bruto"),
-                h.get("total_tara"),
-                h.get("netto"),
-                p.get("note"),
-                json.dumps(timbangan),
-                kategori,
-                p.get("fiber")
-            ))
+                    p.get("partai_no"),
+                    p.get("pcs"),
+                    p.get("kg_sample"),
+                    h.get("size"),
+                    h.get("round_size"),
+                    h.get("keranjang"),
+                    p.get("tara_per_keranjang"),
+                    h.get("bruto"),
+                    h.get("total_tara"),
+                    h.get("netto"),
+                    p.get("note"),
+                    json.dumps(timbangan),
+                    kategori,
+                    p.get("fiber")
+                ))
+
+        # ===== DELETE YANG TIDAK ADA DI PAYLOAD (kalau user hapus partai) =====
+        ids_to_delete = existing_ids - incoming_existing_ids
+        if ids_to_delete:
+            placeholders = ",".join(["?"] * len(ids_to_delete))
+            cur.execute(
+                f"DELETE FROM receiving_item WHERE header_id = ? AND id IN ({placeholders})",
+                (header_id, *ids_to_delete)
+            )
 
         conn.commit()
         return jsonify({"ok": True})
