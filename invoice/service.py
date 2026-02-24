@@ -1,69 +1,132 @@
+from datetime import datetime, timedelta
+from .pricing import interpolate_price, div_round
+from . import repository as repo
 
-
-def sync_invoice_from_receiving(conn, receiving_id: int):
+def kg_to_g(kg):
     """
-    Sinkronkan invoice dari receiving jika invoice masih DRAFT:
-    - update size_round + berat_netto di invoice_detail sesuai receiving_partai
-    - total_harga = berat_netto * harga (harga dipertahankan)
-    - update invoice_header subtotal/pph/total berdasarkan pph_rate
+    Konversi kg (REAL sqlite) -> gram int stabil.
+    Contoh: 157.8 -> 157800
     """
-    inv = conn.execute("""
-        SELECT id, COALESCE(pph_rate,0) AS pph_rate
-        FROM invoice_header
-        WHERE receiving_id=? AND status='DRAFT'
-        ORDER BY id DESC
-        LIMIT 1
-    """, (receiving_id,)).fetchone()
+    if kg is None:
+        return 0
+    s = str(kg)
+    try:
+        if "." in s:
+            whole, frac = s.split(".", 1)
+            frac = (frac + "000")[:3]
+            return int(whole) * 1000 + int(frac)
+        return int(s) * 1000
+    except Exception:
+        return int(round(float(kg) * 1000))
 
-    if not inv:
-        return
+def mul_div_round(a, b, d):
+    return div_round(a * b, d)
 
-    invoice_id = inv["id"]
-    pph_rate = float(inv["pph_rate"] or 0)
+def create_invoice_from_receiving(receiving_id, price_points, payment_type,
+                                 cash_deduct_per_kg_rp=0, komisi_per_kg_rp=0,
+                                 tempo_hari=0, partai_overrides=None):
+    existing = repo.invoice_exists_for_receiving(receiving_id)
+    if existing:
+        raise ValueError(f"Invoice sudah ada untuk receiving ini. (invoice_id={existing['id']})")
 
-    det_rows = conn.execute("""
-        SELECT id, partai_no, COALESCE(harga,0) AS harga
-        FROM invoice_detail
-        WHERE invoice_id=?
-        ORDER BY partai_no
-    """, (invoice_id,)).fetchall()
+    rh = repo.fetch_receiving_header(receiving_id)
+    if not rh:
+        raise ValueError("Receiving header tidak ditemukan.")
 
-    parts = conn.execute("""
-        SELECT partai_no, round_size, COALESCE(netto,0) AS netto
-        FROM receiving_item
-        WHERE header_id=?
-    """, (receiving_id,)).fetchall()
-    part_map = {p["partai_no"]: p for p in parts}
+    supplier = rh["supplier"]
 
-    cur = conn.cursor()
-    subtotal = 0.0
+    due_date = None
+    if tempo_hari and int(tempo_hari) > 0:
+        try:
+            d = datetime.strptime(rh["tanggal"], "%Y-%m-%d").date()
+            due_date = (d + timedelta(days=int(tempo_hari))).isoformat()
+        except Exception:
+            due_date = None
 
-    for d in det_rows:
-        pn = d["partai_no"]
-        harga = float(d["harga"] or 0)
+    # cash deduct hanya berlaku jika cash
+    if payment_type != "cash":
+        cash_deduct_per_kg_rp = 0
 
-        p = part_map.get(pn)
-        if not p:
-            round_size = None
-            berat_netto = 0.0
-        else:
-            round_size = p["round_size"]
-            berat_netto = float(p["netto"] or 0)
+    invoice_id = repo.insert_invoice_header(
+        receiving_id=receiving_id,
+        supplier=supplier,
+        price_points=price_points,
+        payment_type=payment_type,
+        cash_deduct_per_kg_rp=int(cash_deduct_per_kg_rp),
+        komisi_per_kg_rp=int(komisi_per_kg_rp),
+        tempo_hari=int(tempo_hari),
+        due_date=due_date,
+    )
 
-        total_harga = berat_netto * harga
-        subtotal += total_harga
+    items = repo.fetch_receiving_items(receiving_id)
+    if not items:
+        repo.update_invoice_totals(invoice_id, 0, 0, 0, 0, 0, 0)
+        return invoice_id
 
-        cur.execute("""
-            UPDATE invoice_detail
-            SET round_size=?, berat_netto=?, total_harga=?
-            WHERE id=? AND invoice_id=?
-        """, (round_size, berat_netto, total_harga, d["id"], invoice_id))
+    partai_overrides = partai_overrides or {}
 
-    pph = subtotal * pph_rate
-    total = subtotal - pph   # sesuai logic kamu: total = subtotal - pph
+    subtotal_rp = 0
+    total_paid_g = 0
 
-    cur.execute("""
-        UPDATE invoice_header
-        SET subtotal=?, pph=?, total=?
-        WHERE id=?
-    """, (subtotal, pph, total, invoice_id))
+    for it in items:
+        partai_no = int(it["partai_no"])
+        rs = it.get("round_size")
+
+        base_price = interpolate_price(rs, price_points)
+        if base_price is None:
+            raise ValueError(f"Harga tidak bisa dihitung untuk round_size={rs} (partai {partai_no}).")
+
+        net_g = kg_to_g(it.get("netto"))
+        paid_g = net_g
+        price_override = None
+
+        ov = partai_overrides.get(partai_no) or {}
+        if "paid_kg" in ov and ov["paid_kg"] is not None:
+            paid_g = kg_to_g(ov["paid_kg"])
+        if "price_override" in ov and ov["price_override"] is not None and str(ov["price_override"]).strip() != "":
+            price_override = int(ov["price_override"])
+
+        used_price = price_override if price_override is not None else int(base_price)
+        line_total = mul_div_round(int(paid_g), int(used_price), 1000)
+
+        note = ov.get("note") or it.get("note")
+
+        repo.insert_invoice_line(
+            invoice_id=invoice_id,
+            receiving_item_id=int(it["id"]),
+            partai_no=partai_no,
+            net_g=int(net_g),
+            paid_g=int(paid_g),
+            round_size=rs,
+            price_per_kg_rp=int(base_price),
+            price_override_per_kg_rp=price_override,
+            line_total_rp=int(line_total),
+            note=note,
+        )
+
+        subtotal_rp += int(line_total)
+        total_paid_g += int(paid_g)
+
+    cash_deduct_total = 0
+    if payment_type == "cash" and int(cash_deduct_per_kg_rp) > 0:
+        cash_deduct_total = mul_div_round(total_paid_g, int(cash_deduct_per_kg_rp), 1000)
+
+    komisi_total = 0
+    if int(komisi_per_kg_rp) > 0:
+        komisi_total = mul_div_round(total_paid_g, int(komisi_per_kg_rp), 1000)
+
+    pph_amount = 0  # belum dipakai
+
+    total_payable = subtotal_rp - cash_deduct_total - pph_amount
+
+    repo.update_invoice_totals(
+        invoice_id=invoice_id,
+        subtotal_rp=subtotal_rp,
+        total_paid_g=total_paid_g,
+        cash_deduct_total_rp=cash_deduct_total,
+        komisi_total_rp=komisi_total,
+        pph_amount_rp=pph_amount,
+        total_payable_rp=total_payable,
+    )
+
+    return invoice_id

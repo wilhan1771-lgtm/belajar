@@ -63,76 +63,95 @@ def init_db():
                     REFERENCES receiving_header(id)
                     ON DELETE CASCADE
             );
+                -- ================= INVOICE =================
+
         CREATE TABLE IF NOT EXISTS invoice_header (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-        
-            receiving_id INTEGER NOT NULL UNIQUE,
-        
-            invoice_no TEXT UNIQUE,             
-            tanggal TEXT NOT NULL,
+
+            receiving_id INTEGER NOT NULL UNIQUE, -- 1 receiving = 1 invoice
+
+            invoice_no TEXT,
+            tanggal TEXT NOT NULL DEFAULT (date('now','localtime')),
+
             supplier TEXT NOT NULL,
-        
-            price_points_json TEXT,               
-            subtotal REAL DEFAULT 0,
-            total REAL DEFAULT 0,
-           
-            pph_rate REAL DEFAULT 0,
-            pph_amount REAL DEFAULT 0,
-                   
-            cash_deduct_per_kg REAL DEFAULT 0,
-            cash_deduct_total REAL DEFAULT 0,
-            reject_kg REAL DEFAULT 0,
-            reject_price REAL DEFAULT 0,
-            reject_total REAL DEFAULT 0,
-        
-            payment_type TEXT DEFAULT 'CASH',   
+            price_points_json TEXT NOT NULL,
+
+            payment_type TEXT NOT NULL
+                CHECK (payment_type IN ('cash','transfer')),
+
             tempo_hari INTEGER DEFAULT 0,
             due_date TEXT,
-            status TEXT NOT NULL DEFAULT 'POSTED',         
-        
-            total_kg REAL DEFAULT 0,
-        
+
+            -- Cash deduct per kg (hanya berlaku kalau cash)
+            cash_deduct_per_kg_rp INTEGER DEFAULT 0,
+            cash_deduct_total_rp INTEGER DEFAULT 0,
+
+            -- Komisi (TIDAK mengurangi pembayaran supplier)
+            komisi_per_kg_rp INTEGER DEFAULT 0,
+            komisi_total_rp INTEGER DEFAULT 0,
+
+            -- PPh (siap dipakai nanti, 0.25% = 25)
+            pph_rate_bp INTEGER DEFAULT 0,
+            pph_amount_rp INTEGER DEFAULT 0,
+
+            -- Total Supplier
+            subtotal_rp INTEGER DEFAULT 0,
+            total_payable_rp INTEGER DEFAULT 0,
+
+            total_paid_g INTEGER DEFAULT 0,
+
+            status TEXT DEFAULT 'draft'
+                CHECK (status IN ('draft','issued','paid','void')),
+
             created_at TEXT DEFAULT (datetime('now','localtime')),
-        
-            FOREIGN KEY (receiving_id)
+
+            FOREIGN KEY(receiving_id)
                 REFERENCES receiving_header(id)
                 ON DELETE CASCADE
-            );
-            
-         CREATE TABLE IF NOT EXISTS invoice_detail (
+        );
+
+
+        CREATE TABLE IF NOT EXISTS invoice_line (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-        
+
             invoice_id INTEGER NOT NULL,
-        
-            partai_no INTEGER NOT NULL,         
+            receiving_item_id INTEGER NOT NULL UNIQUE,
+
+            partai_no INTEGER NOT NULL,
+
+            -- Simpan gram supaya presisi (anti float)
+            net_g INTEGER NOT NULL,
+            paid_g INTEGER NOT NULL,
+
             round_size INTEGER,
-            size_round TEXT,
-        
-            berat_netto REAL NOT NULL DEFAULT 0,
-            harga REAL NOT NULL DEFAULT 0,
-            total_harga REAL NOT NULL DEFAULT 0,
-        
-            created_at TEXT DEFAULT (datetime('now','localtime')),
-        
-            FOREIGN KEY (invoice_id)
+
+            price_per_kg_rp INTEGER NOT NULL,
+            price_override_per_kg_rp INTEGER,
+
+            line_total_rp INTEGER NOT NULL,
+            note TEXT,
+
+            FOREIGN KEY(invoice_id)
                 REFERENCES invoice_header(id)
                 ON DELETE CASCADE,
-        
-            UNIQUE (invoice_id, partai_no)
-            );
-            CREATE TABLE IF NOT EXISTS supplier (
+
+            FOREIGN KEY(receiving_item_id)
+                REFERENCES receiving_item(id)
+                ON DELETE CASCADE
+        );
+        CREATE TABLE IF NOT EXISTS supplier (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               nama TEXT NOT NULL UNIQUE,
-              aktif INTEGER NOT NULL DEFAULT 1,
+              phone TEXT,
+              address TEXT,
+              bank_name TEXT,
+              bank_account_name TEXT,
+              bank_account_number TEXT,
               created_at TEXT DEFAULT (datetime('now','localtime'))
             );
-            CREATE TABLE IF NOT EXISTS udang_jenis (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nama TEXT NOT NULL UNIQUE,
-                aktif INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT DEFAULT (datetime('now','localtime'))
-            );
-        """)
+
+        CREATE INDEX IF NOT EXISTS idx_invoice_line_invoice
+            ON invoice_line(invoice_id);        """)
         conn.commit()
         print("✅ Database baru siap:", DB_PATH)
     finally:

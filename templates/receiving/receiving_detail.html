@@ -162,10 +162,16 @@ label { font-size:13px; color:#111827; margin-bottom:4px; }
     <a class="btn btn-secondary" href="/receiving/list">Kembali</a>
     <a class="btn btn-primary" href="#" onclick="window.print(); return false;">Print</a>
     {% if invoice %}
-      <a class="btn btn-secondary" href="{{ url_for('invoice_view', invoice_id=invoice.id) }}">Lihat Invoice</a>
-    {% else %}
-      <a class="btn btn-primary" href="{{ url_for('invoice_new', receiving_id=header.id) }}">Buat Invoice</a>
-    {% endif %}
+  <a class="btn btn-secondary"
+     href="{{ url_for('invoice.invoice_view', invoice_id=invoice.id) }}">
+     Lihat Invoice
+  </a>
+      {% else %}
+        <a class="btn btn-primary"
+           href="{{ url_for('invoice.invoice_new', receiving_id=header.id) }}">
+           Buat Invoice
+        </a>
+      {% endif %}
   </div>
 </div>
 
@@ -258,7 +264,7 @@ label { font-size:13px; color:#111827; margin-bottom:4px; }
     </select>
   </div>
 
-  <label>Tara per Keranjang</label>
+  <label>Tara</label>
   <input class="inp" name="tara_per_keranjang" type="number" step="0.01" value="{{ p['tara_per_keranjang'] or '' }}">
 
   <label>Note</label>
@@ -547,14 +553,14 @@ async function saveReceivingInline(){
         id: pid,
         partai_no,
         pcs,
-        kg_sample: kg_sample_x100,
+        kg_sample,
         size,
         round_size,
-        tara_per_keranjang: tara_x100,
+        tara_per_keranjang,
         fiber,
         note,
-        timbangan: timbangan_x100,
-        kategori_kupasan: kategoriKupasan
+        timbangan,
+        kategori_kupasan
       });
     });
 

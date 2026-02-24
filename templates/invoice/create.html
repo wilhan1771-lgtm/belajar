@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Buat Invoice - Receiving {{ header["id"] }}</title>
+  <style>
+    :root{
+      --bg:#f6f7fb; --card:#fff; --text:#0f172a; --muted:#64748b;
+      --border:#e2e8f0; --btn:#0f172a; --btn2:#fff;
+    }
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 14px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+    h2{margin:0;font-size:20px}
+    .muted{color:var(--muted);font-size:13px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .btn{display:inline-block;padding:10px 12px;border-radius:10px;border:1px solid var(--border);text-decoration:none;font-weight:700;font-size:14px}
+    .btn-primary{background:var(--btn);color:#fff;border-color:var(--btn)}
+    .btn-secondary{background:var(--btn2);color:var(--text)}
+    hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > div{flex:1 1 220px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+    input,select{width:100%;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fff}
+    .hint{font-size:12px;color:var(--muted);margin-top:4px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--border);padding:10px;text-align:left;font-size:14px;vertical-align:top}
+    th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+    .right{text-align:right}
+    .alert{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:10px;border-radius:10px;margin-bottom:10px}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:12px}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div>
+      <h2>Buat Invoice <span class="pill">Receiving #{{ header["id"] }}</span></h2>
+      <div class="muted">
+        Tanggal: <b>{{ header["tanggal"] }}</b> · Supplier: <b>{{ header["supplier"] }}</b> · Jenis: <b>{{ header["jenis"] }}</b>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <a class="btn btn-secondary" href="/receiving/{{ header['id'] }}">← Kembali</a>
+    </div>
+  </div>
+
+  {% if error %}
+    <div class="alert">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" class="card">
+
+    <div class="row">
+      <div>
+        <label>Payment Type</label>
+        <select name="payment_type">
+          <option value="transfer" {% if form and form.payment_type=='transfer' %}selected{% endif %}>Transfer</option>
+          <option value="cash" {% if form and form.payment_type=='cash' %}selected{% endif %}>Cash</option>
+        </select>
+        <div class="hint">Cash akan aktifkan potongan cash/kg.</div>
+      </div>
+
+      <div>
+        <label>Cash Deduct / kg (Rp)</label>
+        <select name="cash_deduct_per_kg_rp">
+          <option value="0">0</option>
+          <option value="1000" {% if form and form.cash_deduct_per_kg_rp=='1000' %}selected{% endif %}>1.000</option>
+          <option value="2000" {% if form and form.cash_deduct_per_kg_rp=='2000' %}selected{% endif %}>2.000</option>
+        </select>
+        <div class="hint">Hanya dipakai jika payment = cash.</div>
+      </div>
+
+      <div>
+        <label>Komisi / kg (Rp)</label>
+        <input name="komisi_per_kg_rp" type="number" min="0" placeholder="contoh: 500"
+               value="{{ form.komisi_per_kg_rp if form else '' }}">
+        <div class="hint">Dicatat terpisah (tidak mengurangi supplier).</div>
+      </div>
+
+      <div>
+        <label>Tempo (hari)</label>
+        <input name="tempo_hari" type="number" min="0" value="{{ form.tempo_hari if form else 0 }}">
+        <div class="hint">Opsional untuk due date.</div>
+      </div>
+    </div>
+
+    <hr>
+
+    <h3 style="margin:0 0 8px 0;">Harga Patokan (Rp/kg)</h3>
+<div class="muted" style="margin-bottom:10px;">
+  Sistem otomatis meminta titik harga yang dibutuhkan dari size partai (mis. 65 → 60 & 70, 93 → 90 & 100).
+</div>
+<div class="row">
+  {% for k in price_keys %}
+    <div>
+      <label>Size {{ k }}</label>
+      <input name="p{{ k }}" type="number" min="0"
+             value="{{ form['p' ~ k] if form and ('p' ~ k) in form else '' }}">
+    </div>
+  {% endfor %}
+</div>
+    <hr>
+
+    <div style="display:flex;justify-content:space-between;align-items:end;gap:10px;">
+      <div>
+        <h3 style="margin:0 0 6px 0;">Partai dari Receiving</h3>
+        <div class="muted">Kalau partai bermasalah: isi <b>Paid kg</b> dan/atau <b>Harga override</b>.</div>
+      </div>
+      <button class="btn btn-primary" type="submit">Generate Invoice</button>
+    </div>
+
+    <div style="overflow:auto;margin-top:10px;">
+      <table>
+        <thead>
+          <tr>
+            <th>Partai</th>
+            <th>Round Size</th>
+            <th class="right">Netto (kg)</th>
+            <th class="right">Paid kg (opsional)</th>
+            <th class="right">Harga override/kg (opsional)</th>
+            <th>Catatan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in partai %}
+            <tr>
+              <td><b>{{ p["partai_no"] }}</b></td>
+              <td>{{ p["round_size"] if p["round_size"] is not none else "-" }}</td>
+              <td class="right">{{ "%.3f"|format(p["netto"] or 0) }}</td>
+
+              <td class="right">
+                <input name="paid_kg_{{ p['partai_no'] }}" type="number" step="0.001" min="0"
+                       placeholder="kosong = full"
+                       value="{{ form['paid_kg_' ~ p['partai_no']] if form and ('paid_kg_' ~ p['partai_no']) in form else '' }}">
+                <div class="hint">Ambil sebagian kg.</div>
+              </td>
+
+              <td class="right">
+                <input name="price_override_{{ p['partai_no'] }}" type="number" min="0"
+                       placeholder="kosong = auto"
+                       value="{{ form['price_override_' ~ p['partai_no']] if form and ('price_override_' ~ p['partai_no']) in form else '' }}">
+                <div class="hint">Harga beda untuk partai ini.</div>
+              </td>
+
+              <td>
+                <input name="note_{{ p['partai_no'] }}" type="text" placeholder="opsional"
+                       value="{{ form['note_' ~ p['partai_no']] if form and ('note_' ~ p['partai_no']) in form else (p.get('note') or '') }}">
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+  </form>
+</div>
+</body>
+</html>

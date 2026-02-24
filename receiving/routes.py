@@ -10,8 +10,7 @@ from helpers.number_utils import to_int, to_float
 from helpers.db import get_conn, DB_PATH
 from receiving.calculator import hitung_partai
 from receiving.service import update_receiving
-from invoice.service import sync_invoice_from_receiving
-
+from invoice.service import create_invoice_from_receiving
 @receiving_bp.get("/")
 def receiving():
     if not require_login():

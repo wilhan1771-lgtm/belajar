@@ -250,7 +250,7 @@ function buatPartai(){
         </div>
 
         <div class="field">
-          <label>Tara / Keranjang</label>
+          <label>Tara </label>
           <input id="tara-${partaiKe}" type="number" step="0.01" value="0">
         </div>
 
@@ -448,9 +448,9 @@ document.addEventListener("DOMContentLoaded", () => {
 function hideAddSupplier(){
   $("supplierModal").style.display = "none";
 }
-
-async function addSupplier(){
-  const btn = event.target;
+async function addSupplier(e){
+  e.preventDefault();
+  const btn = e.target;
   btn.disabled = true;
 
   const nama = $("supplierName").value.trim();
@@ -460,25 +460,32 @@ async function addSupplier(){
     return;
   }
 
-  const res = await fetch("/master/supplier/add", {
+  const res = await fetch("/master/suppliers", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ nama })
   });
 
+  if (!res.ok) {
+    alert("Server error");
+    btn.disabled = false;
+    return;
+  }
+
   const json = await res.json();
+
   if (!json.ok) {
     alert(json.msg);
     btn.disabled = false;
     return;
   }
 
-  await loadSuppliers();          // 🔥 refresh dropdown
-  $("supplier").value = nama;     // 🔥 langsung terpilih
+  await loadSuppliers();
+  $("supplier").value = nama;
   hideAddSupplier();
   btn.disabled = false;
 }
-  const fiberInput = d.querySelector(".fiber-partai");
+  const fiberInput = document.querySelector(".fiber-partai");
 if (fiberInput) {
   fiberInput.oninput = hitungFiberTotal;
 }
@@ -494,7 +501,7 @@ if (fiberInput) {
 
     <div style="margin-top:12px; display:flex; gap:8px; justify-content:end">
       <button class="btn btn-secondary" onclick="hideAddSupplier()">Batal</button>
-      <button class="btn btn-primary" onclick="addSupplier()">Simpan</button>
+      <button class="btn btn-primary" onclick="addSupplier(event)">Simpan</button>
     </div>
   </div>
 </div>
