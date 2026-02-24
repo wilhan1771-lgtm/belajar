@@ -351,17 +351,22 @@ function tambahBaris(p){
 
   tb.appendChild(tr);
 
-  const inp = tr.querySelector("input");
+ const inp = tr.querySelector("input");
 
- inp.oninput = () => {
+// realtime hanya hitung, tanpa paksa angka
+inp.addEventListener("input", () => {
+    hitungBerat(p);
+});
+
+// validasi hanya saat keluar dari input
+inp.addEventListener("blur", () => {
     let v = parseFloat(inp.value);
 
     if (isNaN(v)) {
-        inp.value = 5; // default jika bukan angka
-        v = 5;
+        inp.value = "";
+        return;
     }
 
-    // batas minimal 5 kg dan maksimal 60 kg
     if (v < 5) {
         alert("Berat minimal 5 kg per timbangan");
         v = 5;
@@ -372,7 +377,7 @@ function tambahBaris(p){
 
     inp.value = v;
     hitungBerat(p);
-};
+});
 
   inp.onkeydown = (e) => {
     if (e.key === "Enter") {

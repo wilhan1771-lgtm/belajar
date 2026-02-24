@@ -1,7 +1,7 @@
 from flask import render_template, request, redirect, url_for, jsonify, session
 from datetime import date
 import json
-
+from flask import current_app
 from . import receiving_bp
 
 from helpers.auth import require_login, login_required
@@ -130,6 +130,7 @@ def receiving_save():
 
 @receiving_bp.post("/update/<int:header_id>")
 def receiving_update(header_id):
+
     if not require_login():
         return jsonify({"ok": False, "msg": "Unauthorized"}), 401
 

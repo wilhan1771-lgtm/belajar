@@ -18,11 +18,12 @@ body { font-family: Arial, sans-serif; padding:24px; background:#f3f4f6; }
         box-shadow:0 8px 20px rgba(0,0,0,0.06); }
 h2,h3 { margin:0; }
 .pill { display:inline-block; font-size:12px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
-.val { padding:10px; border-radius:10px; background:#f9fafb; font-weight:600; display:inline-block; min-width:100px; text-align:center; }
+.val { padding:15px; border-radius:10px; background:#f9fafb; font-weight:500; display:inline-block; min-width:200px; text-align:center; }
 label { font-size:13px; color:#111827; margin-bottom:4px; }
 .inp{ width:100%; padding:8px 10px; border:1px solid #d1d5db; border-radius:10px; box-sizing:border-box; }
 .inp:focus{ outline:none; border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
 .inp-read{ background:#f9fafb; }
+.hidden { display:none !important; }
 
 /* ===== GRID: KIRI (FORM + TARA) | KANAN (TIMBANGAN) ===== */
 .grid { display:grid; gap:20px; grid-template-columns:20% 80%; }
@@ -62,8 +63,91 @@ label { font-size:13px; color:#111827; margin-bottom:4px; }
 }
 .small-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:6px; }
 .btn-sm{ padding:6px 10px; border-radius:10px; font-size:13px; font-weight:600; }
-.muted{ color:#6b7280; font-size:14px; }
+.muted{ color:#6b7280; font-size:22px; }
 .partai-controls{display:flex; justify-content:flex-end; gap:10px; margin-bottom:10px;}
+
+  /* ===== HEADER SUMMARY ===== */
+.header-summary{
+  background:#ffffff;
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  padding:20px 20px;
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:20px;
+  box-shadow:0 6px 18px rgba(0,0,0,0.05);
+}
+
+/* Info kiri */
+.info-section{
+  display:flex;
+  gap:30px;
+  flex-wrap:wrap;
+}
+
+.info-item{
+  display:flex;
+  flex-direction:column;
+}
+
+.info-label{
+  font-size:22px;
+  color:#6b7280;
+  margin-bottom:4px;
+}
+
+.info-value{
+  font-weight:600;
+  font-size:18px;
+  color:#111827;
+}
+
+.info-value.small{
+  font-size:13px;
+  color:#6b7280;
+}
+
+.info-value.highlight{
+  color:#2563eb;
+  font-size:16px;
+}
+
+/* Total kanan */
+.total-section{
+  display:flex;
+  gap:15px;
+  flex-wrap:wrap;
+}
+
+.total-box{
+  padding:10px 18px;
+  border-radius:12px;
+  min-width:140px;
+  text-align:center;
+}
+
+.netto-box{
+  background:#ecfdf5;
+  border:1px solid #bbf7d0;
+}
+
+.fiber-box{
+  background:#eff6ff;
+  border:1px solid #bfdbfe;
+}
+
+.total-label{
+  font-size:12px;
+  color:#6b7280;
+  margin-bottom:6px;
+}
+
+.total-value{
+  font-size:18px;
+  font-weight:700;
+  color:#111827;
+}
 </style>
 </head>
 <body>
@@ -71,7 +155,7 @@ label { font-size:13px; color:#111827; margin-bottom:4px; }
 <div class="top">
   <div>
     <h2>Receiving Detail <span class="pill">ID {{ header["id"] }}</span></h2>
-    <div class="muted">Tanggal: {{ header["tanggal"] }} | Supplier: {{ header["supplier"] }} | Jenis: {{ header["jenis"] or "-" }} | Dibuat: {{ header["created_at"] or "-" }}</div>
+
   </div>
   <div style="display:flex; gap:10px; flex-wrap:wrap;">
     <button class="btn btn-primary" id="btnSaveInline">💾 Simpan Perubahan</button>
@@ -86,9 +170,42 @@ label { font-size:13px; color:#111827; margin-bottom:4px; }
 </div>
 
 <!-- Header Totals -->
-<div class="card" style="display:flex; gap:20px; flex-wrap:wrap; align-items:center;">
-  <div class="val">Total Netto: <b id="totalNetto">0.00</b> kg</div>
-  <div class="val">Total Fiber: <b id="totalFiber">0</b> </div>
+<div class="header-summary">
+
+  <div class="info-section">
+    <div class="info-item">
+      <div class="info-label">Tanggal</div>
+      <div class="info-value">{{ header["tanggal"] }}</div>
+    </div>
+
+    <div class="info-item">
+      <div class="info-label">Supplier</div>
+      <div class="info-value highlight">{{ header["supplier"] }}</div>
+    </div>
+
+    <div class="info-item">
+      <div class="info-label">Jenis</div>
+      <div class="info-value">{{ header["jenis"] or "-" }}</div>
+    </div>
+
+    <div class="info-item">
+      <div class="info-label">Dibuat</div>
+      <div class="info-value small">{{ header["created_at"] or "-" }}</div>
+    </div>
+  </div>
+
+  <div class="total-section">
+    <div class="total-box netto-box">
+      <div class="total-label">Total Netto</div>
+      <div class="total-value"><span id="totalNetto">0.00</span> kg</div>
+    </div>
+
+    <div class="total-box fiber-box">
+      <div class="total-label">Total Fiber</div>
+      <div class="total-value"><span id="totalFiber">0</span></div>
+    </div>
+  </div>
+
 </div>
 
 <div class="partai-controls">
@@ -112,36 +229,41 @@ label { font-size:13px; color:#111827; margin-bottom:4px; }
 
   <div class="grid">
     <!-- KIRI: Sampling & Fiber & Size + TARA + NOTE -->
-    <div class="field">
-      <label>PCS</label>
-      <input class="inp" name="pcs" type="number" value="{{ p['pcs'] or '' }}">
+<div class="field">
+  <!-- KHUSUS VANNAMEI/DOGOL -->
+  <div class="jenis-udang-only">
+    <label>PCS</label>
+    <input class="inp" name="pcs" type="number" value="{{ p['pcs'] or '' }}">
 
-      <label>Kg Sample</label>
-      <input class="inp" name="kg_sample" type="number" step="0.01" value="{{ p['kg_sample'] or '' }}">
+    <label>Kg Sample</label>
+    <input class="inp" name="kg_sample" type="number" step="0.01" value="{{ p['kg_sample'] or '' }}">
 
-      <label>Size</label>
-      <input class="inp inp-read" name="size" type="number" step="0.01" value="{{ p['size'] or '' }}" readonly>
+    <label>Size</label>
+    <input class="inp inp-read" name="size" type="number" step="0.01" value="{{ p['size'] or '' }}" readonly>
 
-      <label>Round Size</label>
-      <input class="inp inp-read" name="round_size" type="number" step="0.01" value="{{ p['round_size'] or '' }}" readonly>
+    <label>Round Size</label>
+    <input class="inp inp-read" name="round_size" type="number" step="0.01" value="{{ p['round_size'] or '' }}" readonly>
+  </div>
 
-      <label>Fiber</label>
-      <input class="inp" name="fiber" type="number" step="0.01" value="{{ p['fiber'] or '' }}">
+  <label>Fiber</label>
+  <input class="inp" name="fiber" type="number" step="0.01" value="{{ p['fiber'] or '' }}">
 
-      <label>Kategori Kupasan</label>
-      <select class="inp" name="kategori_kupasan">
-        <option value="">-- Pilih --</option>
-        <option value="kecil" {{ 'selected' if p['kategori_kupasan']=='kecil' else '' }}>Kecil</option>
-        <option value="besar" {{ 'selected' if p['kategori_kupasan']=='besar' else '' }}>Besar</option>
-      </select>
+  <!-- KHUSUS KUPASAN -->
+  <div class="jenis-kupasan-only">
+    <label>Kategori Kupasan</label>
+    <select class="inp" name="kategori_kupasan">
+      <option value="">-- Pilih --</option>
+      <option value="kecil" {{ 'selected' if p['kategori_kupasan']=='kecil' else '' }}>Kecil</option>
+      <option value="besar" {{ 'selected' if p['kategori_kupasan']=='besar' else '' }}>Besar</option>
+    </select>
+  </div>
 
-      <!-- TARA PINDAH KE KIRI -->
-      <label>Tara per Keranjang</label>
-      <input class="inp" name="tara_per_keranjang" type="number" step="0.01" value="{{ p['tara_per_keranjang'] or '' }}">
+  <label>Tara per Keranjang</label>
+  <input class="inp" name="tara_per_keranjang" type="number" step="0.01" value="{{ p['tara_per_keranjang'] or '' }}">
 
-      <label>Note</label>
-      <textarea class="inp" name="note" rows="3">{{ p['note'] or '' }}</textarea>
-    </div>
+  <label>Note</label>
+  <textarea class="inp" name="note" rows="3">{{ p['note'] or '' }}</textarea>
+</div>
 
     <!-- KANAN: Timbangan + Summary -->
     <div class="field">
@@ -168,6 +290,16 @@ label { font-size:13px; color:#111827; margin-bottom:4px; }
 </div>
 
 <script>
+  (function applyJenisUI(){
+  const jenis = "{{ header['jenis'] or '' }}".toLowerCase().trim();
+
+  const isKupasan = (jenis === "kupasan");
+  const udangOnly = document.querySelectorAll(".jenis-udang-only");
+  const kupasanOnly = document.querySelectorAll(".jenis-kupasan-only");
+
+  udangOnly.forEach(el => el.classList.toggle("hidden", isKupasan));
+  kupasanOnly.forEach(el => el.classList.toggle("hidden", !isKupasan));
+})();
 function numOrNull(v){
   v = (v ?? "").toString().trim();
   if(v === "") return null;
@@ -185,35 +317,39 @@ function updateTotals(){
     const fiber = parseFloat(card.querySelector("[name='fiber']")?.value) || 0;
     totalFiber += fiber;
 
-    const tara = parseFloat(card.querySelector("[name='tara_per_keranjang']")?.value) || 0;
+    const taraPerKeranjang = parseFloat(card.querySelector("[name='tara_per_keranjang']")?.value) || 0;
 
-    let nettoPartai = 0;
+    let brutoPartai = 0;
+    let keranjang = 0;
 
     card.querySelectorAll("[data-timbangan]").forEach(inp => {
       const raw = (inp.value || "").trim();
-      if (raw === "") return; // kosong: skip
+      if (raw === "") return; // kosong: skip (tidak dihitung keranjang)
 
       let v = parseFloat(raw);
-      if (Number.isNaN(v)) return; // bukan angka: skip
+      if (Number.isNaN(v)) return;
 
-      // clamp hanya untuk perhitungan
+      // clamp hanya untuk hitung
       if (v < 5) v = 5;
       else if (v > 60) v = 60;
 
-      nettoPartai += v;
+      brutoPartai += v;
+      keranjang += 1;
     });
 
-    nettoPartai -= tara;
+    const totalTaraPartai = taraPerKeranjang * keranjang;
+    let nettoPartai = brutoPartai - totalTaraPartai;
     if (nettoPartai < 0) nettoPartai = 0;
 
     totalNetto += nettoPartai;
+
+    // (opsional) kalau kamu mau update angka summary per card juga via JS,
+    // bisa taruh di sini, tapi jangan kalau sudah dari server-side render.
   });
 
   document.getElementById("totalNetto").innerText = totalNetto.toFixed(2);
   document.getElementById("totalFiber").innerText = totalFiber.toFixed(2);
 }
-
-// clamp tampilan hanya saat blur (tidak ganggu ngetik)
 document.addEventListener("blur", (e) => {
   if (!e.target.matches("[data-timbangan]")) return;
 
@@ -229,7 +365,6 @@ document.addEventListener("blur", (e) => {
   e.target.value = v;
 }, true);
 
-// listener totals
 document.querySelectorAll("[name='fiber'], [name='tara_per_keranjang'], [data-timbangan]").forEach(inp=>{
   inp.addEventListener("input", updateTotals);
 });
@@ -269,7 +404,6 @@ document.querySelectorAll("[data-add-timb]").forEach(btn=>{
   btn.addEventListener("click", ()=>{
     const card = btn.closest(".card");
     const container = card.querySelector(".timb-grid");
-
     const inp = document.createElement("input");
     inp.type = "number";
     inp.step = "0.01";
@@ -279,7 +413,6 @@ document.querySelectorAll("[data-add-timb]").forEach(btn=>{
 
     inp.addEventListener("input", updateTotals);
     container.appendChild(inp);
-
     inp.focus();
   });
 });
@@ -390,10 +523,8 @@ async function saveReceivingInline(){
       if(Number.isNaN(partai_no)) throw `Partai ID ${pid} partai_no harus angka`;
 
       const pcs = numOrNull(card.querySelector("[name='pcs']")?.value);
-      const kg_sample = numOrNull(card.querySelector("[name='kg_sample']")?.value);
       const size = numOrNull(card.querySelector("[name='size']")?.value);
       const round_size = numOrNull(card.querySelector("[name='round_size']")?.value);
-      const tara = numOrNull(card.querySelector("[name='tara_per_keranjang']")?.value);
       const fiber = numOrNull(card.querySelector("[name='fiber']")?.value);
       const note = (card.querySelector("[name='note']")?.value || "").trim();
       const kategoriKupasan = card.querySelector("[name='kategori_kupasan']")?.value || null;
@@ -416,13 +547,13 @@ async function saveReceivingInline(){
         id: pid,
         partai_no,
         pcs,
-        kg_sample,
+        kg_sample: kg_sample_x100,
         size,
         round_size,
-        tara_per_keranjang: tara,
+        tara_per_keranjang: tara_x100,
         fiber,
         note,
-        timbangan,
+        timbangan: timbangan_x100,
         kategori_kupasan: kategoriKupasan
       });
     });

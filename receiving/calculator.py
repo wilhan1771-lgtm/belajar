@@ -1,3 +1,4 @@
+
 from helpers.number_utils import to_float
 import json
 
@@ -33,6 +34,7 @@ def hitung_partai(p):
         "timbangan_json": json.dumps(timbangan)
     }
 
+import json
 
 def recalc_receiving(conn, header_id: int):
     cur = conn.cursor()

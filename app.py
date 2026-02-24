@@ -27,8 +27,9 @@ app.config.update(
 )
 
 app.permanent_session_lifetime = timedelta(hours=8)
-DEMO_USER = {"username": "admin", "password": "1234"}
 
+app.config["ADMIN_USERNAME"] = "admin"
+app.config["ADMIN_PASSWORD"] = "1234"   # atau ADMIN_PIN
 DATE_FMT = "%Y-%m-%d"
 print("INI FILE YANG AKTIF")
 
@@ -38,8 +39,10 @@ def login():
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
-
-        if username == "admin" and password == "1234":
+        if (
+                username == app.config["ADMIN_USERNAME"] and
+                password == app.config["ADMIN_PASSWORD"]
+        ):
             session.clear()
             session["user"] = username
             session.permanent = True
