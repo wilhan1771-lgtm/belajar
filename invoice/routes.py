@@ -1,15 +1,65 @@
 from flask import render_template, request, redirect, url_for, jsonify
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+import json
+
 from . import invoice_bp
 from .service import create_invoice_from_receiving
 from .pricing import interpolate_price
 from . import repository as repo
-import json
+
+
+# -----------------------------
+# Helpers
+# -----------------------------
+
+def parse_kg_to_g(raw: str | None) -> int | None:
+    """
+    Input UI: kg (boleh pakai koma), output: gram integer.
+    Contoh:
+      "12,345" -> 12345 g
+      "12.345" -> 12345 g
+      "" / None -> None
+      "1.250,5" -> 1250500 g
+    """
+    if raw is None:
+        return None
+    s = raw.strip()
+    if s == "":
+        return None
+
+    # format indo: "1.250,5" => "1250.5"
+    if "," in s and "." in s:
+        s = s.replace(".", "").replace(",", ".")
+    else:
+        s = s.replace(",", ".")
+
+    try:
+        kg = Decimal(s)
+    except InvalidOperation:
+        raise ValueError(f"Format Paid kg tidak valid: {raw!r}")
+
+    if kg < 0:
+        raise ValueError("Paid kg tidak boleh negatif")
+
+    g = int((kg * Decimal("1000")).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return g
+
+
+def to_int(form: dict, name: str, default: int = 0) -> int:
+    v = (form.get(name) or "").strip()
+    if v == "":
+        return default
+    # support "10.000"
+    v = v.replace(".", "")
+    return int(v)
+
+
 def needed_price_keys(partai_rows):
     """
     Tentukan key harga yang dibutuhkan dari round_size.
     - size 65 -> butuh 60 & 70
     - size 93 -> butuh 90 & 100
-    - size 70 -> butuh 70 saja (karena tepat di titik)
+    - size 70 -> butuh 70 saja
     """
     keys = set()
     for p in partai_rows:
@@ -32,6 +82,30 @@ def needed_price_keys(partai_rows):
 
     return sorted(keys)
 
+
+def _price_keys_from_lines(lines):
+    keys = set()
+    for r in lines:
+        rs = r.get("round_size")
+        if rs is None:
+            continue
+        try:
+            s = int(rs)
+        except:
+            continue
+        lo = (s // 10) * 10
+        hi = lo + 10
+        if s % 10 == 0:
+            keys.add(lo)
+        else:
+            keys.add(lo)
+            keys.add(hi)
+    return sorted(keys)
+
+
+# -----------------------------
+# Routes
+# -----------------------------
 
 @invoice_bp.route("/new/<int:receiving_id>", methods=["GET", "POST"])
 def invoice_new(receiving_id):
@@ -59,22 +133,15 @@ def invoice_new(receiving_id):
 
     form = request.form.to_dict()
 
-    def to_int(name, default=0):
-        v = (form.get(name) or "").strip()
-        if v == "":
-            return default
-        return int(v)
-
-    def to_float(name):
-        v = (form.get(name) or "").strip()
-        if v == "":
-            return None
-        return float(v)
-
     payment_type = (form.get("payment_type") or "transfer").strip()
-    cash_deduct_per_kg_rp = to_int("cash_deduct_per_kg_rp", 0)
-    komisi_per_kg_rp = to_int("komisi_per_kg_rp", 0)
-    tempo_hari = to_int("tempo_hari", 0)
+    if payment_type not in ("cash", "transfer"):
+        payment_type = "transfer"
+
+    tempo_hari = to_int(form, "tempo_hari", 0)
+
+    cash_deduct_per_kg_rp = to_int(form, "cash_deduct_per_kg_rp", 0)
+    if payment_type != "cash":
+        cash_deduct_per_kg_rp = 0
 
     # --- price_points: WAJIB isi sesuai keys yang dibutuhkan ---
     price_points = {}
@@ -84,7 +151,9 @@ def invoice_new(receiving_id):
         if v == "":
             missing_keys.append(k)
         else:
-            price_points[int(k)] = int(v)
+            # support "55.000"
+            vv = v.replace(".", "")
+            price_points[int(k)] = int(vv)
 
     if missing_keys:
         return render_template(
@@ -96,21 +165,34 @@ def invoice_new(receiving_id):
             error=f"Harga patokan wajib diisi untuk size: {missing_keys}",
         )
 
-    # --- overrides per partai ---
+    # --- overrides per partai: hanya paid_g + note (tanpa price override) ---
     overrides = {}
     for p in partai:
         no = int(p["partai_no"])
-        paid_kg = to_float(f"paid_kg_{no}")
-        price_override = (form.get(f"price_override_{no}") or "").strip()
+
+        raw_paid = form.get(f"paid_kg_{no}")
         note = (form.get(f"note_{no}") or "").strip()
 
         d = {}
-        if paid_kg is not None:
-            d["paid_kg"] = paid_kg
-        if price_override != "":
-            d["price_override"] = int(price_override)
+
+        if raw_paid is not None and raw_paid.strip() != "":
+            try:
+                paid_g = parse_kg_to_g(raw_paid)
+            except ValueError as e:
+                return render_template(
+                    "invoice/create.html",
+                    header=header,
+                    partai=partai,
+                    price_keys=price_keys,
+                    form=form,
+                    error=str(e),
+                )
+            if paid_g is not None:
+                d["paid_g"] = paid_g
+
         if note != "":
             d["note"] = note
+
         if d:
             overrides[no] = d
 
@@ -142,9 +224,8 @@ def invoice_new(receiving_id):
             receiving_id=receiving_id,
             price_points=price_points,
             payment_type=payment_type,
-            cash_deduct_per_kg_rp=cash_deduct_per_kg_rp,
-            komisi_per_kg_rp=komisi_per_kg_rp,
             tempo_hari=tempo_hari,
+            cash_deduct_per_kg_rp=cash_deduct_per_kg_rp,
             partai_overrides=overrides,
         )
     except Exception as e:
@@ -168,7 +249,7 @@ def invoice_view(invoice_id):
     lines = repo.fetch_invoice_lines(invoice_id)
     return render_template("invoice/detail.html", header=h, lines=lines)
 
-# optional JSON
+
 @invoice_bp.route("/api/<int:invoice_id>", methods=["GET"])
 def invoice_api(invoice_id):
     h = repo.get_invoice_header(invoice_id)
@@ -177,25 +258,6 @@ def invoice_api(invoice_id):
     lines = repo.fetch_invoice_lines(invoice_id)
     return jsonify({"ok": True, "header": h, "lines": lines})
 
-from .pricing import interpolate_price
-
-def _price_keys_from_lines(lines):
-    keys = set()
-    for r in lines:
-        rs = r.get("round_size")
-        if rs is None:
-            continue
-        try:
-            s = int(rs)
-        except:
-            continue
-        lo = (s // 10) * 10
-        hi = lo + 10
-        if s % 10 == 0:
-            keys.add(lo)
-        else:
-            keys.add(lo); keys.add(hi)
-    return sorted(keys)
 
 @invoice_bp.route("/edit/<int:invoice_id>", methods=["GET", "POST"])
 def invoice_edit(invoice_id):
@@ -226,22 +288,15 @@ def invoice_edit(invoice_id):
 
     form = request.form.to_dict()
 
-    def to_int(name, default=0):
-        v = (form.get(name) or "").strip()
-        if v == "":
-            return default
-        return int(v)
-
-    def to_float(name):
-        v = (form.get(name) or "").strip()
-        if v == "":
-            return None
-        return float(v)
-
     payment_type = (form.get("payment_type") or "transfer").strip()
-    cash_deduct_per_kg_rp = to_int("cash_deduct_per_kg_rp", 0)
-    komisi_per_kg_rp = to_int("komisi_per_kg_rp", 0)
-    tempo_hari = to_int("tempo_hari", 0)
+    if payment_type not in ("cash", "transfer"):
+        payment_type = "transfer"
+
+    tempo_hari = to_int(form, "tempo_hari", 0)
+
+    cash_deduct_per_kg_rp = to_int(form, "cash_deduct_per_kg_rp", 0)
+    if payment_type != "cash":
+        cash_deduct_per_kg_rp = 0
 
     # update price points sesuai keys
     new_points = {}
@@ -251,7 +306,8 @@ def invoice_edit(invoice_id):
         if v == "":
             missing_keys.append(k)
         else:
-            new_points[int(k)] = int(v)
+            vv = v.replace(".", "")
+            new_points[int(k)] = int(vv)
 
     if missing_keys:
         return render_template(
@@ -272,22 +328,31 @@ def invoice_edit(invoice_id):
         partai_no = int(r["partai_no"])
         rs = r.get("round_size")
 
-        paid_kg = to_float(f"paid_kg_{partai_no}")
-        paid_g = int(round((paid_kg or ((r["net_g"] or 0) / 1000)) * 1000))
+        raw_paid = form.get(f"paid_kg_{partai_no}")
+        try:
+            paid_g_input = parse_kg_to_g(raw_paid)
+        except ValueError as e:
+            return render_template(
+                "invoice/edit.html",
+                inv=inv, lines=lines,
+                price_keys=price_keys,
+                price_points=new_points,
+                msg=str(e),
+            )
 
-        price_override = (form.get(f"price_override_{partai_no}") or "").strip()
-        price_override_rp = int(price_override) if price_override != "" else None
+        paid_g = paid_g_input if paid_g_input is not None else int(r["net_g"] or 0)
 
         note = (form.get(f"note_{partai_no}") or "").strip() or None
 
         base_price = interpolate_price(rs, new_points) if rs is not None else None
-        if base_price is None:
+        if rs is not None and base_price is None:
             missing_sizes.append(rs)
+            base_price = 0
 
-        price_used = price_override_rp if price_override_rp is not None else (base_price or 0)
-        line_total = (paid_g * price_used) // 1000  # gram->kg
+        price_used = int(base_price or 0)
+        line_total = (paid_g * price_used) // 1000
 
-        updates.append((paid_g, price_override_rp, line_total, note, r["id"]))
+        updates.append((paid_g, price_used, line_total, note, r["id"]))
 
         total_paid_g += paid_g
         subtotal_rp += line_total
@@ -302,16 +367,10 @@ def invoice_edit(invoice_id):
             msg=f"Tidak bisa hitung harga untuk round_size: {missing_sizes}",
         )
 
-    # hitung cash deduct & komisi
     cash_deduct_total_rp = 0
     if payment_type == "cash" and cash_deduct_per_kg_rp > 0:
         cash_deduct_total_rp = (total_paid_g * cash_deduct_per_kg_rp) // 1000
 
-    komisi_total_rp = 0
-    if komisi_per_kg_rp > 0:
-        komisi_total_rp = (total_paid_g * komisi_per_kg_rp) // 1000
-
-    # pph belum dipakai (biarkan 0)
     pph_amount_rp = inv.get("pph_amount_rp") or 0
     pph_rate_bp = inv.get("pph_rate_bp") or 0
 
@@ -319,43 +378,68 @@ def invoice_edit(invoice_id):
 
     conn = repo.get_conn()
     try:
-        # update invoice_line
         conn.executemany(
-            "UPDATE invoice_line SET paid_g=?, price_override_per_kg_rp=?, line_total_rp=?, note=? WHERE id=?",
+            "UPDATE invoice_line SET paid_g=?, price_per_kg_rp=?, line_total_rp=?, note=? WHERE id=?",
             updates
         )
 
-        # update invoice_header
-        conn.execute("""
-            UPDATE invoice_header
-            SET price_points_json=?,
-                payment_type=?,
-                tempo_hari=?,
-                cash_deduct_per_kg_rp=?,
-                cash_deduct_total_rp=?,
-                komisi_per_kg_rp=?,
-                komisi_total_rp=?,
-                pph_rate_bp=?,
-                pph_amount_rp=?,
-                subtotal_rp=?,
-                total_payable_rp=?,
-                total_paid_g=?
-            WHERE id=?
-        """, (
-            json.dumps({str(k): v for k, v in new_points.items()}),
-            payment_type,
-            tempo_hari,
-            cash_deduct_per_kg_rp,
-            cash_deduct_total_rp,
-            komisi_per_kg_rp,
-            komisi_total_rp,
-            pph_rate_bp,
-            pph_amount_rp,
-            subtotal_rp,
-            total_payable_rp,
-            total_paid_g,
-            invoice_id,
-        ))
+        if payment_type == "transfer" and tempo_hari > 0:
+            conn.execute(f"""
+                UPDATE invoice_header
+                SET price_points_json=?,
+                    payment_type=?,
+                    tempo_hari=?,
+                    due_date=date(tanggal, printf('+%d days', ?)),
+                    cash_deduct_per_kg_rp=?,
+                    cash_deduct_total_rp=?,
+                    pph_rate_bp=?,
+                    pph_amount_rp=?,
+                    subtotal_rp=?,
+                    total_payable_rp=?,
+                    total_paid_g=?
+                WHERE id=?
+            """, (
+                json.dumps({str(k): v for k, v in new_points.items()}),
+                payment_type,
+                tempo_hari,
+                tempo_hari,
+                cash_deduct_per_kg_rp,
+                cash_deduct_total_rp,
+                pph_rate_bp,
+                pph_amount_rp,
+                subtotal_rp,
+                total_payable_rp,
+                total_paid_g,
+                invoice_id,
+            ))
+        else:
+            conn.execute("""
+                UPDATE invoice_header
+                SET price_points_json=?,
+                    payment_type=?,
+                    tempo_hari=?,
+                    due_date=NULL,
+                    cash_deduct_per_kg_rp=?,
+                    cash_deduct_total_rp=?,
+                    pph_rate_bp=?,
+                    pph_amount_rp=?,
+                    subtotal_rp=?,
+                    total_payable_rp=?,
+                    total_paid_g=?
+                WHERE id=?
+            """, (
+                json.dumps({str(k): v for k, v in new_points.items()}),
+                payment_type,
+                tempo_hari,
+                cash_deduct_per_kg_rp,
+                cash_deduct_total_rp,
+                pph_rate_bp,
+                pph_amount_rp,
+                subtotal_rp,
+                total_payable_rp,
+                total_paid_g,
+                invoice_id,
+            ))
 
         conn.commit()
     except Exception:

@@ -69,42 +69,27 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
 
             receiving_id INTEGER NOT NULL UNIQUE, -- 1 receiving = 1 invoice
-
-            invoice_no TEXT,
             tanggal TEXT NOT NULL DEFAULT (date('now','localtime')),
-
             supplier TEXT NOT NULL,
             price_points_json TEXT NOT NULL,
-
             payment_type TEXT NOT NULL
                 CHECK (payment_type IN ('cash','transfer')),
-
             tempo_hari INTEGER DEFAULT 0,
             due_date TEXT,
 
             -- Cash deduct per kg (hanya berlaku kalau cash)
             cash_deduct_per_kg_rp INTEGER DEFAULT 0,
             cash_deduct_total_rp INTEGER DEFAULT 0,
-
-            -- Komisi (TIDAK mengurangi pembayaran supplier)
-            komisi_per_kg_rp INTEGER DEFAULT 0,
-            komisi_total_rp INTEGER DEFAULT 0,
-
             -- PPh (siap dipakai nanti, 0.25% = 25)
             pph_rate_bp INTEGER DEFAULT 0,
             pph_amount_rp INTEGER DEFAULT 0,
-
             -- Total Supplier
             subtotal_rp INTEGER DEFAULT 0,
             total_payable_rp INTEGER DEFAULT 0,
-
             total_paid_g INTEGER DEFAULT 0,
-
             status TEXT DEFAULT 'draft'
                 CHECK (status IN ('draft','issued','paid','void')),
-
             created_at TEXT DEFAULT (datetime('now','localtime')),
-
             FOREIGN KEY(receiving_id)
                 REFERENCES receiving_header(id)
                 ON DELETE CASCADE
@@ -122,12 +107,8 @@ def init_db():
             -- Simpan gram supaya presisi (anti float)
             net_g INTEGER NOT NULL,
             paid_g INTEGER NOT NULL,
-
             round_size INTEGER,
-
             price_per_kg_rp INTEGER NOT NULL,
-            price_override_per_kg_rp INTEGER,
-
             line_total_rp INTEGER NOT NULL,
             note TEXT,
 

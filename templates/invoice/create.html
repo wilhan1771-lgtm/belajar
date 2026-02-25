@@ -32,8 +32,9 @@
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:12px}
     .actions{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-top:10px}
     .scroll{overflow:auto}
-    .w-160{min-width:160px}
     .w-200{min-width:200px}
+    .w-160{min-width:160px}
+    .mt-10{margin-top:10px}
   </style>
 </head>
 
@@ -64,30 +65,23 @@
           <option value="transfer" {% if form and form.payment_type=='transfer' %}selected{% endif %}>Transfer</option>
           <option value="cash" {% if form and form.payment_type=='cash' %}selected{% endif %}>Cash</option>
         </select>
-        <div class="hint">Cash akan mengaktifkan potongan cash/kg.</div>
-      </div>
-
-      <div>
-        <label>Cash Deduct / kg (Rp)</label>
-        <select name="cash_deduct_per_kg_rp">
-          <option value="0">0</option>
-          <option value="1000" {% if form and form.cash_deduct_per_kg_rp=='1000' %}selected{% endif %}>1.000</option>
-          <option value="2000" {% if form and form.cash_deduct_per_kg_rp=='2000' %}selected{% endif %}>2.000</option>
-        </select>
-        <div class="hint">Hanya dipakai jika payment = cash.</div>
-      </div>
-
-      <div>
-        <label>Komisi / kg (Rp)</label>
-        <input name="komisi_per_kg_rp" type="number" min="0" placeholder="contoh: 500"
-               value="{{ form.komisi_per_kg_rp if form else '' }}">
-        <div class="hint">Dicatat terpisah (tidak mengurangi supplier).</div>
+        <div class="hint">Jika Cash, potongan cash/kg akan dipakai.</div>
       </div>
 
       <div>
         <label>Tempo (hari)</label>
         <input name="tempo_hari" type="number" min="0" value="{{ form.tempo_hari if form else 0 }}">
-        <div class="hint">Opsional untuk due date.</div>
+        <div class="hint">Dipakai untuk Transfer (jatuh tempo = tanggal + tempo).</div>
+      </div>
+
+      <div>
+        <label>Potongan Cash / kg (Rp)</label>
+        <select name="cash_deduct_per_kg_rp">
+          <option value="0" {% if not form or form.cash_deduct_per_kg_rp=='0' %}selected{% endif %}>0</option>
+          <option value="1000" {% if form and form.cash_deduct_per_kg_rp=='1000' %}selected{% endif %}>1.000</option>
+          <option value="2000" {% if form and form.cash_deduct_per_kg_rp=='2000' %}selected{% endif %}>2.000</option>
+        </select>
+        <div class="hint">Hanya dipakai jika payment = Cash. (Potongan = Rp/kg × total kg dibayar)</div>
       </div>
     </div>
 
@@ -96,8 +90,8 @@
     <!-- PRICE POINTS (AUTO) -->
     <h3 style="margin:0 0 8px 0;">Harga Patokan (Rp/kg)</h3>
     <div class="muted" style="margin-bottom:10px;">
-      Sistem otomatis meminta titik harga yang dibutuhkan dari size partai
-      (mis. 65 → 60 & 70, 93 → 90 & 100).
+      Sistem otomatis meminta titik harga yang dibutuhkan dari round size partai
+      (contoh: 65 → butuh 60 & 70, 93 → butuh 90 & 100).
     </div>
 
     <div class="row">
@@ -117,14 +111,15 @@
       <div>
         <h3 style="margin:0 0 6px 0;">Partai dari Receiving</h3>
         <div class="muted">
-          Jika partai bermasalah:
-          isi <b>Paid kg</b> (dibayar sebagian) dan/atau <b>Harga override/kg</b> (harga beda).
+          Jika dibayar tidak full, isi <b>Paid kg</b>. Kalau kosong = pakai full netto.
+          <br>
+          Format boleh pakai koma: <b>12,345</b>
         </div>
       </div>
       <button class="btn btn-primary" type="submit">Generate Invoice</button>
     </div>
 
-    <div class="scroll" style="margin-top:10px;">
+    <div class="scroll mt-10">
       <table>
         <thead>
           <tr>
@@ -132,7 +127,6 @@
             <th>Round Size</th>
             <th class="right">Netto (kg)</th>
             <th class="w-200">Paid kg (opsional)</th>
-            <th class="w-200">Harga override/kg (opsional)</th>
             <th class="w-160">Catatan</th>
           </tr>
         </thead>
@@ -144,17 +138,11 @@
               <td class="right">{{ "%.3f"|format(p["netto"] or 0) }}</td>
 
               <td>
-                <input name="paid_kg_{{ p['partai_no'] }}" type="number" step="0.001" min="0"
+                <input name="paid_kg_{{ p['partai_no'] }}"
+                       type="text" inputmode="decimal"
                        placeholder="kosong = full"
                        value="{{ form['paid_kg_' ~ p['partai_no']] if form and ('paid_kg_' ~ p['partai_no']) in form else '' }}">
-                <div class="hint">Isi kalau dibayar sebagian kg.</div>
-              </td>
-
-              <td>
-                <input name="price_override_{{ p['partai_no'] }}" type="number" min="0"
-                       placeholder="kosong = auto"
-                       value="{{ form['price_override_' ~ p['partai_no']] if form and ('price_override_' ~ p['partai_no']) in form else '' }}">
-                <div class="hint">Isi kalau harga partai ini beda.</div>
+                <div class="hint">Isi kalau dibayar sebagian (kg).</div>
               </td>
 
               <td>

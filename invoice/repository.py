@@ -1,6 +1,7 @@
 import json
 from helpers.db import get_conn
 
+
 def fetch_receiving_header(receiving_id):
     conn = get_conn()
     try:
@@ -8,6 +9,7 @@ def fetch_receiving_header(receiving_id):
         return dict(row) if row else None
     finally:
         conn.close()
+
 
 def fetch_receiving_items(receiving_id):
     conn = get_conn()
@@ -20,34 +22,51 @@ def fetch_receiving_items(receiving_id):
     finally:
         conn.close()
 
+
 def invoice_exists_for_receiving(receiving_id):
     conn = get_conn()
     try:
         row = conn.execute("SELECT id FROM invoice_header WHERE receiving_id=?", (receiving_id,)).fetchone()
-        return dict(row) if row else None  # return invoice row (id) if exists
+        return dict(row) if row else None
     finally:
         conn.close()
 
-def insert_invoice_header(receiving_id, supplier, price_points, payment_type,
-                          cash_deduct_per_kg_rp, komisi_per_kg_rp, tempo_hari=0, due_date=None):
+
+def insert_invoice_header(
+    receiving_id,
+    supplier,
+    price_points,
+    payment_type,
+    cash_deduct_per_kg_rp=0,
+    tempo_hari=0,
+    due_date=None,
+):
     conn = get_conn()
     try:
         cur = conn.execute(
             """
             INSERT INTO invoice_header
             (receiving_id, supplier, price_points_json, payment_type,
-             cash_deduct_per_kg_rp, komisi_per_kg_rp, tempo_hari, due_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             tempo_hari, due_date,
+             cash_deduct_per_kg_rp, cash_deduct_total_rp,
+             pph_rate_bp, pph_amount_rp,
+             subtotal_rp, total_payable_rp, total_paid_g,
+             status)
+            VALUES (?, ?, ?, ?,
+                    ?, ?,
+                    ?, 0,
+                    0, 0,
+                    0, 0, 0,
+                    'draft')
             """,
             (
-                receiving_id,
+                int(receiving_id),
                 supplier,
-                json.dumps(price_points, ensure_ascii=False),
+                json.dumps({str(k): int(v) for k, v in (price_points or {}).items()}, ensure_ascii=False),
                 payment_type,
-                int(cash_deduct_per_kg_rp),
-                int(komisi_per_kg_rp),
-                int(tempo_hari),
+                int(tempo_hari or 0),
                 due_date,
+                int(cash_deduct_per_kg_rp or 0),
             ),
         )
         conn.commit()
@@ -55,29 +74,44 @@ def insert_invoice_header(receiving_id, supplier, price_points, payment_type,
     finally:
         conn.close()
 
-def insert_invoice_line(invoice_id, receiving_item_id, partai_no,
-                        net_g, paid_g, round_size,
-                        price_per_kg_rp, price_override_per_kg_rp,
-                        line_total_rp, note):
+
+def insert_invoice_line(
+    invoice_id,
+    receiving_item_id,
+    partai_no,
+    net_g,
+    paid_g,
+    round_size,
+    price_per_kg_rp,
+    line_total_rp,
+    note,
+):
     conn = get_conn()
     try:
         conn.execute(
             """
             INSERT INTO invoice_line
-            (invoice_id, receiving_item_id, partai_no, net_g, paid_g, round_size,
-             price_per_kg_rp, price_override_per_kg_rp, line_total_rp, note)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (invoice_id, receiving_item_id, partai_no,
+             net_g, paid_g, round_size,
+             price_per_kg_rp, line_total_rp, note)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
-                int(invoice_id), int(receiving_item_id), int(partai_no),
-                int(net_g), int(paid_g), round_size,
-                int(price_per_kg_rp), price_override_per_kg_rp,
-                int(line_total_rp), note,
+                int(invoice_id),
+                int(receiving_item_id),
+                int(partai_no),
+                int(net_g),
+                int(paid_g),
+                int(round_size) if round_size is not None else None,
+                int(price_per_kg_rp),
+                int(line_total_rp),
+                note,
             ),
         )
         conn.commit()
     finally:
         conn.close()
+
 
 def get_invoice_header(invoice_id):
     conn = get_conn()
@@ -87,6 +121,7 @@ def get_invoice_header(invoice_id):
     finally:
         conn.close()
 
+
 def get_invoice_by_receiving(receiving_id):
     conn = get_conn()
     try:
@@ -94,6 +129,7 @@ def get_invoice_by_receiving(receiving_id):
         return dict(row) if row else None
     finally:
         conn.close()
+
 
 def fetch_invoice_lines(invoice_id):
     conn = get_conn()
@@ -106,9 +142,15 @@ def fetch_invoice_lines(invoice_id):
     finally:
         conn.close()
 
-def update_invoice_totals(invoice_id, subtotal_rp, total_paid_g,
-                          cash_deduct_total_rp, komisi_total_rp,
-                          pph_amount_rp, total_payable_rp):
+
+def update_invoice_totals(
+    invoice_id,
+    subtotal_rp,
+    total_paid_g,
+    cash_deduct_total_rp,
+    pph_amount_rp,
+    total_payable_rp,
+):
     conn = get_conn()
     try:
         conn.execute(
@@ -117,7 +159,6 @@ def update_invoice_totals(invoice_id, subtotal_rp, total_paid_g,
             SET subtotal_rp=?,
                 total_paid_g=?,
                 cash_deduct_total_rp=?,
-                komisi_total_rp=?,
                 pph_amount_rp=?,
                 total_payable_rp=?
             WHERE id=?
@@ -126,7 +167,6 @@ def update_invoice_totals(invoice_id, subtotal_rp, total_paid_g,
                 int(subtotal_rp),
                 int(total_paid_g),
                 int(cash_deduct_total_rp),
-                int(komisi_total_rp),
                 int(pph_amount_rp),
                 int(total_payable_rp),
                 int(invoice_id),

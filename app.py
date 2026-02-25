@@ -91,43 +91,6 @@ def calc_invoice_totals(det_rows, pph_rate=0.0, cash_deduct_per_kg=0.0, reject_k
 # =========================
 # Helpers
 # =========================
-@app.route("/admin/db", methods=["GET"])
-def admin_db_home():
-    if not require_login():
-        return redirect(url_for("login"))
-
-    conn = get_conn()
-    tables = [r["name"] for r in conn.execute("""
-        SELECT name FROM sqlite_master
-        WHERE type='table'
-        ORDER BY name
-    """).fetchall()]
-
-    # quick check: invoice header tapi detail kosong / subtotal mismatch
-    bad = conn.execute("""
-        SELECT
-          h.id AS invoice_id,
-          h.receiving_id,
-          h.tanggal,
-          h.supplier,
-          h.subtotal AS header_subtotal,
-          COALESCE(SUM(d.total_harga), 0) AS detail_subtotal,
-          COUNT(d.id) AS detail_count
-        FROM invoice_header h
-        LEFT JOIN invoice_detail d ON d.invoice_id = h.id
-        WHERE h.status != 'VOID'
-        GROUP BY h.id
-        HAVING detail_count = 0 OR ABS(header_subtotal - detail_subtotal) > 0.01
-        ORDER BY h.id DESC
-        LIMIT 50
-    """).fetchall()
-
-    conn.close()
-    return render_template(
-        "admin_db_home.html",
-        tables=tables,
-        bad=[dict(r) for r in bad]
-    )
 
 @app.route("/admin/db/table/<table_name>", methods=["GET"])
 def admin_db_table_view(table_name):
