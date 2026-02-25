@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Edit Invoice #{{ inv.id }}</title>
+  <style>
+    :root{--bg:#f6f7fb;--card:#fff;--text:#0f172a;--muted:#64748b;--border:#e2e8f0;--btn:#0f172a}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 14px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+    h2{margin:0;font-size:20px}
+    .muted{color:var(--muted);font-size:13px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .btn{display:inline-block;padding:10px 12px;border-radius:10px;border:1px solid var(--border);text-decoration:none;font-weight:700;font-size:14px;background:#fff;color:var(--text)}
+    .btn-primary{background:var(--btn);color:#fff;border-color:var(--btn)}
+    hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .row > div{flex:1 1 220px}
+    label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
+    input,select{width:100%;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fff}
+    .hint{font-size:12px;color:var(--muted);margin-top:4px}
+    table{width:100%;border-collapse:collapse}
+    th,td{border-bottom:1px solid var(--border);padding:10px;text-align:left;font-size:14px;vertical-align:top}
+    th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
+    .right{text-align:right}
+    .scroll{overflow:auto}
+    .w-160{min-width:160px}
+    .w-200{min-width:200px}
+    .alert{background:#ecfeff;border:1px solid #a5f3fc;color:#155e75;padding:10px;border-radius:10px;margin-bottom:10px}
+  </style>
+</head>
+
+<body>
+<div class="wrap">
+
+  <div class="top">
+    <div>
+      <h2>Edit Invoice #{{ inv.id }}</h2>
+      <div class="muted">
+        Receiving #{{ inv.receiving_id }} · Supplier: <b>{{ inv.supplier }}</b> · Tanggal: <b>{{ inv.tanggal }}</b>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
+      <a class="btn" href="/invoice/view/{{ inv.id }}">← Kembali</a>
+      <a class="btn" href="/receiving/{{ inv.receiving_id }}">Receiving</a>
+      <button class="btn btn-primary" type="submit" form="editForm">Simpan Perubahan</button>
+    </div>
+  </div>
+
+  {% if msg %}
+    <div class="alert">{{ msg }}</div>
+  {% endif %}
+
+  <form id="editForm" method="post" class="card">
+
+    <div class="row">
+      <div>
+        <label>Payment Type</label>
+        <select name="payment_type">
+          <option value="transfer" {% if inv.payment_type=='transfer' %}selected{% endif %}>Transfer</option>
+          <option value="cash" {% if inv.payment_type=='cash' %}selected{% endif %}>Cash</option>
+        </select>
+        <div class="hint">Cash akan mengaktifkan potongan cash/kg.</div>
+      </div>
+
+      <div>
+        <label>Cash Deduct / kg (Rp)</label>
+        <select name="cash_deduct_per_kg_rp">
+          <option value="0" {% if (inv.cash_deduct_per_kg_rp or 0)==0 %}selected{% endif %}>0</option>
+          <option value="1000" {% if (inv.cash_deduct_per_kg_rp or 0)==1000 %}selected{% endif %}>1.000</option>
+          <option value="2000" {% if (inv.cash_deduct_per_kg_rp or 0)==2000 %}selected{% endif %}>2.000</option>
+        </select>
+      </div>
+
+      <div>
+        <label>Komisi / kg (Rp)</label>
+        <input name="komisi_per_kg_rp" type="number" min="0" value="{{ inv.komisi_per_kg_rp or 0 }}">
+      </div>
+
+      <div>
+        <label>Tempo (hari)</label>
+        <input name="tempo_hari" type="number" min="0" value="{{ inv.tempo_hari or 0 }}">
+      </div>
+    </div>
+
+    <hr>
+
+    <h3 style="margin:0 0 8px 0;">Harga Patokan (Rp/kg)</h3>
+    <div class="muted" style="margin-bottom:10px;">
+      Ubah harga patokan jika salah input. Field yang tampil mengikuti kebutuhan size partai.
+    </div>
+
+    <div class="row">
+      {% for k in price_keys %}
+        <div>
+          <label>Size {{ k }}</label>
+          <input name="p{{ k }}" type="number" min="0"
+                 value="{{ price_points[k] if k in price_points else '' }}">
+        </div>
+      {% endfor %}
+    </div>
+
+    <hr>
+
+    <h3 style="margin:0 0 6px 0;">Detail Partai</h3>
+    <div class="muted" style="margin-bottom:10px;">
+      Paid kg = jumlah kg dibayar. Harga override/kg = harga khusus untuk partai ini.
+    </div>
+
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Partai</th>
+            <th>Round Size</th>
+            <th class="right">Net (kg)</th>
+            <th class="w-200">Paid kg</th>
+            <th class="w-200">Harga override/kg</th>
+            <th class="w-160">Catatan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in lines %}
+            <tr>
+              <td><b>{{ r.partai_no }}</b></td>
+              <td>{{ r.round_size if r.round_size is not none else "-" }}</td>
+              <td class="right">{{ "%.3f"|format((r.net_g or 0)/1000) }}</td>
+
+              <td>
+                <input name="paid_kg_{{ r.partai_no }}" type="number" step="0.001" min="0"
+                       value="{% if r.paid_g %}{{ "%.3f"|format(r.paid_g/1000) }}{% else %}{% endif %}">
+                <div class="hint">Kosongkan jika mau pakai full netto.</div>
+              </td>
+
+              <td>
+                <input name="price_override_{{ r.partai_no }}" type="number" min="0"
+                       value="{{ r.price_override_per_kg_rp or '' }}">
+                <div class="hint">Kosong = pakai harga auto.</div>
+              </td>
+
+              <td>
+                <input name="note_{{ r.partai_no }}" type="text" value="{{ r.note or '' }}">
+              </td>
+            </tr>
+          {% endfor %}
+          {% if not lines %}
+            <tr><td colspan="6" class="muted">Invoice line kosong.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+  </form>
+
+</div>
+</body>
+</html>
