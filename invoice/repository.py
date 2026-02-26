@@ -141,7 +141,153 @@ def fetch_invoice_lines(invoice_id):
         return [dict(r) for r in rows]
     finally:
         conn.close()
+def get_invoice_by_receiving_conn(conn, receiving_id):
+    row = conn.execute(
+        "SELECT * FROM invoice_header WHERE receiving_id=?",
+        (int(receiving_id),)
+    ).fetchone()
+    return dict(row) if row else None
 
+
+def delete_invoice_lines_conn(conn, invoice_id):
+    conn.execute("DELETE FROM invoice_line WHERE invoice_id=?", (int(invoice_id),))
+
+
+def insert_invoice_line_conn(
+    conn,
+    invoice_id,
+    receiving_item_id,
+    partai_no,
+    net_g,
+    paid_g,
+    round_size,
+    price_per_kg_rp,
+    line_total_rp,
+    note,
+):
+    conn.execute(
+        """
+        INSERT INTO invoice_line
+        (invoice_id, receiving_item_id, partai_no,
+         net_g, paid_g, round_size,
+         price_per_kg_rp, line_total_rp, note)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            int(invoice_id),
+            int(receiving_item_id),
+            int(partai_no),
+            int(net_g),
+            int(paid_g),
+            int(round_size) if round_size is not None else None,
+            int(price_per_kg_rp),
+            int(line_total_rp),
+            note,
+        ),
+    )
+
+
+def update_invoice_totals_conn(
+    conn,
+    invoice_id,
+    subtotal_rp,
+    total_paid_g,
+    cash_deduct_total_rp,
+    pph_amount_rp,
+    total_payable_rp,
+):
+    conn.execute(
+        """
+        UPDATE invoice_header
+        SET subtotal_rp=?,
+            total_paid_g=?,
+            cash_deduct_total_rp=?,
+            pph_amount_rp=?,
+            total_payable_rp=?
+        WHERE id=?
+        """,
+        (
+            int(subtotal_rp),
+            int(total_paid_g),
+            int(cash_deduct_total_rp),
+            int(pph_amount_rp),
+            int(total_payable_rp),
+            int(invoice_id),
+        ),
+    )
+
+
+def update_invoice_due_date_conn(conn, invoice_id):
+    # due_date = tanggal + tempo_hari untuk transfer, selain itu NULL
+    inv = conn.execute("SELECT payment_type, tempo_hari FROM invoice_header WHERE id=?", (int(invoice_id),)).fetchone()
+    if not inv:
+        return
+    payment_type = (inv["payment_type"] or "transfer").strip()
+    tempo_hari = int(inv["tempo_hari"] or 0)
+
+    if payment_type == "transfer" and tempo_hari > 0:
+        conn.execute(
+            """
+            UPDATE invoice_header
+            SET due_date = date(tanggal, printf('+%d days', tempo_hari))
+            WHERE id=?
+            """,
+            (int(invoice_id),)
+        )
+    else:
+        conn.execute("UPDATE invoice_header SET due_date=NULL WHERE id=?", (int(invoice_id),))
+def fetch_invoice_list(start=None, end=None, supplier=None, payment_type=None, limit=500):
+    conn = get_conn()
+    try:
+        where = []
+        params = []
+
+        if start:
+            where.append("tanggal >= ?")
+            params.append(start)
+        if end:
+            where.append("tanggal <= ?")
+            params.append(end)
+        if supplier:
+            where.append("LOWER(supplier) = LOWER(?)")
+            params.append(supplier.strip())
+        if payment_type in ("cash", "transfer"):
+            where.append("payment_type = ?")
+            params.append(payment_type)
+
+        wsql = ("WHERE " + " AND ".join(where)) if where else ""
+
+        limit = int(limit or 500)
+        limit = max(1, min(limit, 2000))
+
+        rows = conn.execute(
+            f"""
+            SELECT
+              id,
+              receiving_id,
+              tanggal,
+              supplier,
+              payment_type,
+              cash_deduct_per_kg_rp,
+              cash_deduct_total_rp,
+              tempo_hari,
+              due_date,
+              subtotal_rp,
+              pph_amount_rp,
+              total_payable_rp,
+              status,
+              created_at
+            FROM invoice_header
+            {wsql}
+            ORDER BY tanggal DESC, id DESC
+            LIMIT ?
+            """,
+            (*params, limit),
+        ).fetchall()
+
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
 
 def update_invoice_totals(
     invoice_id,
@@ -172,6 +318,7 @@ def update_invoice_totals(
                 int(invoice_id),
             ),
         )
+
         conn.commit()
     finally:
         conn.close()

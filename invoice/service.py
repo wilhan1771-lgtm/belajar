@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from .pricing import interpolate_price, div_round
 from . import repository as repo
-
+import json
 
 def kg_to_g(kg):
     """
@@ -146,3 +146,98 @@ def create_invoice_from_receiving(
     )
 
     return invoice_id
+
+def rebuild_invoice_from_receiving_if_exists(conn, receiving_id: int):
+    """
+    Jika sudah ada invoice untuk receiving_id, rebuild invoice_line + totals
+    berdasarkan receiving_item terbaru.
+    - Menggunakan setting dari invoice_header: price_points_json, payment_type,
+      tempo_hari, cash_deduct_per_kg_rp, pph_amount_rp
+    - Lines dihapus lalu insert ulang (aman untuk receiving_item_id UNIQUE)
+    """
+
+    inv = repo.get_invoice_by_receiving_conn(conn, receiving_id)
+    if not inv:
+        return
+
+    # Kalau kamu mau invoice selalu ikut berubah, hapus blok ini.
+    invoice_id = int(inv["id"])
+
+    # ambil setting invoice
+    try:
+        pts = json.loads(inv.get("price_points_json") or "{}")
+        price_points = {int(k): int(v) for k, v in pts.items()}
+    except Exception:
+        price_points = {}
+
+    payment_type = (inv.get("payment_type") or "transfer").strip()
+    if payment_type not in ("cash", "transfer"):
+        payment_type = "transfer"
+
+    tempo_hari = int(inv.get("tempo_hari") or 0)
+    cash_deduct_per_kg_rp = int(inv.get("cash_deduct_per_kg_rp") or 0)
+    if payment_type != "cash":
+        cash_deduct_per_kg_rp = 0
+
+    pph_amount = int(inv.get("pph_amount_rp") or 0)
+
+    # ambil receiving terbaru (pakai conn yang sama)
+    items = conn.execute(
+        "SELECT * FROM receiving_item WHERE header_id=? ORDER BY partai_no ASC, id ASC",
+        (int(receiving_id),)
+    ).fetchall()
+
+    # rebuild lines
+    repo.delete_invoice_lines_conn(conn, invoice_id)
+
+    subtotal_rp = 0
+    total_paid_g = 0
+
+    for it in items:
+        it = dict(it)
+        partai_no = int(it["partai_no"])
+        rs = it.get("round_size")
+
+        base_price = interpolate_price(rs, price_points)
+        if base_price is None:
+            raise ValueError(f"Harga tidak bisa dihitung untuk round_size={rs} (partai {partai_no}).")
+
+        net_g = kg_to_g(it.get("netto"))
+        paid_g = net_g  # karena kamu mau invoice mengikuti receiving (tanpa bayar sebagian)
+
+        line_total = mul_div_round(int(paid_g), int(base_price), 1000)
+
+        repo.insert_invoice_line_conn(
+            conn=conn,
+            invoice_id=invoice_id,
+            receiving_item_id=int(it["id"]),
+            partai_no=partai_no,
+            net_g=int(net_g),
+            paid_g=int(paid_g),
+            round_size=rs,
+            price_per_kg_rp=int(base_price),
+            line_total_rp=int(line_total),
+            note=it.get("note"),
+        )
+
+        subtotal_rp += int(line_total)
+        total_paid_g += int(paid_g)
+
+    cash_deduct_total = 0
+    if payment_type == "cash" and cash_deduct_per_kg_rp > 0:
+        cash_deduct_total = mul_div_round(total_paid_g, cash_deduct_per_kg_rp, 1000)
+
+    total_payable = subtotal_rp - cash_deduct_total - pph_amount
+
+    repo.update_invoice_totals_conn(
+        conn=conn,
+        invoice_id=invoice_id,
+        subtotal_rp=subtotal_rp,
+        total_paid_g=total_paid_g,
+        cash_deduct_total_rp=cash_deduct_total,
+        pph_amount_rp=pph_amount,
+        total_payable_rp=total_payable,
+    )
+
+    # due_date update mengikuti payment_type/tempo_hari (berdasarkan tanggal invoice_header)
+    repo.update_invoice_due_date_conn(conn, invoice_id)

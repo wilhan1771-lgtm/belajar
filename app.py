@@ -644,65 +644,6 @@ if app.debug:
             }
         finally:
             conn.close()
-@app.route("/invoice/list")
-def invoice_list():
-    if not require_login():
-        return redirect(url_for("login"))
-
-    start = (request.args.get("start") or "").strip()
-    end = (request.args.get("end") or "").strip()
-    supplier_q = (request.args.get("supplier") or "").strip()
-
-    conn = get_conn()
-
-    where = ["status!='VOID'"]
-    params = []
-
-    if start and end:
-        where.append("tanggal BETWEEN ? AND ?")
-        params.extend([start, end])
-    elif start:
-        where.append("tanggal >= ?")
-        params.append(start)
-    elif end:
-        where.append("tanggal <= ?")
-        params.append(end)
-
-    if supplier_q:
-        where.append("LOWER(TRIM(supplier)) = ?")
-        params.append(supplier_q.lower())
-
-    where_sql = "WHERE " + " AND ".join(where)
-
-    # DEBUG PRINT (sementara)
-    print("INVOICE LIST SQL:", where_sql, "PARAMS:", params)
-
-    rows = conn.execute(f"""
-        SELECT id, receiving_id, tanggal, supplier, subtotal, pph, total, status, created_at
-        FROM invoice_header
-        {where_sql}
-        ORDER BY tanggal DESC
-        LIMIT 200
-    """, params).fetchall()
-
-    total_beli_row = conn.execute(f"""
-        SELECT COALESCE(SUM(COALESCE(total,0)),0) AS total_beli
-        FROM invoice_header
-        {where_sql}
-    """, params).fetchone()
-
-    total_beli = float(total_beli_row["total_beli"] or 0)
-
-    conn.close()
-
-    return render_template(
-        "invoice_list.html",
-        rows=[dict(r) for r in rows],
-        start=start,
-        end=end,
-        supplier=supplier_q,
-        total_beli=total_beli
-    )
 
 print("=== ROUTE LIST ===")
 print(app.url_map)

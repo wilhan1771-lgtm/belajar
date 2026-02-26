@@ -384,7 +384,7 @@ def invoice_edit(invoice_id):
         )
 
         if payment_type == "transfer" and tempo_hari > 0:
-            conn.execute(f"""
+            conn.execute("""
                 UPDATE invoice_header
                 SET price_points_json=?,
                     payment_type=?,
@@ -449,3 +449,29 @@ def invoice_edit(invoice_id):
         conn.close()
 
     return redirect(url_for("invoice.invoice_view", invoice_id=invoice_id))
+@invoice_bp.route("/list", methods=["GET"])
+def invoice_list():
+    start = (request.args.get("start") or "").strip() or None
+    end = (request.args.get("end") or "").strip() or None
+    supplier = (request.args.get("supplier") or "").strip() or None
+    payment_type = (request.args.get("payment_type") or "").strip() or None
+
+    rows = repo.fetch_invoice_list(
+        start=start,
+        end=end,
+        supplier=supplier,
+        payment_type=payment_type,
+        limit=request.args.get("limit") or 500
+    )
+
+    total_payable = sum(int(r.get("total_payable_rp") or 0) for r in rows)
+
+    return render_template(
+        "invoice/list.html",
+        rows=rows,
+        start=start,
+        end=end,
+        supplier=supplier,
+        payment_type=payment_type,
+        total_payable=total_payable,
+    )

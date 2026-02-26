@@ -43,3 +43,5 @@ def update_receiving(conn, header_id: int, partai_list: list):
 
     # 🔁 hitung ulang header (fiber, dll)
     recalc_receiving(conn, header_id)
+    from invoice.service import rebuild_invoice_from_receiving_if_exists
+    rebuild_invoice_from_receiving_if_exists(conn, header_id)
