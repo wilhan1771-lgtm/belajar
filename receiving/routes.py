@@ -11,6 +11,8 @@ from helpers.db import get_conn, DB_PATH
 from receiving.calculator import hitung_partai
 from receiving.service import update_receiving
 from invoice.service import create_invoice_from_receiving
+from invoice.repository import get_invoice_by_receiving
+
 @receiving_bp.get("/")
 def receiving():
     if not require_login():
@@ -395,11 +397,13 @@ def receiving_detail(header_id):
         total_size += d.get("kg_sample") or 0   # size bisa diganti sesuai formula kamu
         partai.append(d)
 
+    invoice_existing = get_invoice_by_receiving(header["id"])
     return render_template(
         "receiving/receiving_detail.html",
         header=dict(header),
         partai=partai,
         total_netto=total_netto,
         total_fiber=total_fiber,
-        total_size=total_size
+        total_size=total_size,
+        invoice_existing=invoice_existing,
     )

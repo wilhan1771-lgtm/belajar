@@ -24,7 +24,23 @@ label { font-size:13px; color:#111827; margin-bottom:4px; }
 .inp:focus{ outline:none; border-color:#2563eb; box-shadow:0 0 0 3px rgba(37,99,235,.15); }
 .inp-read{ background:#f9fafb; }
 .hidden { display:none !important; }
+.btn-success{
+  background:#16a34a;
+  color:#fff;
+  border:1px solid #16a34a;
+}
+.btn-success:hover{
+  background:#15803d;
+}
 
+.btn-primary{
+  background:#0f172a;
+  color:#fff;
+  border:1px solid #0f172a;
+}
+.btn-primary:hover{
+  opacity:.9;
+}
 /* ===== GRID: KIRI (FORM + TARA) | KANAN (TIMBANGAN) ===== */
 .grid { display:grid; gap:20px; grid-template-columns:20% 80%; }
 @media(max-width:900px){ .grid{ grid-template-columns:1fr; } }
@@ -161,17 +177,17 @@ label { font-size:13px; color:#111827; margin-bottom:4px; }
     <button class="btn btn-primary" id="btnSaveInline">💾 Simpan Perubahan</button>
     <a class="btn btn-secondary" href="/receiving/list">Kembali</a>
     <a class="btn btn-primary" href="#" onclick="window.print(); return false;">Print</a>
-    {% if invoice %}
-  <a class="btn btn-secondary"
-     href="{{ url_for('invoice.invoice_view', invoice_id=invoice.id) }}">
-     Lihat Invoice
-  </a>
-      {% else %}
-        <a class="btn btn-primary"
-           href="{{ url_for('invoice.invoice_new', receiving_id=header.id) }}">
-           Buat Invoice
-        </a>
-      {% endif %}
+    {% if invoice_existing %}
+      <a class="btn btn-success"
+         href="{{ url_for('invoice.invoice_view', invoice_id=invoice_existing['id']) }}">
+        📄 Lihat Invoice
+      </a>
+    {% else %}
+      <a class="btn btn-primary"
+         href="{{ url_for('invoice.invoice_new', receiving_id=header['id']) }}">
+        ➕ Buat Invoice
+      </a>
+    {% endif %}
   </div>
 </div>
 

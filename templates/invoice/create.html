@@ -9,9 +9,10 @@
       --bg:#f6f7fb; --card:#fff; --text:#0f172a; --muted:#64748b;
       --border:#e2e8f0; --btn:#0f172a; --btnText:#fff;
     }
+    *{ box-sizing:border-box; }
     body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
-    .wrap{max-width:1100px;margin:18px auto;padding:0 14px}
-    .top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+    .wrap{max-width:1240px;margin:18px auto;padding:0 14px}
+    .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
     h2{margin:0;font-size:20px}
     .muted{color:var(--muted);font-size:13px}
     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
@@ -19,22 +20,56 @@
     .btn-primary{background:var(--btn);color:var(--btnText);border-color:var(--btn)}
     .btn-secondary{background:#fff;color:var(--text)}
     hr{border:none;border-top:1px solid var(--border);margin:14px 0}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .row > div{flex:1 1 220px}
     label{display:block;font-size:13px;color:var(--muted);margin-bottom:4px}
-    input,select{width:100%;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fff}
+    input,select{width:100%;padding:10px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fff;height:42px}
     .hint{font-size:12px;color:var(--muted);margin-top:4px}
+    .alert{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:10px;border-radius:10px;margin-bottom:10px}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:12px}
+
+    .grid-settings{
+      display:grid;
+      grid-template-columns: 1.2fr 1fr 1fr 1fr;
+      gap:12px;
+      align-items:stretch;
+    }
+    .grid-settings > div{display:flex;flex-direction:column}
+    @media (max-width: 980px){ .grid-settings{grid-template-columns:1fr 1fr} }
+    @media (max-width: 560px){ .grid-settings{grid-template-columns:1fr} }
+
+    .scroll{overflow:auto}
     table{width:100%;border-collapse:collapse}
     th,td{border-bottom:1px solid var(--border);padding:10px;text-align:left;font-size:14px;vertical-align:top}
     th{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.03em}
     .right{text-align:right}
-    .alert{background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;padding:10px;border-radius:10px;margin-bottom:10px}
-    .pill{display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:#fff;color:var(--muted);font-size:12px}
-    .actions{display:flex;justify-content:space-between;align-items:end;gap:10px;margin-top:10px}
-    .scroll{overflow:auto}
-    .w-200{min-width:200px}
-    .w-160{min-width:160px}
     .mt-10{margin-top:10px}
+
+    .totals{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap:10px;
+      margin-top:12px;
+    }
+    @media (max-width: 980px){ .totals{grid-template-columns:1fr} }
+    .kpi{
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px;
+      background:#fff;
+    }
+    .kpi .t{color:var(--muted);font-size:12px}
+    .kpi .v{font-weight:800;font-size:18px;margin-top:4px}
+
+    .actions{
+      display:flex;
+      justify-content:space-between;
+      align-items:end;
+      gap:10px;
+      margin-top:10px
+    }
+
+    .w-120{min-width:120px}
+    .w-140{min-width:140px}
+    .w-160{min-width:160px}
   </style>
 </head>
 
@@ -43,9 +78,18 @@
 
   <div class="top">
     <div>
-      <h2>Buat Invoice <span class="pill">Receiving #{{ header["id"] }}</span></h2>
+      <h2>
+        {% if mode == "edit" %}
+          Edit Invoice
+        {% else %}
+          Buat Invoice
+        {% endif %}
+         <span class="pill">Receiving #{{ header["id"] }}</span>
+      </h2>
       <div class="muted">
-        Tanggal: <b>{{ header["tanggal"] }}</b> · Supplier: <b>{{ header["supplier"] }}</b> · Jenis: <b>{{ header["jenis"] }}</b>
+        Tanggal: <b id="baseDateText">{{ header["tanggal"] }}</b> ·
+        Supplier: <b>{{ header["supplier"] }}</b> ·
+        Jenis: <b id="jenisText">{{ header["jenis"] }}</b>
       </div>
     </div>
     <a class="btn btn-secondary" href="/receiving/{{ header['id'] }}">← Kembali</a>
@@ -55,13 +99,13 @@
     <div class="alert">{{ error }}</div>
   {% endif %}
 
-  <form method="post" class="card">
+  <form method="post" class="card" id="invoiceForm">
 
     <!-- SETTINGS -->
-    <div class="row">
+    <div class="grid-settings">
       <div>
         <label>Payment Type</label>
-        <select name="payment_type">
+        <select name="payment_type" id="paymentType">
           <option value="transfer" {% if form and form.payment_type=='transfer' %}selected{% endif %}>Transfer</option>
           <option value="cash" {% if form and form.payment_type=='cash' %}selected{% endif %}>Cash</option>
         </select>
@@ -70,92 +114,335 @@
 
       <div>
         <label>Tempo (hari)</label>
-        <input name="tempo_hari" type="number" min="0" value="{{ form.tempo_hari if form else 0 }}">
+        <input name="tempo_hari" id="tempoHari" type="number" min="0" step="1"
+               value="{{ form.tempo_hari if form else 0 }}">
         <div class="hint">Dipakai untuk Transfer (jatuh tempo = tanggal + tempo).</div>
       </div>
 
       <div>
+        <label>Jatuh Tempo (tanggal)</label>
+        <input type="text" id="jatuhTempo" readonly placeholder="auto">
+        <div class="hint">Otomatis berubah jika tempo diubah.</div>
+      </div>
+
+      <div>
         <label>Potongan Cash / kg (Rp)</label>
-        <select name="cash_deduct_per_kg_rp">
+        <select name="cash_deduct_per_kg_rp" id="cashDeduct">
           <option value="0" {% if not form or form.cash_deduct_per_kg_rp=='0' %}selected{% endif %}>0</option>
           <option value="1000" {% if form and form.cash_deduct_per_kg_rp=='1000' %}selected{% endif %}>1.000</option>
           <option value="2000" {% if form and form.cash_deduct_per_kg_rp=='2000' %}selected{% endif %}>2.000</option>
         </select>
-        <div class="hint">Hanya dipakai jika payment = Cash. (Potongan = Rp/kg × total kg dibayar)</div>
+        <div class="hint">Hanya dipakai jika payment = Cash.</div>
       </div>
     </div>
 
     <hr>
 
-    <!-- PRICE POINTS (AUTO) -->
+    <!-- PRICE POINTS -->
     <h3 style="margin:0 0 8px 0;">Harga Patokan (Rp/kg)</h3>
     <div class="muted" style="margin-bottom:10px;">
-      Sistem otomatis meminta titik harga yang dibutuhkan dari round size partai
-      (contoh: 65 → butuh 60 & 70, 93 → butuh 90 & 100).
+      Sistem akan menghitung harga/kg partai dari round size (pakai titik harga terdekat / interpolasi sederhana).
     </div>
 
-    <div class="row">
-      {% for k in price_keys %}
-        <div>
-          <label>Size {{ k }}</label>
-          <input name="p{{ k }}" type="number" min="0" placeholder="contoh: 55000"
-                 value="{{ form['p' ~ k] if form and ('p' ~ k) in form else '' }}">
-        </div>
-      {% endfor %}
-    </div>
+    {# Deteksi kebutuhan input kupasan (WAJIB namespace agar set di loop kebaca) #}
+    {% set ns = namespace(needs_kecil=false, needs_besar=false) %}
+    {% for p in partai %}
+      {% set g_row = (p.get('kategori_kupasan') or p.get('grade') or '')|trim|lower %}
+      {% if g_row == 'kecil' %}{% set ns.needs_kecil = true %}{% endif %}
+      {% if g_row == 'besar' %}{% set ns.needs_besar = true %}{% endif %}
+    {% endfor %}
+
+    {% if header["jenis"] == "kupasan" %}
+
+      <div class="row" style="display:flex;gap:12px;flex-wrap:wrap">
+
+        {% if ns.needs_kecil %}
+          <div style="flex:1 1 240px">
+            <label>Harga Kupasan Kecil (Rp/kg)</label>
+            <input class="priceInput" data-grade="kecil" name="kupasan_kecil_rp"
+                   type="number" min="0" placeholder="contoh: 52000"
+                   value="{{ form.kupasan_kecil_rp if form and form.kupasan_kecil_rp is not none else '' }}">
+          </div>
+        {% endif %}
+
+        {% if ns.needs_besar %}
+          <div style="flex:1 1 240px">
+            <label>Harga Kupasan Besar (Rp/kg)</label>
+            <input class="priceInput" data-grade="besar" name="kupasan_besar_rp"
+                   type="number" min="0" placeholder="contoh: 54000"
+                   value="{{ form.kupasan_besar_rp if form and form.kupasan_besar_rp is not none else '' }}">
+          </div>
+        {% endif %}
+
+        {% if not ns.needs_kecil and not ns.needs_besar %}
+          <div class="muted" style="padding:8px 0;">
+            ⚠️ Kategori kupasan tidak ditemukan di data partai. Pastikan field <b>kategori_kupasan</b> tersimpan di receiving_item.
+          </div>
+        {% endif %}
+
+      </div>
+
+    {% else %}
+
+      <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
+        {% for k in price_keys %}
+          <div style="flex:1 1 180px">
+            <label>Size {{ k }}</label>
+            <input class="priceInput" data-grade="default" data-size="{{ k }}"
+                   name="p{{ k }}" type="number" min="0" placeholder="contoh: 55000"
+                   value="{{ form['p' ~ k] if form and ('p' ~ k) in form else '' }}">
+          </div>
+        {% endfor %}
+      </div>
+
+    {% endif %}
 
     <hr>
 
-    <!-- PARTAI TABLE -->
+    <!-- PARTAI TABLE + PREVIEW -->
     <div class="actions">
       <div>
         <h3 style="margin:0 0 6px 0;">Partai dari Receiving</h3>
         <div class="muted">
-          Jika dibayar tidak full, isi <b>Paid kg</b>. Kalau kosong = pakai full netto.
-          <br>
-          Format boleh pakai koma: <b>12,345</b>
+          Setelah harga patokan diisi, sistem akan menampilkan <b>harga/kg</b> dan <b>total</b> per partai.
         </div>
       </div>
-      <button class="btn btn-primary" type="submit">Generate Invoice</button>
-    </div>
+          {% if mode == "edit" %}
+          <button class="btn btn-primary" type="submit">
+            💾 Simpan Perubahan
+          </button>
+           {% else %}
+          <button class="btn btn-primary" type="submit">
+            Generate Invoice
+           </button>
+           {% endif %}
+     </div>
 
     <div class="scroll mt-10">
-      <table>
+      <table id="partaiTable">
         <thead>
           <tr>
             <th>Partai</th>
-            <th>Round Size</th>
-            <th class="right">Netto (kg)</th>
-            <th class="w-200">Paid kg (opsional)</th>
-            <th class="w-160">Catatan</th>
+
+            {% if header["jenis"] == "kupasan" %}
+              <th class="w-120">Kategori</th>
+            {% else %}
+              <th class="w-120">Round Size</th>
+            {% endif %}
+
+            <th class="right w-140">Netto (kg)</th>
+            <th class="right w-140">Harga / kg</th>
+            <th class="right w-160">Total (Rp)</th>
           </tr>
         </thead>
         <tbody>
           {% for p in partai %}
-            <tr>
+            {% set g = (p.get('kategori_kupasan') or p.get('grade') or '')|trim %}
+            <tr class="partaiRow"
+                data-round-size="{{ p['round_size'] if p['round_size'] is not none else '' }}"
+                data-netto="{{ '%.3f'|format(p['netto'] or 0) }}"
+                data-grade="{{ (g or '')|lower }}">
               <td><b>{{ p["partai_no"] }}</b></td>
-              <td>{{ p["round_size"] if p["round_size"] is not none else "-" }}</td>
+
+              {% if header["jenis"] == "kupasan" %}
+                <td>{{ g if g else "-" }}</td>
+              {% else %}
+                <td>{{ p["round_size"] if p["round_size"] is not none else "-" }}</td>
+              {% endif %}
+
               <td class="right">{{ "%.3f"|format(p["netto"] or 0) }}</td>
-
-              <td>
-                <input name="paid_kg_{{ p['partai_no'] }}"
-                       type="text" inputmode="decimal"
-                       placeholder="kosong = full"
-                       value="{{ form['paid_kg_' ~ p['partai_no']] if form and ('paid_kg_' ~ p['partai_no']) in form else '' }}">
-                <div class="hint">Isi kalau dibayar sebagian (kg).</div>
-              </td>
-
-              <td>
-                <input name="note_{{ p['partai_no'] }}" type="text" placeholder="opsional"
-                       value="{{ form['note_' ~ p['partai_no']] if form and ('note_' ~ p['partai_no']) in form else (p.get('note') or '') }}">
-              </td>
+              <td class="right pricePerKg">-</td>
+              <td class="right lineTotal">-</td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
 
+    <!-- TOTALS -->
+    <div class="totals">
+      <div class="kpi">
+        <div class="t">Total Berat (kg)</div>
+        <div class="v" id="totalKg">0.000</div>
+      </div>
+      <div class="kpi">
+        <div class="t">Total Bruto (Rp)</div>
+        <div class="v" id="totalRp">0</div>
+      </div>
+      <div class="kpi">
+        <div class="t">Total Setelah Potongan Cash (Rp)</div>
+        <div class="v" id="totalAfterCash">0</div>
+      </div>
+    </div>
+
+    <hr>
+
+    <!-- NOTE 1 BIJI UNTUK INVOICE -->
+    <div>
+      <label>Catatan Invoice (opsional)</label>
+      <input name="invoice_note" type="text" placeholder="1 catatan untuk invoice"
+             value="{{ form.invoice_note if form and form.invoice_note is not none else '' }}">
+      <div class="hint">Catatan ini berlaku untuk seluruh invoice.</div>
+    </div>
+
   </form>
 </div>
+
+<script>
+(function(){
+  const jenis = {{ header["jenis"]|tojson }};
+  const baseDateStr = {{ header["tanggal"]|tojson }};
+
+  const tempoEl = document.getElementById('tempoHari');
+  const jatuhTempoEl = document.getElementById('jatuhTempo');
+  const paymentTypeEl = document.getElementById('paymentType');
+  const cashDeductEl = document.getElementById('cashDeduct');
+
+  const totalKgEl = document.getElementById('totalKg');
+  const totalRpEl = document.getElementById('totalRp');
+  const totalAfterCashEl = document.getElementById('totalAfterCash');
+
+  function parseYMD(s){
+    if(!s) return null;
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s).trim());
+    if(!m) return null;
+    return new Date(Number(m[1]), Number(m[2])-1, Number(m[3]));
+  }
+  function fmtYMD(dt){
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth()+1).padStart(2,'0');
+    const d = String(dt.getDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+  function fmtRp(n){
+    if(!isFinite(n)) return '-';
+    const s = Math.round(n).toString();
+    return s.replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+  }
+  function fmtKg(n){
+    if(!isFinite(n)) return '0.000';
+    return Number(n).toFixed(3);
+  }
+
+  function updateJatuhTempo(){
+    const base = parseYMD(baseDateStr);
+    const tempo = Number(tempoEl?.value || 0);
+    if(!base){ jatuhTempoEl.value = '-'; return; }
+    const dt = new Date(base.getTime());
+    dt.setDate(dt.getDate() + (isFinite(tempo) ? tempo : 0));
+    jatuhTempoEl.value = fmtYMD(dt);
+  }
+
+  function readKupasanPrices(){
+    const kecilEl = document.querySelector('.priceInput[data-grade="kecil"]');
+    const besarEl = document.querySelector('.priceInput[data-grade="besar"]');
+
+    const kecil = Number((kecilEl?.value || '').toString().replaceAll('.','').replaceAll(',','.'));
+    const besar = Number((besarEl?.value || '').toString().replaceAll('.','').replaceAll(',','.'));
+
+    return {
+      kecil: (isFinite(kecil) && kecil > 0) ? kecil : null,
+      besar: (isFinite(besar) && besar > 0) ? besar : null,
+    };
+  }
+
+  function readSamplingPoints(){
+    const map = {};
+    document.querySelectorAll('.priceInput[data-size]').forEach(inp => {
+      const size = Number(inp.dataset.size);
+      const price = Number((inp.value || '').toString().replaceAll('.','').replaceAll(',','.'));
+      if(isFinite(size) && isFinite(price) && price > 0) map[size] = price;
+    });
+    return map;
+  }
+
+  function interpPrice(size, points){
+    const keys = Object.keys(points).map(Number).filter(Number.isFinite).sort((a,b)=>a-b);
+    if(!keys.length || !isFinite(size)) return null;
+    if(points[size] != null) return points[size];
+
+    let lo = null, hi = null;
+    for(const k of keys){
+      if(k < size) lo = k;
+      if(k > size){ hi = k; break; }
+    }
+    if(lo == null && hi == null) return null;
+    if(lo == null) return points[hi];
+    if(hi == null) return points[lo];
+
+    const pLo = points[lo], pHi = points[hi];
+    const t = (size - lo) / (hi - lo);
+    return pLo + (pHi - pLo) * t;
+  }
+
+  function recalc(){
+    updateJatuhTempo();
+
+    let totalKg = 0;
+    let totalRp = 0;
+
+    const isKupasan = (String(jenis).toLowerCase() === 'kupasan');
+    const kupasanPrices = isKupasan ? readKupasanPrices() : null;
+    const samplingPoints = !isKupasan ? readSamplingPoints() : null;
+
+    document.querySelectorAll('.partaiRow').forEach(tr => {
+      const netto = Number(tr.dataset.netto || 0);
+      const grade = String(tr.dataset.grade || '').toLowerCase();
+      const size = Number(tr.dataset.roundSize);
+
+      totalKg += (isFinite(netto) ? netto : 0);
+
+      let priceKg = null;
+      if(isKupasan){
+        if(grade === 'kecil') priceKg = kupasanPrices?.kecil ?? null;
+        else if(grade === 'besar') priceKg = kupasanPrices?.besar ?? null;
+        else priceKg = null;
+      }else{
+        priceKg = interpPrice(size, samplingPoints);
+      }
+
+      const priceCell = tr.querySelector('.pricePerKg');
+      const totalCell = tr.querySelector('.lineTotal');
+
+      if(priceKg == null || !isFinite(netto) || netto <= 0){
+        priceCell.textContent = '-';
+        totalCell.textContent = '-';
+        return;
+      }
+
+      const lineTotal = netto * priceKg;
+      totalRp += lineTotal;
+
+      priceCell.textContent = fmtRp(priceKg);
+      totalCell.textContent = fmtRp(lineTotal);
+    });
+
+    const paymentType = String(paymentTypeEl?.value || 'transfer').toLowerCase();
+    const deductPerKg = Number(cashDeductEl?.value || 0);
+
+    let afterCash = totalRp;
+    if(paymentType === 'cash' && isFinite(deductPerKg) && deductPerKg > 0 && totalRp > 0){
+      afterCash = totalRp - (totalKg * deductPerKg);
+    }
+
+    totalKgEl.textContent = fmtKg(totalKg);
+    totalRpEl.textContent = fmtRp(totalRp);
+    totalAfterCashEl.textContent = fmtRp(afterCash);
+  }
+
+  function bind(){
+    tempoEl?.addEventListener('input', recalc);
+    paymentTypeEl?.addEventListener('change', recalc);
+    cashDeductEl?.addEventListener('change', recalc);
+    document.querySelectorAll('.priceInput').forEach(inp => inp.addEventListener('input', recalc));
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    bind();
+    recalc();
+  });
+})();
+</script>
+
 </body>
 </html>

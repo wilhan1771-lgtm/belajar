@@ -169,7 +169,7 @@ tbody tr:hover{background:#f9fafb}
   <td>
     <div class="aksi">
       <a href="/invoice/view/{{ r.id }}">Detail</a>
-      <a href="/invoice/edit/{{ r.id }}">Edit</a>
+     <a href="{{ url_for('invoice.invoice_edit', invoice_id=r.id) }}">Edit</a>
     </div>
   </td>
 </tr>

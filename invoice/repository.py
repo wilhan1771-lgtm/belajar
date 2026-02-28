@@ -322,3 +322,33 @@ def update_invoice_totals(
         conn.commit()
     finally:
         conn.close()
+
+def get_kupasan_prices_from_invoice(invoice_id: int):
+    conn = get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT
+                il.price_per_kg_rp AS price,
+                COALESCE(ri.kategori_kupasan, '') AS kategori
+            FROM invoice_line il
+            JOIN receiving_item ri
+              ON ri.id = il.receiving_item_id
+            WHERE il.invoice_id = ?
+        """, (invoice_id,)).fetchall()
+
+        hk = None
+        hb = None
+        for r in rows:
+            kategori = (r["kategori"] or "").strip().lower()
+            price = int(r["price"] or 0)
+            if price <= 0:
+                continue
+
+            if kategori == "kecil" and hk is None:
+                hk = price
+            elif kategori == "besar" and hb is None:
+                hb = price
+
+        return {"kecil": hk, "besar": hb}
+    finally:
+        conn.close()
