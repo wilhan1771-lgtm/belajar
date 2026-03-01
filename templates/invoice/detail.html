@@ -49,6 +49,30 @@
   font-weight: 800;
   font-size: 15px;
 }
+    .inv-grid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.inv-col{
+  display: grid;
+  gap: 6px;
+}
+
+.inv-row{
+  display: grid;
+  grid-template-columns: 120px 1fr; /* lebar label konsisten */
+  align-items: baseline;
+}
+
+.inv-label{
+  font-weight: 700;
+}
+
+.inv-val{
+  font-variant-numeric: tabular-nums;
+}
   </style>
 </head>
 <body>
@@ -60,38 +84,68 @@
       <div class="muted">Invoice #{{ header.id }} · Receiving #{{ header.receiving_id }}</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;">
-    <a class="btn" href="{{ url_for('invoice.invoice_new', receiving_id=header.receiving_id) }}">Edit Input</a>
-      <a class="btn" href="{{ url_for('invoice.invoice_view', invoice_id=header.id) }}">Lihat Invoice</a>
+    <a class="btn btn-secondary" href="{{ url_for('invoice.invoice_list') }}">← Kembali</a>
       <a class="btn btn-primary" href="#" onclick="window.print();return false;">Print</a>
     </div>
   </div>
 
   <div class="card">
-    <div class="grid">
-      <div>
-        <div><b>Tanggal:</b> {{ header.tanggal }}</div>
-        <div><b>Supplier:</b> {{ header.supplier }}</div>
-        <div><b>Payment:</b> {{ header.payment_type }}</div>
-        <div class="muted">Harga points: {{ header.price_points_json }}</div>
+  <div class="inv-grid">
+
+    <div class="inv-col">
+      <div class="inv-row">
+        <div class="inv-label">Tanggal     </div>
+        <div class="inv-val">: {{ header.tanggal }}</div>
       </div>
-      <div>
-        {% set val = (header.total_paid_g or 0)/1000 %}
-        {% set s = "{:,.1f}".format(val)
-           .replace(",", "X")
-           .replace(".", ",")
-           .replace("X", ".") %}
-        <div>
-          <b>Total Paid (kg):</b>
-           {{ s.rstrip("0").rstrip(",") }} kg
-        </div>
-        <div><b>Status:</b> {{ header.status }}</div>
-        {% if header.due_date %}
-          <div><b>Due date:</b> {{ header.due_date }}</div>
-        {% endif %}
+
+      <div class="inv-row">
+        <div class="inv-label">Due date</div>
+        <div class="inv-val">: {{ header.due_date or "-" }}</div>
+      </div>
+
+      <div class="inv-row">
+        <div class="inv-label">Tempo</div>
+        <div class="inv-val">: {{ header.tempo_hari or 0 }} hari</div>
+      </div>
+
+      <div class="inv-row">
+        <div class="inv-label">Supplier</div>
+        <div class="inv-val">: <b> {{ header.supplier }}</b></div>
+      </div>
+
+      <div class="inv-row">
+        <div class="inv-label">Harga points</div>
+        <div class="inv-val muted">: {{ header.price_points_json or "{}" }}</div>
       </div>
     </div>
-  </div>
 
+    <div class="inv-col">
+      {% set val = (header.total_paid_g or 0)/1000 %}
+      {% set s = "{:,.1f}".format(val).replace(",", "X").replace(".", ",").replace("X", ".") %}
+
+      <div class="inv-row">
+        <div class="inv-label">Bahan Baku</div>
+        <div class="inv-val">: {{ s.rstrip("0").rstrip(",") }} kg</div>
+      </div>
+
+      <div class="inv-row">
+        <div class="inv-label">Status</div>
+        <div class="inv-val">: {{ header.status }}</div>
+      </div>
+
+      <div class="inv-row">
+        <div class="inv-label">Payment</div>
+        <div class="inv-val">: {{ header.payment_type }}</div>
+      </div>
+
+      <div class="inv-row">
+        <div class="inv-label">Jenis</div>
+        <div class="inv-val">: {{ jenis|capitalize }}</div>
+      </div>
+    </div>
+
+  </div>
+</div>
   <div class="card" style="margin-top:12px; overflow:auto;">
     <table>
       <thead>
@@ -136,6 +190,14 @@
     </table>
   </div>
 
+{% if header.note %}
+<div class="card" style="margin-top:12px;">
+  <div style="font-weight:600; margin-bottom:6px;">Catatan Invoice</div>
+  <div style="white-space:pre-line;">
+    {{ header.note }}
+  </div>
+</div>
+{% endif %}
   <div class="card summary-box" style="margin-top:12px;">
   <div class="sum-row">
     <div class="sum-label">Subtotal</div>
@@ -166,9 +228,7 @@
   </div>
 
   <div class="sum-row" style="margin-top:6px;">
-    <div class="sum-label">Komisi (terpisah)</div>
-    <div class="sum-value">
-      {{ "{:,}".format(header.komisi_total_rp or 0).replace(",", ".") }}
+
     </div>
   </div>
 </div>
