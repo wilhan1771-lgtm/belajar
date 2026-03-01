@@ -53,14 +53,19 @@ def create_invoice_from_receiving(
     tempo_hari = int(tempo_hari or 0)
     cash_deduct_per_kg_rp = int(cash_deduct_per_kg_rp or 0)
 
-    # due_date (transfer)
+    # due_date (cash & transfer)
     due_date = None
-    if payment_type == "transfer" and tempo_hari >= 0:
-        try:
-            d = datetime.strptime(rh["tanggal"], "%Y-%m-%d").date()
-            due_date = (d + timedelta(days=tempo_hari)).isoformat()
-        except Exception:
-            due_date = None
+    try:
+        d = datetime.strptime(rh["tanggal"], "%Y-%m-%d").date()
+
+        if payment_type == "cash":
+            tempo_hari = 0  # biar konsisten: cash selalu 0 hari
+            due_date = d.isoformat()  # cash jatuh tempo hari itu
+        else:
+            # transfer
+            due_date = (d + timedelta(days=max(0, tempo_hari))).isoformat()
+    except Exception:
+        due_date = None
 
     if payment_type != "cash":
         cash_deduct_per_kg_rp = 0

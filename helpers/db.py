@@ -24,7 +24,7 @@ def init_db():
     conn = get_conn()
     try:
         conn.executescript("""
-        ALTER TABLE invoice_header ADD COLUMN note TEXT;
+        
         -- ================= RECEIVING =================
         CREATE TABLE IF NOT EXISTS receiving_header (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

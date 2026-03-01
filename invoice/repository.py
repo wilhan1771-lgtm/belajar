@@ -130,17 +130,23 @@ def get_invoice_by_receiving(receiving_id):
     finally:
         conn.close()
 
-
 def fetch_invoice_lines(invoice_id):
     conn = get_conn()
     try:
-        rows = conn.execute(
-            "SELECT * FROM invoice_line WHERE invoice_id=? ORDER BY partai_no ASC, id ASC",
-            (invoice_id,),
-        ).fetchall()
+        rows = conn.execute("""
+            SELECT il.*,
+                   ri.kategori_kupasan AS kategori_kupasan
+            FROM invoice_line il
+            LEFT JOIN receiving_item ri
+                   ON ri.id = il.receiving_item_id
+            WHERE il.invoice_id = ?
+            ORDER BY il.partai_no ASC, il.id ASC
+        """, (invoice_id,)).fetchall()
+
         return [dict(r) for r in rows]
     finally:
         conn.close()
+
 def get_invoice_by_receiving_conn(conn, receiving_id):
     row = conn.execute(
         "SELECT * FROM invoice_header WHERE receiving_id=?",

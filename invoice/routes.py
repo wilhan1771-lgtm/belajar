@@ -295,9 +295,12 @@ def invoice_view(invoice_id):
     h = repo.get_invoice_header(invoice_id)
     if not h:
         return "Invoice tidak ditemukan", 404
-    lines = repo.fetch_invoice_lines(invoice_id)
-    return render_template("invoice/detail.html", header=h, lines=lines)
 
+    rh = repo.fetch_receiving_header(h["receiving_id"])
+    jenis = (rh.get("jenis") or "").strip().lower() if rh else ""
+
+    lines = repo.fetch_invoice_lines(invoice_id)
+    return render_template("invoice/detail.html", header=h, lines=lines, jenis=jenis)
 
 @invoice_bp.route("/api/<int:invoice_id>", methods=["GET"])
 def invoice_api(invoice_id):
@@ -524,12 +527,11 @@ def invoice_edit(invoice_id):
 
     # hitung due_date
     due_date = None
-    if payment_type == "transfer":
-        try:
-            d = datetime.strptime(header["tanggal"], "%Y-%m-%d").date()
-            due_date = (d + timedelta(days=int(tempo_hari or 0))).isoformat()
-        except Exception:
-            due_date = None
+    try:
+        d = datetime.strptime(header["tanggal"], "%Y-%m-%d").date()
+        due_date = (d + timedelta(days=int(tempo_hari or 0))).isoformat()
+    except Exception:
+        due_date = None
 
     # simpan header invoice + rebuild lines + totals
     price_points_json = json.dumps({str(k): v for k, v in (new_price_points or {}).items()})

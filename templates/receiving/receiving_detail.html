@@ -394,6 +394,11 @@ document.querySelectorAll("[name='fiber'], [name='tara_per_keranjang'], [data-ti
 // =====================
 // SIZE / ROUND SIZE
 // =====================
+function getKgSample(card){
+  const raw = card.querySelector("[name='kg_sample']")?.value ?? "";
+  // kalau user pakai koma, amankan:
+  return parseFloat(String(raw).replace(",", ".")) || 0;
+}
 function updateSizeRound(card){
   const pcs = parseFloat(card.querySelector("[name='pcs']")?.value) || 0;
   const kg_sample = parseFloat(card.querySelector("[name='kg_sample']")?.value) || 0;
@@ -545,11 +550,14 @@ async function saveReceivingInline(){
       if(Number.isNaN(partai_no)) throw `Partai ID ${pid} partai_no harus angka`;
 
       const pcs = numOrNull(card.querySelector("[name='pcs']")?.value);
+      const kg_sample = numOrNull(card.querySelector("[name='kg_sample']")?.value);
+      const tara_per_keranjang = numOrNull(card.querySelector("[name='tara_per_keranjang']")?.value);
+
       const size = numOrNull(card.querySelector("[name='size']")?.value);
       const round_size = numOrNull(card.querySelector("[name='round_size']")?.value);
       const fiber = numOrNull(card.querySelector("[name='fiber']")?.value);
       const note = (card.querySelector("[name='note']")?.value || "").trim();
-      const kategoriKupasan = card.querySelector("[name='kategori_kupasan']")?.value || null;
+      const kategori_kupasan = card.querySelector("[name='kategori_kupasan']")?.value || null;
 
       const timbangan = [];
       card.querySelectorAll("[data-timbangan]").forEach(inp=>{
