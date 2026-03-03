@@ -21,6 +21,7 @@ def receiving():
     today = date.today().strftime("%Y-%m-%d")
     return render_template("receiving/receiving.html", today=today)
 print("DB Path aktif:", DB_PATH)
+
 @receiving_bp.post("/save")
 def receiving_save():
     print("MASUK ROUTE RECEIVING_SAVE")
@@ -94,8 +95,9 @@ def receiving_save():
                     note,
                     timbangan_json,
                     kategori_kupasan,
+                    grade_manual,
                     fiber
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 header_id,
                 p.get("partai_no"),
@@ -111,6 +113,7 @@ def receiving_save():
                 p.get("note"),
                 json.dumps(timbangan),
                 p.get("kategori_kupasan"),
+                (p.get("grade_manual") or None),
                 p.get("fiber")
             ))
 

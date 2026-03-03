@@ -24,6 +24,7 @@ def kg_to_g(kg):
 def mul_div_round(a, b, d):
     # pembulatan sesuai div_round kamu
     return div_round(a * b, d)
+
 def create_invoice_from_receiving(
     receiving_id,
     price_points,
@@ -32,17 +33,48 @@ def create_invoice_from_receiving(
     tempo_hari=0,
     partai_overrides=None,
     kupasan_prices=None,
+    grade_prices=None,
 ):
     existing = repo.invoice_exists_for_receiving(receiving_id)
     if existing:
         raise ValueError(f"Invoice sudah ada untuk receiving ini. (invoice_id={existing['id']})")
+    row = repo.get_conn().execute(
+        "SELECT COALESCE(mode,'udang_size') AS mode FROM master_jenis WHERE LOWER(nama)=LOWER(?)",
+        (jenis,)
+    ).fetchone()
+
+    mode = (row["mode"] if row else "udang_size").lower()
 
     rh = repo.fetch_receiving_header(receiving_id)
     if not rh:
         raise ValueError("Receiving header tidak ditemukan.")
 
     jenis = (rh.get("jenis") or "").strip().lower()
-    is_kupasan = (jenis == "kupasan")
+
+    mode = repo.get_jenis_mode(jenis)  # buat helper ini
+    is_kupasan = (mode == "kupasan")
+    is_manual = (mode == "manual_grade")
+    required_manual_grades = set()
+
+    if is_manual:
+        if not isinstance(grade_prices, dict):
+            raise ValueError("Manual grade butuh grade_prices (dict).")
+
+        for it in items:
+            g = (it.get("grade_manual") or "").strip()
+            if g:
+                required_manual_grades.add(g)
+
+        if not required_manual_grades:
+            raise ValueError("Tidak ada grade_manual pada receiving.")
+
+        missing = []
+        for g in required_manual_grades:
+            if int(grade_prices.get(g) or 0) <= 0:
+                missing.append(g)
+
+        if missing:
+            raise ValueError(f"Harga untuk grade {', '.join(missing)} wajib diisi dan > 0.")
 
     supplier = rh["supplier"]
 

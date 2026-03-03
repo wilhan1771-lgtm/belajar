@@ -60,6 +60,37 @@ th{background:#f9fafb}
 const $ = id => document.getElementById(id);
 let partaiKe = 0;
 
+function getJenisMode(){
+  const sel = $("jenis");
+  const opt = sel?.selectedOptions?.[0];
+  return (opt?.dataset?.mode || "udang_size").toLowerCase();
+}
+
+function applyJenisToPartai(div){
+  const mode = getJenisMode();
+
+  const sampling = div.querySelector(".section.sampling");
+  const kupasan  = div.querySelector(".section.kupasan");
+  const manual   = div.querySelector(".section.manual");
+
+  if (sampling) sampling.style.display = "none";
+  if (kupasan)  kupasan.style.display  = "none";
+  if (manual)   manual.style.display   = "none";
+
+  if (mode === "kupasan") {
+    if (kupasan) kupasan.style.display = "block";
+  } else if (mode === "manual_grade") {
+    if (manual) manual.style.display = "block";
+  } else {
+    if (sampling) sampling.style.display = "block";
+  }
+}
+
+function applyJenisAll(){
+  document.querySelectorAll(".partai").forEach(p => applyJenisToPartai(p));
+}
+
+/* ================= SUPPLIER ================= */
 async function loadSuppliers() {
   const sel = $("supplier");
   sel.innerHTML = `<option value="">-- Pilih Supplier --</option>`;
@@ -73,103 +104,147 @@ async function loadSuppliers() {
       return;
     }
 
-    const suppliers = json.data;
-
+    const suppliers = json.data || [];
     for (const s of suppliers) {
       const opt = document.createElement("option");
-      opt.value = s.nama;     // simpan nama
+      opt.value = s.nama;
       opt.textContent = s.nama;
       sel.appendChild(opt);
     }
-
   } catch (err) {
     console.error("Supplier load error:", err);
     alert("Error koneksi supplier");
   }
 }
 
-document.getElementById("jenis").addEventListener("change", e => {
-  const jenis = e.target.value;
+/* ================= JENIS (MASTER) ================= */
+async function loadJenis() {
+  const sel = $("jenis");
+  sel.innerHTML = `<option value="">-- Pilih --</option>`;
 
-  document.querySelectorAll(".partai").forEach(p => {
-    const sampling = p.querySelector(".section.sampling");
-    const kupasan  = p.querySelector(".section.kupasan");
-
-    if (jenis === "kupasan") {
-      if (sampling) sampling.style.display = "none";
-      if (kupasan)  kupasan.style.display  = "block";
-    } else {
-      if (sampling) sampling.style.display = "block";
-      if (kupasan)  kupasan.style.display  = "none";
+  try{
+    const res = await fetch("/master/jenis");
+    const json = await res.json();
+    if(!res.ok || !json.ok){
+      console.warn("master jenis gagal:", json);
+      // fallback minimal supaya tetap jalan
+      sel.innerHTML = `
+        <option value="">-- Pilih --</option>
+        <option value="vannamei" data-mode="udang_size">Vannamei</option>
+        <option value="dogol" data-mode="udang_size">Dogol</option>
+        <option value="kupasan" data-mode="kupasan">Kupasan</option>
+      `;
+      applyJenisAll();
+      return;
     }
-  });
-});
 
-function loadJenis() {
-  $("jenis").innerHTML = `
-    <option value="">-- Pilih --</option>
-    <option value="vannamei">Vannamei</option>
-    <option value="dogol">Dogol</option>
-    <option value="kupasan">Kupasan</option>
-  `;
+    // dukung format: {rows:[...]} atau {data:[...]}
+    const rows = json.rows || json.data || [];
+
+    // pastikan ada mode (default udang_size)
+    const opts = [`<option value="">-- Pilih --</option>`].concat(
+      rows
+        .filter(r => (r.is_active ?? 1) == 1)
+        .sort((a,b)=> (a.sort_order||0) - (b.sort_order||0))
+        .map(r=>{
+          const nama = (r.nama || "").trim();
+          const mode = (r.mode || "udang_size").trim();
+          return `<option value="${nama}" data-mode="${mode}">${nama}</option>`;
+        })
+    );
+
+    sel.innerHTML = opts.join("");
+    applyJenisAll();
+
+  }catch(e){
+    console.error("loadJenis error:", e);
+    // fallback
+    sel.innerHTML = `
+      <option value="">-- Pilih --</option>
+      <option value="vannamei" data-mode="udang_size">Vannamei</option>
+      <option value="dogol" data-mode="udang_size">Dogol</option>
+      <option value="kupasan" data-mode="kupasan">Kupasan</option>
+    `;
+    applyJenisAll();
+  }
 }
 
+$("jenis")?.addEventListener("change", () => {
+  applyJenisAll();
+
+  // kalau mode bukan udang_size, kosongkan size/round agar tidak misleading
+  const mode = getJenisMode();
+  if(mode !== "udang_size"){
+    document.querySelectorAll(".partai").forEach(div=>{
+      const p = div.dataset.no;
+      const size = $(`size-${p}`);
+      const round = $(`round-${p}`);
+      if(size) size.value = "";
+      if(round) round.value = "";
+    });
+  }
+});
+
+/* ================= SAVE RECEIVING ================= */
 async function saveReceiving() {
-  if (!$("tanggal").value) {
-    alert("Tanggal wajib diisi");
-    return;
-  }
+  if (!$("tanggal").value) { alert("Tanggal wajib diisi"); return; }
+  if (!$("supplier").value) { alert("Supplier wajib dipilih"); return; }
+  if (!$("jenis").value) { alert("Jenis wajib dipilih"); return; }
 
-  if (!$("supplier").value) {
-    alert("Supplier wajib dipilih");
-    return;
-  }
-
-  if (!$("jenis").value) {
-    alert("Jenis udang wajib dipilih");
-    return;
-  }
+  const mode = getJenisMode();
 
   const payload = {
     tanggal: $("tanggal").value,
     supplier: $("supplier").value,
     jenis: $("jenis").value,
-
+    partai: []
   };
-payload.partai = [];
 
-try {
-  document.querySelectorAll(".partai").forEach(div => {
-    const p = div.dataset.no;
+  try {
+    document.querySelectorAll(".partai").forEach(div => {
+      const p = div.dataset.no;
 
-    const tara = Number($(`tara-${p}`)?.value || 0);
-    if (tara <= 0) {
-      throw `Tara keranjang wajib diisi di Partai #${p}`;
-    }
+      const tara = Number($(`tara-${p}`)?.value || 0);
+      if (tara <= 0) throw `Tara keranjang wajib diisi di Partai #${p}`;
 
-    const timbangan = [];
-    div.querySelectorAll(".inp-berat").forEach(inp => {
-      const v = Number(inp.value);
-      if (v > 0) timbangan.push(v);
+      const timbangan = [];
+      div.querySelectorAll(".inp-berat").forEach(inp => {
+        const v = Number(inp.value);
+        if (v > 0) timbangan.push(v);
+      });
+
+      // ambil fields sesuai mode
+      const pcs = Number($(`pcs-${p}`)?.value || 0);
+      const kg_sample = Number($(`kg-${p}`)?.value || 0);
+      const kategori_kupasan = $(`kupasan-${p}`)?.value || null;
+      const grade_manual = ($(`grade-${p}`)?.value || "").trim() || null;
+
+      // optional validasi:
+      if(mode === "kupasan" && !kategori_kupasan){
+        throw `Kategori kupasan wajib dipilih di Partai #${p}`;
+      }
+      if(mode === "manual_grade" && !grade_manual){
+        throw `Grade wajib diisi di Partai #${p}`;
+      }
+
+      payload.partai.push({
+        partai_no: Number(p),
+        pcs: mode === "udang_size" ? pcs : 0,
+        kg_sample: mode === "udang_size" ? kg_sample : 0,
+        tara_per_keranjang: tara,
+        kategori_kupasan: mode === "kupasan" ? kategori_kupasan : null,
+        grade_manual: mode === "manual_grade" ? grade_manual : null,
+        fiber: Number($(`fiber-${p}`)?.value) || 0,
+        note: $(`note-${p}`)?.value || "",
+        timbangan: timbangan
+      });
     });
+  } catch (msg) {
+    alert(msg);
+    return;
+  }
 
-    payload.partai.push({
-      partai_no: Number(p),
-      pcs: Number($(`pcs-${p}`)?.value || 0),
-      kg_sample: Number($(`kg-${p}`)?.value || 0),
-      tara_per_keranjang: tara,
-      kategori_kupasan: $(`kupasan-${p}`)?.value || null,
-      fiber: Number($(`fiber-${p}`)?.value) || 0,
-      note: $(`note-${p}`)?.value || "",
-      timbangan: timbangan
-    });
-  });
-} catch (msg) {
-  alert(msg);
-  return;
-}
-
-  console.log("PAYLOAD:", payload); // 🔥 WAJIB ADA
+  console.log("PAYLOAD:", payload);
 
   const res = await fetch("/receiving/save", {
     method: "POST",
@@ -193,7 +268,6 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ================= PARTAI ================= */
-
 function buatPartai(){
   partaiKe++;
 
@@ -203,7 +277,13 @@ function buatPartai(){
 
   d.innerHTML = `
     <h3>Partai #${partaiKe}</h3>
-    <!-- ===== SAMPLING (VANNAMEI / DOGOL) ===== -->
+    <div class="section manual" style="display:none">
+     <div class="field">
+    <label>Grade</label>
+    <input id="grade-${partaiKe}" type="text" placeholder="contoh: A / B / S / L">
+      </div>
+     </div>
+    <!-- ===== SAMPLING (UDANG SIZE) ===== -->
     <div class="section sampling">
       <div class="grid4">
         <div class="field">
@@ -225,7 +305,6 @@ function buatPartai(){
           <label>Round Size</label>
           <input id="round-${partaiKe}" readonly>
         </div>
-
       </div>
     </div>
 
@@ -241,6 +320,14 @@ function buatPartai(){
       </div>
     </div>
 
+    <!-- ===== MANUAL GRADE (CUMI / IKAN / DLL) ===== -->
+    <div class="section manual" style="display:none">
+      <div class="field">
+        <label>Grade</label>
+        <input id="grade-${partaiKe}" type="text" placeholder="contoh: S / M / L">
+      </div>
+    </div>
+
     <!-- ===== TIMBANGAN SUMMARY ===== -->
     <div class="section">
       <div class="grid4">
@@ -250,7 +337,7 @@ function buatPartai(){
         </div>
 
         <div class="field">
-          <label>Tara </label>
+          <label>Tara</label>
           <input id="tara-${partaiKe}" type="number" step="0.01" value="0">
         </div>
 
@@ -267,16 +354,17 @@ function buatPartai(){
         <div class="field">
           <label>Netto</label>
           <input id="netto-${partaiKe}" readonly>
-          </div>
-        <div class="field">
-        <label>jumlah fiber</label>
-        <input class="fiber-partai" id="fiber-${partaiKe}" type="number" step="0.01">
         </div>
+
+        <div class="field">
+          <label>Jumlah Fiber</label>
+          <input class="fiber-partai" id="fiber-${partaiKe}" type="number" step="0.01">
+        </div>
+
         <div class="field">
           <label>Catatan</label>
           <input id="note-${partaiKe}" placeholder="Kondisi udang">
         </div>
-
       </div>
     </div>
 
@@ -288,49 +376,40 @@ function buatPartai(){
       <tbody id="tb-${partaiKe}"></tbody>
     </table>
 
-    <button type="button" class="btn btn-secondary" onclick="tambahBaris(${partaiKe})">
-      + Baris
-    </button>
-
-    <button type="button" class="btn btn-secondary btn-new-partai">
-      + Partai Baru
-    </button>
+    <button type="button" class="btn btn-secondary" onclick="tambahBaris(${partaiKe})">+ Baris</button>
+    <button type="button" class="btn btn-secondary btn-new-partai">+ Partai Baru</button>
   `;
 
-// 🔥 TAMBAHKAN DI SINI
-const jenisAktif = $("jenis")?.value;
-const sampling = d.querySelector(".sampling");
-const kupasan  = d.querySelector(".kupasan");
-
-
-if (jenisAktif === "kupasan") {
-  sampling.style.display = "none";
-  kupasan.style.display  = "block";
-} else {
-  sampling.style.display = "block";
-  kupasan.style.display  = "none";
-}
-
   $("partaiContainer").appendChild(d);
+
+  // apply mode tampilan sesuai jenis yg dipilih
+  applyJenisToPartai(d);
 
   d.querySelector(".btn-new-partai").onclick = buatPartai;
 
   tambahBaris(partaiKe);
 
-  // EVENT
-  $(`pcs-${partaiKe}`).oninput  = () => hitungSize(partaiKe);
-  $(`kg-${partaiKe}`).oninput   = () => hitungSize(partaiKe);
+  // EVENT SIZE hanya meaningful kalau mode udang_size
+  const pcsInp = $(`pcs-${partaiKe}`);
+  const kgInp  = $(`kg-${partaiKe}`);
+  if(pcsInp) pcsInp.oninput = () => { if(getJenisMode()==="udang_size") hitungSize(partaiKe); };
+  if(kgInp)  kgInp.oninput  = () => { if(getJenisMode()==="udang_size") hitungSize(partaiKe); };
+
   $(`tara-${partaiKe}`).oninput = () => hitungBerat(partaiKe);
+
+  // fiber total
+  const fiberInput = d.querySelector(".fiber-partai");
+  if (fiberInput) fiberInput.addEventListener("input", hitungFiberTotal);
 }
+
 function hitungFiberTotal() {
   let total = 0;
-
   document.querySelectorAll(".fiber-partai").forEach(inp => {
     const v = parseFloat(inp.value);
     if (!isNaN(v)) total += v;
   });
-
-  $("fiber-total").value = total > 0 ? total.toFixed(2) : "";
+  const ft = $("fiber-total");
+  if(ft) ft.value = total > 0 ? total.toFixed(2) : "";
 }
 
 function tambahBaris(p){
@@ -341,43 +420,24 @@ function tambahBaris(p){
   tr.innerHTML = `
     <td>${no}</td>
     <td>
-      <input type="number"
-             step="0.01"
-             min="0"
-             max="60"
-             class="inp-berat">
+      <input type="number" step="0.01" min="0" max="60" class="inp-berat">
     </td>
   `;
 
   tb.appendChild(tr);
 
- const inp = tr.querySelector("input");
+  const inp = tr.querySelector("input");
 
-// realtime hanya hitung, tanpa paksa angka
-inp.addEventListener("input", () => {
-    hitungBerat(p);
-});
+  inp.addEventListener("input", () => hitungBerat(p));
 
-// validasi hanya saat keluar dari input
-inp.addEventListener("blur", () => {
+  inp.addEventListener("blur", () => {
     let v = parseFloat(inp.value);
-
-    if (isNaN(v)) {
-        inp.value = "";
-        return;
-    }
-
-    if (v < 5) {
-        alert("Berat minimal 5 kg per timbangan");
-        v = 5;
-    } else if (v > 60) {
-        alert("Berat maksimal 60 kg per timbangan");
-        v = 60;
-    }
-
+    if (isNaN(v)) { inp.value = ""; return; }
+    if (v < 5) { alert("Berat minimal 5 kg per timbangan"); v = 5; }
+    else if (v > 60) { alert("Berat maksimal 60 kg per timbangan"); v = 60; }
     inp.value = v;
     hitungBerat(p);
-});
+  });
 
   inp.onkeydown = (e) => {
     if (e.key === "Enter") {
@@ -409,37 +469,42 @@ function hitungBerat(p){
 
   const totalTara = taraValid ? keranjang * taraPerKeranjang : 0;
   const netto = Number((bruto - totalTara).toFixed(2));
+
   $(`keranjang-${p}`).value = keranjang || "";
   $(`bruto-${p}`).value = bruto > 0 ? bruto.toFixed(2) : "";
   $(`total-tara-${p}`).value = totalTara > 0 ? totalTara.toFixed(2) : "";
   $(`netto-${p}`).value = netto > 0 ? netto.toFixed(2) : "";
 }
+
 function hitungSize(p) {
-  const pcs = parseFloat($(`pcs-${p}`).value.replace(",", "."));
-  const kg  = parseFloat($(`kg-${p}`).value.replace(",", "."));
+  const pcsRaw = ($(`pcs-${p}`).value || "").toString().replace(",", ".");
+  const kgRaw  = ($(`kg-${p}`).value || "").toString().replace(",", ".");
+
+  const pcs = parseFloat(pcsRaw);
+  const kg  = parseFloat(kgRaw);
 
   if (pcs > 0 && kg > 0) {
     const sizeRaw = pcs / kg;
+    const size = Math.round(sizeRaw * 10) / 10;
+    const round = Math.round(sizeRaw);
 
-    // 🔥 pembulatan rapi
-    const size = Math.round(sizeRaw * 10) / 10;   // 1 desimal
-    const round = Math.round(sizeRaw);             // round asli
-
-    $(`size-${p}`).value  = size.toFixed(1);       // contoh: 67.7
-    $(`round-${p}`).value = round;                 // contoh: 68
+    $(`size-${p}`).value  = size.toFixed(1);
+    $(`round-${p}`).value = round;
   } else {
     $(`size-${p}`).value  = "";
     $(`round-${p}`).value = "";
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  loadSuppliers();
-  loadJenis();
+/* ================= INIT ================= */
+document.addEventListener("DOMContentLoaded", async () => {
+  await loadSuppliers();
+  await loadJenis();
   buatPartai();
 });
 
-  function showAddSupplier(){
+/* ================= ADD SUPPLIER MODAL ================= */
+function showAddSupplier(){
   $("supplierName").value = "";
   $("supplierModal").style.display = "block";
   $("supplierName").focus();
@@ -448,6 +513,7 @@ document.addEventListener("DOMContentLoaded", () => {
 function hideAddSupplier(){
   $("supplierModal").style.display = "none";
 }
+
 async function addSupplier(e){
   e.preventDefault();
   const btn = e.target;
@@ -473,7 +539,6 @@ async function addSupplier(e){
   }
 
   const json = await res.json();
-
   if (!json.ok) {
     alert(json.msg);
     btn.disabled = false;
@@ -485,12 +550,8 @@ async function addSupplier(e){
   hideAddSupplier();
   btn.disabled = false;
 }
-  const fiberInput = document.querySelector(".fiber-partai");
-if (fiberInput) {
-  fiberInput.oninput = hitungFiberTotal;
-}
-
 </script>
+
 <div id="supplierModal"
      style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.3)">
   <div style="background:#fff; padding:16px; border-radius:12px;

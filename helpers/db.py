@@ -19,6 +19,11 @@ def get_conn():
     conn.execute("PRAGMA journal_mode = WAL;")
     return conn
 
+def ensure_column(conn, table, column, definition):
+    cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()]
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+        print(f"✔ Column '{column}' added to {table}")
 
 def init_db():
     conn = get_conn()
@@ -137,7 +142,8 @@ def init_db():
                   is_active INTEGER NOT NULL DEFAULT 1,
                   sort_order INTEGER NOT NULL DEFAULT 0
                 );
-                
+                INSERT OR IGNORE INTO master_jenis (nama, mode, sort_order)
+                VALUES ('cumi', 'manual_grade', 4);
                 -- seed contoh (sesuaikan)
                 INSERT OR IGNORE INTO master_jenis (nama, sort_order) VALUES
                 ('vannamei', 1),
@@ -188,12 +194,29 @@ def init_db():
                 
                   FOREIGN KEY(production_id) REFERENCES production(id)
                 );
-
+        
         CREATE INDEX IF NOT EXISTS idx_production_packing_pid
         ON production_packing(production_id);
 
         CREATE INDEX IF NOT EXISTS idx_invoice_line_invoice
-            ON invoice_line(invoice_id);        """)
+            ON invoice_line(invoice_id);      
+              """)
+        # ensure kolom mode ada
+        ensure_column(conn, "master_jenis", "mode", "TEXT DEFAULT 'udang_size'")
+
+        # update mode untuk data lama
+        conn.execute("""
+            UPDATE master_jenis
+            SET mode='kupasan'
+            WHERE LOWER(nama)='kupasan'
+        """)
+
+        conn.execute("""
+            UPDATE master_jenis
+            SET mode='udang_size'
+            WHERE LOWER(nama) IN ('vannamei','dogol')
+        """)
+        ensure_column(conn, "receiving_item", "grade_manual", "TEXT")
         conn.commit()
         print("✅ Database baru siap:", DB_PATH)
     finally:
