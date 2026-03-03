@@ -131,6 +131,66 @@ def init_db():
               bank_account_number TEXT,
               created_at TEXT DEFAULT (datetime('now','localtime'))
             );
+            CREATE TABLE IF NOT EXISTS master_jenis (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  nama TEXT NOT NULL UNIQUE,
+                  is_active INTEGER NOT NULL DEFAULT 1,
+                  sort_order INTEGER NOT NULL DEFAULT 0
+                );
+                
+                -- seed contoh (sesuaikan)
+                INSERT OR IGNORE INTO master_jenis (nama, sort_order) VALUES
+                ('vannamei', 1),
+                ('dogol', 2),
+                ('kupasan', 3);
+                -- =========================
+                -- PRODUCTION HEADER
+                -- =========================
+                CREATE TABLE IF NOT EXISTS production (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  receiving_id INTEGER NOT NULL UNIQUE,
+                
+                  hl_kg REAL NOT NULL DEFAULT 0,
+                  pd_kg REAL NOT NULL DEFAULT 0,
+                
+                  note TEXT,
+                
+                  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+                
+                  FOREIGN KEY(receiving_id) REFERENCES receiving_header(id)
+                );
+                
+                CREATE INDEX IF NOT EXISTS idx_production_receiving
+                ON production(receiving_id);
+                
+                
+                -- =========================
+                -- PRODUCTION PACKING DETAIL
+                -- =========================
+                CREATE TABLE IF NOT EXISTS production_packing (
+                  id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  production_id INTEGER NOT NULL,
+                
+                  rm_code TEXT NOT NULL,        -- VN / MS
+                  out_size TEXT NOT NULL,       -- 31/40
+                  product_code TEXT NOT NULL,   -- PTO / SJ
+                
+                  kupas_kg REAL NOT NULL DEFAULT 0,  -- optional analisa per size
+                
+                  mc_qty REAL NOT NULL DEFAULT 0,
+                  pack_qty REAL NOT NULL DEFAULT 0,
+                
+                  packs_per_mc INTEGER NOT NULL DEFAULT 8,
+                  pack_weight_g INTEGER NOT NULL DEFAULT 800,
+                
+                  note TEXT,
+                
+                  FOREIGN KEY(production_id) REFERENCES production(id)
+                );
+
+        CREATE INDEX IF NOT EXISTS idx_production_packing_pid
+        ON production_packing(production_id);
 
         CREATE INDEX IF NOT EXISTS idx_invoice_line_invoice
             ON invoice_line(invoice_id);        """)

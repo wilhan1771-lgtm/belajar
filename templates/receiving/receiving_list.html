@@ -242,6 +242,8 @@ async function loadSuppliers() {
 
 async function loadJenis() {
   const sel = document.getElementById("jenis");
+  if (!sel) return;
+
   const params = new URLSearchParams(window.location.search);
   const selected = (params.get("jenis") || "").trim().toLowerCase();
 
@@ -250,16 +252,24 @@ async function loadJenis() {
     const json = await res.json();
     if (!json.ok) return;
 
-    json.data.forEach(r => {
+    sel.innerHTML = `<option value="">-- Semua Jenis --</option>`;
+
+    (json.rows || []).forEach(r => {
+      const v = String(r.nama || "").trim().toLowerCase();
+      if (!v) return;
+
       const opt = document.createElement("option");
-      opt.value = r.nama;
+      opt.value = v;
       opt.textContent = r.nama;
-      if (r.nama.toLowerCase() === selected) opt.selected = true;
+      if (v === selected) opt.selected = true;
       sel.appendChild(opt);
     });
-  } catch(e){}
+  } catch (e) {
+    console.error("loadJenis error:", e);
+  }
 }
 
+document.addEventListener("DOMContentLoaded", loadJenis);
 loadSuppliers();
 loadJenis();
 </script>

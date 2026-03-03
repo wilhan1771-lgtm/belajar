@@ -1,0 +1,365 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Produksi / Yield</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 24px; background:#f3f4f6; color:#111827; }
+    h2 { margin:0 0 12px 0; }
+    .top { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap: wrap; }
+    .btn { padding: 10px 14px; border: 0; border-radius: 10px; cursor: pointer; font-weight: 600; text-decoration:none; display:inline-block; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-secondary { background: #111827; color: white; }
+    .muted { color:#6b7280; font-size:13px; margin-top:6px; }
+
+    .card { background:white; border:1px solid #e5e7eb; border-radius:14px; padding:16px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.06); margin-top:14px; }
+
+    .grid4 { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; }
+    .grid3 { display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:12px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    label { font-size: 13px; }
+    input, textarea { padding: 10px; border: 1px solid #d1d5db; border-radius: 10px; background:white; }
+    input[readonly] { background:#f9fafb; }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #e5e7eb; padding: 10px; text-align: left; vertical-align: top; }
+    th { background:#f9fafb; }
+
+    .right { text-align:right; }
+    .pill { display:inline-block; font-size:12px; padding:3px 8px; border-radius:999px; background:#eef2ff; color:#3730a3; }
+
+    @media (max-width: 900px){
+      .grid4 { grid-template-columns: 1fr 1fr; }
+      .grid3 { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 520px){
+      body { padding: 16px; }
+      .grid4, .grid3 { grid-template-columns: 1fr; }
+    }
+      /* ===== PACKING TABLE: compact + no overflow ===== */
+.table-wrap{
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+table.packing{
+  width: 100%;
+  min-width: 1050px; /* biar kalau layar kecil, scroll (bukan keluar card) */
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 13px;
+}
+
+table.packing th, table.packing td{
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+table.packing th{
+  background:#f9fafb;
+  white-space: nowrap;
+}
+
+table.packing input{
+  width: 80%;
+  padding: 0 8px;
+  height: 30px;
+  border-radius: 9px;
+  line-height: 34px;
+  font-size: 13px;
+  box-sizing: border-box;
+  align-items: center;
+}
+
+table.packing td{
+  min-width: 90px;
+}
+
+table.packing td.col-xs{ min-width: 70px; }
+table.packing td.col-sm{ min-width: 90px; }
+table.packing td.col-md{ min-width: 120px; }
+  </style>
+</head>
+<body>
+
+<div class="top">
+  <div>
+    <h2>Produksi / Yield <span class="pill">1 Receiving = 1 Produksi</span></h2>
+    <div class="muted">FG otomatis dari total packing.</div>
+  </div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <a class="btn btn-secondary" href="/production/list">← Kembali Produksi</a>
+    <button class="btn btn-primary" id="btnSave" type="button">Save</button>
+  </div>
+</div>
+
+<!-- INFO RECEIVING -->
+<div class="card">
+  <div class="grid4">
+    <div class="field">
+      <label>Tanggal</label>
+      <input type="text" value="{{ receiving.tanggal }}" readonly>
+    </div>
+    <div class="field">
+      <label>Supplier</label>
+      <input type="text" value="{{ receiving.supplier }}" readonly>
+    </div>
+    <div class="field">
+      <label>Jenis</label>
+      <input type="text" value="{{ receiving.jenis or '-' }}" readonly>
+    </div>
+    <div class="field">
+      <label>RM (kg) (Total Netto)</label>
+      <input type="text" id="rmKg" value="{{ '%.2f'|format(rm_kg or 0) }}" readonly>
+    </div>
+  </div>
+</div>
+
+<!-- YIELD SUMMARY -->
+<div class="card">
+  <h3 style="margin:0 0 8px 0;">Input Proses</h3>
+  <div class="muted">RD HL = HL/RM, RD PD = PD/HL, FG% = FG/PD, Yield = FG/RM</div>
+
+  <div class="grid3" style="margin-top:12px;">
+    <div class="field">
+      <label>HL (kg)</label>
+      <input type="number" step="0.01" id="hlKg" placeholder="contoh: 2700">
+      <div class="muted">RD HL: <b id="hlRd">0.000</b></div>
+    </div>
+
+    <div class="field">
+      <label>PD (kg) (After Peel)</label>
+      <input type="number" step="0.01" id="pdKg" readonly>
+      <div class="muted">RD PD: <b id="pdRd">0.000</b></div>
+    </div>
+
+    <div class="field">
+      <label>FG (kg) (Auto dari Packing)</label>
+      <input type="number" step="0.01" id="fgKg" readonly>
+      <div class="muted">FG%: <b id="fgPct">0.0%</b> | Yield: <b id="totalYield">0.000</b></div>
+    </div>
+  </div>
+
+  <div class="field" style="margin-top:10px;">
+    <label>Note</label>
+    <textarea id="note" rows="2" placeholder="opsional..."></textarea>
+  </div>
+</div>
+
+<!-- PACKING -->
+<div class="card">
+  <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+    <div>
+      <h3 style="margin:0;">Packing (Output)</h3>
+      <div class="muted">
+        TotalKg = (MC × Isi/MC + Pack) × Gram/Pack / 1000.
+        Kolom Yield% = ((TotalKg - KupasKg) / KupasKg) × 100.
+      </div>
+    </div>
+    <button class="btn btn-secondary" id="btnAddRow" type="button">+ Baris</button>
+  </div>
+
+  <div class="table-wrap">
+  <table class="packing">
+    <thead>
+      <tr>
+        <th style="width:90px;">RM Code</th>
+        <th style="width:110px;">Produk</th>
+        <th style="width:110px;">Size</th>
+        <th style="width:120px;">Kupas (kg)</th>
+
+        <th style="width:90px;">MC</th>
+        <th style="width:90px;">Pack</th>
+        <th style="width:110px;">Isi/MC</th>
+        <th style="width:120px;">Gram/Pack</th>
+
+        <th style="width:120px;">Total Kg</th>
+        <th style="width:110px;">Yield %</th>
+      </tr>
+    </thead>
+    <tbody id="packingBody"></tbody>
+  </table>
+</div>
+
+  <div style="margin-top:12px; padding:10px 12px; background:#f9fafb; border:1px solid #e5e7eb; border-radius:10px;">
+    <b>Total FG (kg):</b> <span id="packTotalKg">0.00</span>
+  </div>
+</div>
+
+<script>
+  function num(v) {
+    const x = parseFloat((v ?? "").toString().replace(",", "."));
+    return isNaN(x) ? 0 : x;
+  }
+  function esc(s){
+    return (s||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+
+  const rmKg = num(document.getElementById("rmKg").value);
+
+  const hlKg = document.getElementById("hlKg");
+  const pdKg = document.getElementById("pdKg");
+  const fgKg = document.getElementById("fgKg");
+
+  const hlRd = document.getElementById("hlRd");
+  const pdRd = document.getElementById("pdRd");
+  const fgPct = document.getElementById("fgPct");
+  const totalYield = document.getElementById("totalYield");
+
+  const packingBody = document.getElementById("packingBody");
+  const packTotalKg = document.getElementById("packTotalKg");
+  function updatePDFromKupas(){
+  let totalKupas = 0;
+  packingBody.querySelectorAll("tr").forEach(tr=>{
+    totalKupas += num(tr.querySelector(".p-kupas")?.value);
+  });
+  pdKg.value = totalKupas.toFixed(2);
+}
+
+  function updateSummary(){
+    const hl = num(hlKg.value);
+    const pd = num(pdKg.value);
+    const fg = num(fgKg.value);
+
+    hlRd.textContent = (rmKg > 0 ? (hl/rmKg) : 0).toFixed(3);
+    pdRd.textContent = (hl > 0 ? (pd/hl) : 0).toFixed(3);
+    fgPct.textContent = (pd > 0 ? ((fg/pd)*100) : 0).toFixed(1) + "%";
+    totalYield.textContent = (rmKg > 0 ? (fg/rmKg) : 0).toFixed(3);
+  }
+
+  function recalcRow(tr){
+    const kupas = num(tr.querySelector(".p-kupas").value);
+    const mc = num(tr.querySelector(".p-mc").value);
+    const pack = num(tr.querySelector(".p-pack").value);
+    const isi = Math.max(0, parseInt(tr.querySelector(".p-isi").value || "0") || 0);
+    const gram = Math.max(0, parseInt(tr.querySelector(".p-gram").value || "0") || 0);
+
+    const totalPack = mc * isi + pack;
+    const totalKg = (totalPack * gram) / 1000.0;
+
+    const y = (kupas > 0) ? ((totalKg - kupas) / kupas) * 100.0 : 0;
+
+    tr.querySelector(".p-total").value = totalKg > 0 ? totalKg.toFixed(2) : "";
+    tr.querySelector(".p-yield").value = (kupas > 0 && totalKg > 0) ? y.toFixed(2) : "";
+  }
+
+  function updateFGFromPacking(){
+    let total = 0;
+    packingBody.querySelectorAll("tr").forEach(tr=>{
+      total += num(tr.querySelector(".p-total")?.value);
+    });
+    packTotalKg.textContent = total.toFixed(2);
+    fgKg.value = total.toFixed(2);
+    updatePDFromKupas();
+    updateSummary();
+  }
+
+  function makeRow(d={}){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input class="p-rm" type="text" placeholder="  VN" value="${esc(d.rm_code||"")}"></td>
+      <td><input class="p-prod" type="text" placeholder="PTO" value="${esc(d.product_code||"")}"></td>
+      <td><input class="p-size" type="text" placeholder="31/40" value="${esc(d.out_size||"")}"></td>
+      <td><input class="p-kupas" type="number" step="0.01" placeholder="0" value="${d.kupas_kg ?? ""}"></td>
+
+      <td><input class="p-mc" type="number" step="0.01" placeholder="0" value="${d.mc_qty ?? ""}"></td>
+      <td><input class="p-pack" type="number" step="0.01" placeholder="0" value="${d.pack_qty ?? ""}"></td>
+      <td><input class="p-isi" type="number" step="1" placeholder="8" value="${d.packs_per_mc ?? ""}"></td>
+      <td><input class="p-gram" type="number" step="1" placeholder="800" value="${d.pack_weight_g ?? ""}"></td>
+
+      <td><input class="p-total" type="text" readonly value=""></td>
+      <td><input class="p-yield" type="text" readonly value=""></td>
+    `;
+
+    tr.querySelectorAll("input").forEach(inp=>{
+      inp.addEventListener("input", ()=>{
+        recalcRow(tr);
+        updateFGFromPacking();
+      });
+    });
+
+    recalcRow(tr);
+    return tr;
+  }
+
+  document.getElementById("btnAddRow").addEventListener("click", ()=>{
+    packingBody.appendChild(makeRow({ packs_per_mc: 0, pack_weight_g: 0 }));
+    updateFGFromPacking();
+  });
+
+  hlKg.addEventListener("input", updateSummary);
+  pdKg.addEventListener("input", updateSummary);
+
+  // preload
+  (function preload(){
+    const prod = {{ (production or {})|tojson }};
+    hlKg.value = (prod.hl_kg ?? "");
+    pdKg.value = (prod.pd_kg ?? "");
+    document.getElementById("note").value = (prod.note ?? "");
+
+    const rows = {{ (packing or [])|tojson }};
+    if(!rows || rows.length===0){
+      packingBody.appendChild(makeRow({ packs_per_mc: 8, pack_weight_g: 800 }));
+    }else{
+      rows.forEach(r=> packingBody.appendChild(makeRow(r)));
+    }
+    updateFGFromPacking();
+    updateSummary();
+  })();
+
+  // save
+  document.getElementById("btnSave").addEventListener("click", async ()=>{
+    const payload = {
+      hl_kg: num(hlKg.value),
+      pd_kg: num(pdKg.value),
+      note: (document.getElementById("note").value || "").trim(),
+      packing_rows: []
+    };
+
+    packingBody.querySelectorAll("tr").forEach(tr=>{
+      const row = {
+        rm_code: (tr.querySelector(".p-rm").value || "").trim(),
+        product_code: (tr.querySelector(".p-prod").value || "").trim(),
+        out_size: (tr.querySelector(".p-size").value || "").trim(),
+        kupas_kg: num(tr.querySelector(".p-kupas").value),
+        mc_qty: num(tr.querySelector(".p-mc").value),
+        pack_qty: num(tr.querySelector(".p-pack").value),
+        packs_per_mc: parseInt(tr.querySelector(".p-isi").value || "0") || 0,
+        pack_weight_g: parseInt(tr.querySelector(".p-gram").value || "0") || 0
+      };
+
+      // skip row kosong total
+      if(!row.rm_code && !row.product_code && !row.out_size &&
+         row.kupas_kg===0 && row.mc_qty===0 && row.pack_qty===0) return;
+
+      payload.packing_rows.push(row);
+    });
+
+    try{
+      const res = await fetch("/production/save/{{ receiving.id }}", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(payload)
+      });
+      const out = await res.json();
+      if(!res.ok || !out.ok){
+        alert(out.msg || "Gagal simpan");
+        return;
+      }
+      alert("✅ Produksi berhasil disimpan");
+      // optional reload supaya data sync
+      // location.reload();
+    }catch(e){
+      console.error(e);
+      alert("❌ Error: " + e);
+    }
+  });
+</script>
+
+</body>
+</html>

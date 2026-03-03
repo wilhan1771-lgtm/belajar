@@ -9,7 +9,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, j
 from datetime import date, datetime, timedelta
 import json
 from invoice import invoice_bp
-
+from production import production_bp
 from receiving.service import update_receiving
 from receiving.routes import receiving_bp
 from helpers.db import init_db, get_conn
@@ -29,6 +29,7 @@ app.config.update(
 
 app.permanent_session_lifetime = timedelta(hours=8)
 app.register_blueprint(invoice_bp)
+app.register_blueprint(production_bp)
 app.config["ADMIN_USERNAME"] = "admin"
 app.config["ADMIN_PASSWORD"] = "1234"   # atau ADMIN_PIN
 DATE_FMT = "%Y-%m-%d"
@@ -302,24 +303,6 @@ def debug_tables():
         }
     finally:
         conn.close()
-
-
-@app.get("/master/jenis")
-def master_jenis():
-    if not require_login():
-        return jsonify({"ok": False, "msg": "Unauthorized"}), 401
-
-    conn = get_conn()
-    try:
-        rows = conn.execute(
-            "SELECT id, nama FROM udang_jenis WHERE aktif=1 ORDER BY id"
-        ).fetchall()
-        return jsonify({"ok": True, "data": [dict(r) for r in rows]})
-    except Exception as e:
-        return jsonify({"ok": False, "msg": str(e)}), 500
-    finally:
-        conn.close()
-
 
 @app.post("/master/suppliers")
 def master_supplier_add():
@@ -615,7 +598,23 @@ def production_save(receiving_id):
         return jsonify({"ok": True, "prod_id": prod["id"]})
     finally:
         conn.close()
+from flask import jsonify
 
+@app.get("/master/jenis")
+def master_jenis():
+    conn = get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT id, nama
+            FROM master_jenis
+            WHERE is_active = 1
+            ORDER BY sort_order ASC, nama ASC
+        """).fetchall()
+        return jsonify(ok=True, rows=[dict(r) for r in rows])
+    except Exception as e:
+        return jsonify(ok=False, msg=str(e)), 500
+    finally:
+        conn.close()
 # =========================
 # Menus (optional, kamu masih pakai)
 # =========================
