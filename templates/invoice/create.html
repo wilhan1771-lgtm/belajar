@@ -138,159 +138,195 @@
 
     <hr>
 
-    <!-- PRICE POINTS -->
-    <h3 style="margin:0 0 8px 0;">Harga Patokan (Rp/kg)</h3>
-    <div class="muted" style="margin-bottom:10px;">
-      Sistem akan menghitung harga/kg partai dari round size (pakai titik harga terdekat / interpolasi sederhana).
-    </div>
+ <!-- PRICE POINTS -->
+<h3 style="margin:0 0 8px 0;">Harga Patokan (Rp/kg)</h3>
+<div class="muted" style="margin-bottom:10px;">
+  Sistem akan menghitung harga/kg partai sesuai mode jenis (size / kupasan / manual grade).
+</div>
 
-    {# Deteksi kebutuhan input kupasan (WAJIB namespace agar set di loop kebaca) #}
-    {% set ns = namespace(needs_kecil=false, needs_besar=false) %}
-    {% for p in partai %}
-      {% set g_row = (p.get('kategori_kupasan') or p.get('grade') or '')|trim|lower %}
-      {% if g_row == 'kecil' %}{% set ns.needs_kecil = true %}{% endif %}
-      {% if g_row == 'besar' %}{% set ns.needs_besar = true %}{% endif %}
-    {% endfor %}
+{# =========================
+   KUPASAN
+   ========================= #}
+{% if mode == "kupasan" %}
 
-    {% if header["jenis"] == "kupasan" %}
+  {% set ns = namespace(needs_kecil=false, needs_besar=false) %}
+  {% for p in partai %}
+    {% set g_row = (p.get('kategori_kupasan') or p.get('grade') or '')|trim|lower %}
+    {% if g_row == 'kecil' %}{% set ns.needs_kecil = true %}{% endif %}
+    {% if g_row == 'besar' %}{% set ns.needs_besar = true %}{% endif %}
+  {% endfor %}
 
-      <div class="row" style="display:flex;gap:12px;flex-wrap:wrap">
-
-        {% if ns.needs_kecil %}
-          <div style="flex:1 1 240px">
-            <label>Harga Kupasan Kecil (Rp/kg)</label>
-            <input class="priceInput" data-grade="kecil" name="kupasan_kecil_rp"
-                   type="number" min="0" placeholder="contoh: 52000"
-                   value="{{ form.kupasan_kecil_rp if form and form.kupasan_kecil_rp is not none else '' }}">
-          </div>
-        {% endif %}
-
-        {% if ns.needs_besar %}
-          <div style="flex:1 1 240px">
-            <label>Harga Kupasan Besar (Rp/kg)</label>
-            <input class="priceInput" data-grade="besar" name="kupasan_besar_rp"
-                   type="number" min="0" placeholder="contoh: 54000"
-                   value="{{ form.kupasan_besar_rp if form and form.kupasan_besar_rp is not none else '' }}">
-          </div>
-        {% endif %}
-
-        {% if not ns.needs_kecil and not ns.needs_besar %}
-          <div class="muted" style="padding:8px 0;">
-            ⚠️ Kategori kupasan tidak ditemukan di data partai. Pastikan field <b>kategori_kupasan</b> tersimpan di receiving_item.
-          </div>
-        {% endif %}
-
+  <div class="row" style="display:flex;gap:12px;flex-wrap:wrap">
+    {% if ns.needs_kecil %}
+      <div style="flex:1 1 240px">
+        <label>Harga Kupasan Kecil (Rp/kg)</label>
+        <input class="priceInput" data-grade="kecil" name="kupasan_kecil_rp"
+               type="number" min="0" placeholder="contoh: 52000"
+               value="{{ form.kupasan_kecil_rp if form and form.kupasan_kecil_rp is not none else '' }}">
       </div>
-
-    {% else %}
-
-      <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
-        {% for k in price_keys %}
-          <div style="flex:1 1 180px">
-            <label>Size {{ k }}</label>
-            <input class="priceInput" data-grade="default" data-size="{{ k }}"
-                   name="p{{ k }}" type="number" min="0" placeholder="contoh: 55000"
-                   value="{{ form['p' ~ k] if form and ('p' ~ k) in form else '' }}">
-          </div>
-        {% endfor %}
-      </div>
-
     {% endif %}
 
-    <hr>
+    {% if ns.needs_besar %}
+      <div style="flex:1 1 240px">
+        <label>Harga Kupasan Besar (Rp/kg)</label>
+        <input class="priceInput" data-grade="besar" name="kupasan_besar_rp"
+               type="number" min="0" placeholder="contoh: 54000"
+               value="{{ form.kupasan_besar_rp if form and form.kupasan_besar_rp is not none else '' }}">
+      </div>
+    {% endif %}
 
-    <!-- PARTAI TABLE + PREVIEW -->
-    <div class="actions">
-      <div>
-        <h3 style="margin:0 0 6px 0;">Partai dari Receiving</h3>
-        <div class="muted">
-          Setelah harga patokan diisi, sistem akan menampilkan <b>harga/kg</b> dan <b>total</b> per partai.
+    {% if not ns.needs_kecil and not ns.needs_besar %}
+      <div class="muted" style="padding:8px 0;">
+        ⚠️ Kategori kupasan tidak ditemukan di partai. Pastikan <b>kategori_kupasan</b> tersimpan di receiving_item.
+      </div>
+    {% endif %}
+  </div>
+
+{# =========================
+   MANUAL GRADE
+   ========================= #}
+{% elif mode == "manual_grade" %}
+
+  {% set ns2 = namespace(grades=[]) %}
+  {% for p in partai %}
+    {% set g = (p.get('grade_manual') or '')|trim %}
+    {% if g and g not in ns2.grades %}
+      {% set _ = ns2.grades.append(g) %}
+    {% endif %}
+  {% endfor %}
+
+  {% if ns2.grades|length == 0 %}
+    <div class="muted" style="padding:8px 0;">
+      ⚠️ Tidak ada <b>grade_manual</b> pada partai receiving ini.
+    </div>
+  {% else %}
+    <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
+      {% for g in ns2.grades %}
+        <div style="flex:1 1 220px">
+          <label>Harga Grade {{ g }} (Rp/kg)</label>
+          <input class="priceInput"
+                 data-grade-manual="{{ g }}"
+                 name="grade_price_{{ g }}"
+                 type="number" min="0" placeholder="contoh: 110000"
+                 value="{{ form['grade_price_' ~ g] if form and ('grade_price_' ~ g) in form else '' }}">
         </div>
-      </div>
-          {% if mode == "edit" %}
-          <button class="btn btn-primary" type="submit">
-            💾 Simpan Perubahan
-          </button>
-           {% else %}
-          <button class="btn btn-primary" type="submit">
-            Generate Invoice
-           </button>
-           {% endif %}
-     </div>
-
-    <div class="scroll mt-10">
-      <table id="partaiTable">
-        <thead>
-          <tr>
-            <th>Partai</th>
-
-            {% if header["jenis"] == "kupasan" %}
-              <th class="w-120">Kategori</th>
-            {% else %}
-              <th class="w-120">Round Size</th>
-            {% endif %}
-
-            <th class="right w-140">Netto (kg)</th>
-            <th class="right w-140">Harga / kg</th>
-            <th class="right w-160">Total (Rp)</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for p in partai %}
-            {% set g = (p.get('kategori_kupasan') or p.get('grade') or '')|trim %}
-            <tr class="partaiRow"
-                data-round-size="{{ p['round_size'] if p['round_size'] is not none else '' }}"
-                data-netto="{{ '%.3f'|format(p['netto'] or 0) }}"
-                data-grade="{{ (g or '')|lower }}">
-              <td><b>{{ p["partai_no"] }}</b></td>
-
-              {% if header["jenis"] == "kupasan" %}
-                <td>{{ g if g else "-" }}</td>
-              {% else %}
-                <td>{{ p["round_size"] if p["round_size"] is not none else "-" }}</td>
-              {% endif %}
-
-              <td class="right">{{ "%.3f"|format(p["netto"] or 0) }}</td>
-              <td class="right pricePerKg">-</td>
-              <td class="right lineTotal">-</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      {% endfor %}
     </div>
+  {% endif %}
 
-    <!-- TOTALS -->
-    <div class="totals">
-      <div class="kpi">
-        <div class="t">Total Berat (kg)</div>
-        <div class="v" id="totalKg">0.000</div>
+{# =========================
+   UDANG SIZE
+   ========================= #}
+{% else %}
+
+  <div class="muted" style="margin-bottom:10px;">
+    Sistem menghitung harga/kg partai dari round size (titik harga / interpolasi sederhana).
+  </div>
+
+  <div class="row" style="display:flex;gap:10px;flex-wrap:wrap">
+    {% for k in price_keys %}
+      <div style="flex:1 1 180px">
+        <label>Size {{ k }}</label>
+        <input class="priceInput" data-size="{{ k }}"
+               name="p{{ k }}" type="number" min="0" placeholder="contoh: 55000"
+               value="{{ form['p' ~ k] if form and ('p' ~ k) in form else '' }}">
       </div>
-      <div class="kpi">
-        <div class="t">Total Bruto (Rp)</div>
-        <div class="v" id="totalRp">0</div>
-      </div>
-      <div class="kpi">
-        <div class="t">Total Setelah Potongan Cash (Rp)</div>
-        <div class="v" id="totalAfterCash">0</div>
-      </div>
+    {% endfor %}
+  </div>
+
+{% endif %}
+
+<hr>
+
+<!-- PARTAI TABLE + PREVIEW -->
+<div class="actions">
+  <div>
+    <h3 style="margin:0 0 6px 0;">Partai dari Receiving</h3>
+    <div class="muted">
+      Setelah harga patokan diisi, sistem akan menampilkan <b>harga/kg</b> dan <b>total</b> per partai.
     </div>
+  </div>
 
-    <hr>
-
-    <!-- NOTE 1 BIJI UNTUK INVOICE -->
-    <div>
-      <label>Catatan Invoice (opsional)</label>
-      <input name="invoice_note" type="text" placeholder="1 catatan untuk invoice"
-             value="{{ form.invoice_note if form and form.invoice_note is not none else '' }}">
-      <div class="hint">Catatan ini berlaku untuk seluruh invoice.</div>
-    </div>
-
-  </form>
+  {% if mode == "edit" %}
+    <button class="btn btn-primary" type="submit">💾 Simpan Perubahan</button>
+  {% else %}
+    <button class="btn btn-primary" type="submit">Generate Invoice</button>
+  {% endif %}
 </div>
+
+<div class="scroll mt-10">
+  <table id="partaiTable">
+    <thead>
+      <tr>
+        <th>Partai</th>
+
+        {% if mode == "kupasan" %}
+          <th class="w-120">Kategori</th>
+        {% elif mode == "manual_grade" %}
+          <th class="w-120">Grade</th>
+        {% else %}
+          <th class="w-120">Round Size</th>
+        {% endif %}
+
+        <th class="right w-140">Netto (kg)</th>
+        <th class="right w-140">Harga / kg</th>
+        <th class="right w-160">Total (Rp)</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for p in partai %}
+        {% set kupas = (p.get('kategori_kupasan') or '')|trim %}
+        {% set grade_manual = (p.get('grade_manual') or '')|trim %}
+
+        <tr class="partaiRow"
+            data-round-size="{{ p['round_size'] if p['round_size'] is not none else '' }}"
+            data-netto="{{ '%.3f'|format(p['netto'] or 0) }}"
+            data-grade-kupas="{{ (kupas or '')|lower }}"
+            data-grade-manual="{{ (grade_manual or '')|lower }}"
+
+          <td><b>{{ p["partai_no"] }}</b></td>
+
+          {% if mode == "kupasan" %}
+            <td>{{ kupas if kupas else "-" }}</td>
+          {% elif mode == "manual_grade" %}
+            <td>{{ grade_manual if grade_manual else "-" }}</td>
+          {% else %}
+            <td>{{ p["round_size"] if p["round_size"] is not none else "-" }}</td>
+          {% endif %}
+
+          <td class="right">{{ "%.3f"|format(p["netto"] or 0) }}</td>
+          <td class="right pricePerKg">-</td>
+          <td class="right lineTotal">-</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- TOTALS -->
+<div class="totals">
+  <div class="kpi">
+    <div class="t">Total Berat (kg)</div>
+    <div class="v" id="totalKg">0.000</div>
+  </div>
+
+  <div class="kpi">
+    <div class="t">Total Bruto (Rp)</div>
+    <div class="v" id="totalRp">0</div>
+  </div>
+
+  <div class="kpi">
+    <div class="t">Total Setelah Potongan Cash (Rp)</div>
+    <div class="v" id="totalAfterCash">0</div>
+  </div>
+</div>
+
+<hr>
 
 <script>
 (function(){
-  const jenis = {{ header["jenis"]|tojson }};
+  const mode = {{ mode|tojson }};
   const baseDateStr = {{ header["tanggal"]|tojson }};
 
   const tempoEl = document.getElementById('tempoHari');
@@ -346,6 +382,16 @@
     };
   }
 
+  function readManualGradePrices(){
+    const map = {};
+    document.querySelectorAll('.priceInput[data-grade-manual]').forEach(inp=>{
+      const g = (inp.dataset.gradeManual || '').trim();
+      const v = Number((inp.value || "").toString().replaceAll('.','').replaceAll(',','.'));
+      if(g && isFinite(v) && v > 0) map[g] = v;
+    });
+    return map;
+  }
+
   function readSamplingPoints(){
     const map = {};
     document.querySelectorAll('.priceInput[data-size]').forEach(inp => {
@@ -381,30 +427,37 @@
     let totalKg = 0;
     let totalRp = 0;
 
-    const isKupasan = (String(jenis).toLowerCase() === 'kupasan');
-    const kupasanPrices = isKupasan ? readKupasanPrices() : null;
-    const samplingPoints = !isKupasan ? readSamplingPoints() : null;
+    const isKupasan = (mode === 'kupasan');
+    const isManual  = (mode === 'manual_grade');
+
+    const kupasanPrices  = isKupasan ? readKupasanPrices() : null;
+    const manualPrices   = isManual ? readManualGradePrices() : null;
+    const samplingPoints = (!isKupasan && !isManual) ? readSamplingPoints() : null;
 
     document.querySelectorAll('.partaiRow').forEach(tr => {
       const netto = Number(tr.dataset.netto || 0);
-      const grade = String(tr.dataset.grade || '').toLowerCase();
-      const size = Number(tr.dataset.roundSize);
-
-      totalKg += (isFinite(netto) ? netto : 0);
+      if(isFinite(netto) && netto > 0) totalKg += netto;
 
       let priceKg = null;
+
       if(isKupasan){
-        if(grade === 'kecil') priceKg = kupasanPrices?.kecil ?? null;
-        else if(grade === 'besar') priceKg = kupasanPrices?.besar ?? null;
-        else priceKg = null;
+        const g = String(tr.dataset.gradeKupas || '').toLowerCase();
+        if(g === 'kecil') priceKg = kupasanPrices?.kecil ?? null;
+        else if(g === 'besar') priceKg = kupasanPrices?.besar ?? null;
+
+      }else if(isManual){
+        const g = (tr.dataset.gradeManual || '').trim();
+        priceKg = manualPrices?.[g] ?? null;
+
       }else{
+        const size = Number(tr.dataset.roundSize);
         priceKg = interpPrice(size, samplingPoints);
       }
 
       const priceCell = tr.querySelector('.pricePerKg');
       const totalCell = tr.querySelector('.lineTotal');
 
-      if(priceKg == null || !isFinite(netto) || netto <= 0){
+      if(priceKg == null || !isFinite(priceKg) || priceKg <= 0 || !isFinite(netto) || netto <= 0){
         priceCell.textContent = '-';
         totalCell.textContent = '-';
         return;
@@ -421,7 +474,7 @@
     const deductPerKg = Number(cashDeductEl?.value || 0);
 
     let afterCash = totalRp;
-    if(paymentType === 'cash' && isFinite(deductPerKg) && deductPerKg > 0 && totalRp > 0){
+    if(paymentType === 'cash' && isFinite(deductPerKg) && deductPerKg > 0){
       afterCash = totalRp - (totalKg * deductPerKg);
     }
 

@@ -38,12 +38,6 @@ def create_invoice_from_receiving(
     existing = repo.invoice_exists_for_receiving(receiving_id)
     if existing:
         raise ValueError(f"Invoice sudah ada untuk receiving ini. (invoice_id={existing['id']})")
-    row = repo.get_conn().execute(
-        "SELECT COALESCE(mode,'udang_size') AS mode FROM master_jenis WHERE LOWER(nama)=LOWER(?)",
-        (jenis,)
-    ).fetchone()
-
-    mode = (row["mode"] if row else "udang_size").lower()
 
     rh = repo.fetch_receiving_header(receiving_id)
     if not rh:
@@ -51,30 +45,13 @@ def create_invoice_from_receiving(
 
     jenis = (rh.get("jenis") or "").strip().lower()
 
-    mode = repo.get_jenis_mode(jenis)  # buat helper ini
+    # ✅ Ambil semua items dulu (biar bisa dipakai di semua mode)
+    items = repo.fetch_receiving_items(receiving_id) or []
+
+    # ✅ Mode jenis: udang_size | kupasan | manual_grade
+    mode = repo.get_jenis_mode(jenis)  # kamu buat helper ini di repo
     is_kupasan = (mode == "kupasan")
     is_manual = (mode == "manual_grade")
-    required_manual_grades = set()
-
-    if is_manual:
-        if not isinstance(grade_prices, dict):
-            raise ValueError("Manual grade butuh grade_prices (dict).")
-
-        for it in items:
-            g = (it.get("grade_manual") or "").strip()
-            if g:
-                required_manual_grades.add(g)
-
-        if not required_manual_grades:
-            raise ValueError("Tidak ada grade_manual pada receiving.")
-
-        missing = []
-        for g in required_manual_grades:
-            if int(grade_prices.get(g) or 0) <= 0:
-                missing.append(g)
-
-        if missing:
-            raise ValueError(f"Harga untuk grade {', '.join(missing)} wajib diisi dan > 0.")
 
     supplier = rh["supplier"]
 
@@ -85,16 +62,16 @@ def create_invoice_from_receiving(
     tempo_hari = int(tempo_hari or 0)
     cash_deduct_per_kg_rp = int(cash_deduct_per_kg_rp or 0)
 
+    # =========================
     # due_date (cash & transfer)
+    # =========================
     due_date = None
     try:
         d = datetime.strptime(rh["tanggal"], "%Y-%m-%d").date()
-
         if payment_type == "cash":
-            tempo_hari = 0  # biar konsisten: cash selalu 0 hari
-            due_date = d.isoformat()  # cash jatuh tempo hari itu
+            tempo_hari = 0
+            due_date = d.isoformat()
         else:
-            # transfer
             due_date = (d + timedelta(days=max(0, tempo_hari))).isoformat()
     except Exception:
         due_date = None
@@ -102,7 +79,7 @@ def create_invoice_from_receiving(
     if payment_type != "cash":
         cash_deduct_per_kg_rp = 0
 
-    items = repo.fetch_receiving_items(receiving_id)
+    # kalau tidak ada items, tetap bikin header kosong
     if not items:
         invoice_id = repo.insert_invoice_header(
             receiving_id=receiving_id,
@@ -123,39 +100,58 @@ def create_invoice_from_receiving(
         )
         return invoice_id
 
-    # --- KUPASAN: tentukan grade yang diperlukan dari items ---
-    hk = hb = None
-    required_grades = set()
+    # =========================
+    # VALIDASI MODE
+    # =========================
+    hk = hb = 0
     if is_kupasan:
         if not isinstance(kupasan_prices, dict):
             raise ValueError("Kupasan butuh kupasan_prices (dict).")
 
-        # ambil required dari data receiving_item
+        required = set()
         for it in items:
             g = (it.get("kategori_kupasan") or it.get("grade") or "").strip().lower()
             if g in ("kecil", "besar"):
-                required_grades.add(g)
+                required.add(g)
+        if not required:
+            required = {"kecil", "besar"}
 
-        # fallback kalau data grade kosong semua: anggap perlu dua (biar aman)
-        if not required_grades:
-            required_grades = {"kecil", "besar"}
-
-        hk = int(kupasan_prices.get("kecil") or 0) if "kecil" in required_grades else 0
-        hb = int(kupasan_prices.get("besar") or 0) if "besar" in required_grades else 0
+        hk = int(kupasan_prices.get("kecil") or 0) if "kecil" in required else 0
+        hb = int(kupasan_prices.get("besar") or 0) if "besar" in required else 0
 
         missing = []
-        if "kecil" in required_grades and hk <= 0:
-            missing.append("kecil")
-        if "besar" in required_grades and hb <= 0:
-            missing.append("besar")
+        if "kecil" in required and hk <= 0: missing.append("kecil")
+        if "besar" in required and hb <= 0: missing.append("besar")
         if missing:
             raise ValueError(f"Harga kupasan {', '.join(missing)} wajib diisi dan > 0.")
 
-    # simpan header invoice
+    if is_manual:
+        if not isinstance(grade_prices, dict):
+            raise ValueError("Manual grade butuh grade_prices (dict).")
+
+        required_grades = set()
+        for it in items:
+            g = (it.get("grade_manual") or "").strip()
+            if g:
+                required_grades.add(g)
+
+        if not required_grades:
+            raise ValueError("Tidak ada grade_manual pada receiving_item.")
+
+        missing = []
+        for g in sorted(required_grades):
+            if int(grade_prices.get(g) or 0) <= 0:
+                missing.append(g)
+        if missing:
+            raise ValueError(f"Harga untuk grade {', '.join(missing)} wajib diisi dan > 0.")
+
+    # =========================
+    # INSERT HEADER
+    # =========================
     invoice_id = repo.insert_invoice_header(
         receiving_id=receiving_id,
         supplier=supplier,
-        price_points=price_points or {},  # kupasan boleh {}
+        price_points=price_points or {},
         payment_type=payment_type,
         cash_deduct_per_kg_rp=cash_deduct_per_kg_rp,
         tempo_hari=tempo_hari,
@@ -167,21 +163,27 @@ def create_invoice_from_receiving(
     subtotal_rp = 0
     total_paid_g = 0
 
+    # =========================
+    # BUILD LINES
+    # =========================
     for it in items:
         partai_no = int(it["partai_no"])
         rs = it.get("round_size")
 
         # tentukan harga
         if is_kupasan:
-            grade = (it.get("kategori_kupasan") or it.get("grade") or "").strip().lower()
-            if grade == "kecil":
+            g = (it.get("kategori_kupasan") or it.get("grade") or "").strip().lower()
+            if g == "kecil":
                 used_price = hk
-            elif grade == "besar":
+            elif g == "besar":
                 used_price = hb
             else:
-                raise ValueError(
-                    f"Partai {partai_no}: kategori_kupasan tidak valid ('{grade}'). Harus kecil/besar."
-                )
+                raise ValueError(f"Partai {partai_no}: kategori_kupasan tidak valid ('{g}').")
+        elif is_manual:
+            g = (it.get("grade_manual") or "").strip()
+            used_price = int(grade_prices.get(g) or 0)
+            if used_price <= 0:
+                raise ValueError(f"Partai {partai_no}: harga grade_manual '{g}' tidak valid.")
         else:
             base_price = interpolate_price(rs, price_points)
             if base_price is None:
@@ -196,7 +198,6 @@ def create_invoice_from_receiving(
             paid_g = int(ov["paid_g"])
 
         line_total = mul_div_round(int(paid_g), int(used_price), 1000)
-
         note = ov.get("note") or it.get("note")
 
         repo.insert_invoice_line(
@@ -205,7 +206,7 @@ def create_invoice_from_receiving(
             partai_no=partai_no,
             net_g=int(net_g),
             paid_g=int(paid_g),
-            round_size=rs,  # kupasan boleh None
+            round_size=rs,
             price_per_kg_rp=int(used_price),
             line_total_rp=int(line_total),
             note=note,

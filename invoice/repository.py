@@ -358,3 +358,22 @@ def get_kupasan_prices_from_invoice(invoice_id: int):
         return {"kecil": hk, "besar": hb}
     finally:
         conn.close()
+def get_jenis_mode(jenis: str) -> str:
+    conn = get_conn()
+    try:
+        row = conn.execute(
+            """
+            SELECT COALESCE(mode,'udang_size') AS mode
+            FROM master_jenis
+            WHERE LOWER(nama) = LOWER(?)
+            """,
+            (jenis,),
+        ).fetchone()
+
+        if row:
+            return (row["mode"] or "udang_size").strip().lower()
+
+        return "udang_size"
+
+    finally:
+        conn.close()

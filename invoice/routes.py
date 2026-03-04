@@ -114,11 +114,14 @@ def invoice_new(receiving_id):
         return "Receiving tidak ditemukan", 404
 
     partai = repo.fetch_receiving_items(receiving_id)
-    jenis = (header.get("jenis") or "").strip().lower()
-    is_kupasan = (jenis == "kupasan")
 
-    # price_keys hanya untuk non-kupasan
-    price_keys = [] if is_kupasan else needed_price_keys(partai)
+    jenis = (header.get("jenis") or "").strip().lower()
+    mode = repo.get_jenis_mode(jenis)  # "udang_size" | "kupasan" | "manual_grade"
+    is_kupasan = (mode == "kupasan")
+    is_manual = (mode == "manual_grade")
+
+    # hanya untuk udang_size
+    price_keys = [] if (is_kupasan or is_manual) else needed_price_keys(partai)
 
     existing = repo.get_invoice_by_receiving(receiving_id)
     if request.method == "GET" and existing:
@@ -130,53 +133,51 @@ def invoice_new(receiving_id):
             header=header,
             partai=partai,
             price_keys=price_keys,
+            mode=mode,
             form=None,
             error=None,
         )
 
     form = request.form.to_dict()
+    print("FORM KEYS:", list(form.keys()))
+    print("FORM:", form)
+    print("MODE:", mode, "JENIS:", jenis)
 
     payment_type = (form.get("payment_type") or "transfer").strip().lower()
     if payment_type not in ("cash", "transfer"):
         payment_type = "transfer"
 
     tempo_hari = to_int(form, "tempo_hari", 0)
-
     cash_deduct_per_kg_rp = to_int(form, "cash_deduct_per_kg_rp", 0)
     if payment_type != "cash":
         cash_deduct_per_kg_rp = 0
 
-    # =========================
-    # KUPASAN: ambil kebutuhan grade dari partai
-    # =========================
     kupasan_prices = None
     price_points = {}
+    grade_prices = None
 
-    if is_kupasan:
-        needs_kecil = False
-        needs_besar = False
-        for p in partai:
-            g = (p.get("kategori_kupasan") or p.get("grade") or "").strip().lower()
-            if g == "kecil":
-                needs_kecil = True
-            elif g == "besar":
-                needs_besar = True
+    # =========================
+    # MANUAL GRADE
+    # =========================
+    if is_manual:
+        grades = sorted({
+            (p.get("grade_manual") or "").strip()
+            for p in partai
+            if (p.get("grade_manual") or "").strip()
+        })
 
-        hk = to_int(form, "kupasan_kecil_rp", 0)
-        hb = to_int(form, "kupasan_besar_rp", 0)
-
+        grade_prices = {}
         missing = []
-        if needs_kecil and hk <= 0:
-            missing.append("kecil")
-        if needs_besar and hb <= 0:
-            missing.append("besar")
 
-        # kalau data partai tidak punya grade sama sekali, fallback: minta dua2
-        if not needs_kecil and not needs_besar:
-            if hk <= 0:
-                missing.append("kecil")
-            if hb <= 0:
-                missing.append("besar")
+        for g in grades:
+            key = f"grade_price_{g.strip().lower().replace(' ', '_').replace('/', '_')}"
+            raw = (form.get(key) or "").strip()
+            vv = int(raw.replace(".", "")) if raw else 0
+
+            if vv <= 0:
+                missing.append(g)
+            else:
+                grade_prices[g] = vv
 
         if missing:
             return render_template(
@@ -184,17 +185,40 @@ def invoice_new(receiving_id):
                 header=header,
                 partai=partai,
                 price_keys=price_keys,
+                mode=mode,
+                form=form,
+                error=f"Harga untuk grade {', '.join(missing)} wajib diisi.",
+            )
+
+    # =========================
+    # KUPASAN
+    # =========================
+    elif is_kupasan:
+        needs_kecil = any(((p.get("kategori_kupasan") or "").strip().lower() == "kecil") for p in partai)
+        needs_besar = any(((p.get("kategori_kupasan") or "").strip().lower() == "besar") for p in partai)
+
+        hk = to_int(form, "kupasan_kecil_rp", 0)
+        hb = to_int(form, "kupasan_besar_rp", 0)
+
+        missing = []
+        if needs_kecil and hk <= 0: missing.append("kecil")
+        if needs_besar and hb <= 0: missing.append("besar")
+
+        if missing:
+            return render_template(
+                "invoice/create.html",
+                header=header,
+                partai=partai,
+                price_keys=price_keys,
+                mode=mode,
                 form=form,
                 error=f"Harga kupasan {', '.join(missing)} wajib diisi.",
             )
 
-        kupasan_prices = {
-            "kecil": hk if hk > 0 else None,
-            "besar": hb if hb > 0 else None,
-        }
+        kupasan_prices = {"kecil": hk, "besar": hb}
 
     # =========================
-    # NON-KUPASAN: price_points wajib isi sesuai keys
+    # UDANG SIZE
     # =========================
     else:
         missing_keys = []
@@ -203,8 +227,7 @@ def invoice_new(receiving_id):
             if v == "":
                 missing_keys.append(k)
             else:
-                vv = v.replace(".", "")
-                price_points[int(k)] = int(vv)
+                price_points[int(k)] = int(v.replace(".", ""))
 
         if missing_keys:
             return render_template(
@@ -212,83 +235,37 @@ def invoice_new(receiving_id):
                 header=header,
                 partai=partai,
                 price_keys=price_keys,
+                mode=mode,
                 form=form,
                 error=f"Harga patokan wajib diisi untuk size: {missing_keys}",
             )
 
-        # validasi: semua round_size harus bisa dihitung
-        missing_sizes = []
-        for p in partai:
-            rs = p.get("round_size")
-            if rs is None:
-                continue
-            if interpolate_price(rs, price_points) is None:
-                missing_sizes.append(rs)
-
-        if missing_sizes:
-            missing_sizes = sorted(set(missing_sizes))
-            return render_template(
-                "invoice/create.html",
-                header=header,
-                partai=partai,
-                price_keys=price_keys,
-                form=form,
-                error=(
-                    f"Harga patokan kurang. Tidak bisa hitung untuk round_size: {missing_sizes}. "
-                    f"Isi titik harga yang mengapitnya (contoh 65 butuh 60 & 70)."
-                ),
-            )
-
-    # overrides (paid + note)
     overrides = {}
-    for p in partai:
-        no = int(p["partai_no"])
-        raw_paid = form.get(f"paid_kg_{no}")
-        note = (form.get(f"note_{no}") or "").strip()
-
-        d = {}
-        if raw_paid is not None and raw_paid.strip() != "":
-            try:
-                paid_g = parse_kg_to_g(raw_paid)
-            except ValueError as e:
-                return render_template(
-                    "invoice/create.html",
-                    header=header,
-                    partai=partai,
-                    price_keys=price_keys,
-                    form=form,
-                    error=str(e),
-                )
-            if paid_g is not None:
-                d["paid_g"] = paid_g
-
-        if note != "":
-            d["note"] = note
-
-        if d:
-            overrides[no] = d
 
     try:
         invoice_id = create_invoice_from_receiving(
             receiving_id=receiving_id,
-            price_points=price_points,          # non-kupasan: terisi; kupasan: {}
+            price_points=price_points,
             payment_type=payment_type,
             tempo_hari=tempo_hari,
             cash_deduct_per_kg_rp=cash_deduct_per_kg_rp,
             partai_overrides=overrides,
-            kupasan_prices=kupasan_prices,      # kupasan: dict; non-kupasan: None
+            kupasan_prices=kupasan_prices,
+            grade_prices=grade_prices,   # ✅ INI wajib untuk manual_grade
         )
+        return redirect(url_for("invoice.invoice_view", invoice_id=invoice_id))
+
     except Exception as e:
+        print("CREATE INVOICE ERROR:", e)
         return render_template(
             "invoice/create.html",
             header=header,
             partai=partai,
             price_keys=price_keys,
+            mode=mode,
             form=form,
             error=str(e),
         )
-
-    return redirect(url_for("invoice.invoice_view", invoice_id=invoice_id))
 
 @invoice_bp.route("/view/<int:invoice_id>", methods=["GET"])
 def invoice_view(invoice_id):
