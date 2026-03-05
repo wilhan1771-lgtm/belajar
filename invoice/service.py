@@ -3,7 +3,6 @@ from .pricing import interpolate_price, div_round
 from . import repository as repo
 import json
 from .pricing import resolve_price
-
 def kg_to_g(kg):
     """
     Konversi kg (REAL sqlite) -> gram int stabil.
@@ -33,7 +32,7 @@ def create_invoice_from_receiving(
     cash_deduct_per_kg_rp=0,
     tempo_hari=0,
     partai_overrides=None,
-    grade_prices=None,          # ✅ dipakai untuk manual_grade
+    grade_prices=None,  # dipakai untuk manual_grade
 ):
     existing = repo.invoice_exists_for_receiving(receiving_id)
     if existing:
@@ -44,7 +43,7 @@ def create_invoice_from_receiving(
         raise ValueError("Receiving header tidak ditemukan.")
 
     jenis = (rh.get("jenis") or "").strip().lower()
-    mode = repo.get_jenis_mode(jenis)          # ✅ "udang_size" | "manual_grade"
+    mode = repo.get_jenis_mode(jenis)  # "udang_size" | "manual_grade"
     is_manual = (mode == "manual_grade")
 
     items = repo.fetch_receiving_items(receiving_id) or []
@@ -73,31 +72,8 @@ def create_invoice_from_receiving(
     except Exception:
         due_date = None
 
-    # kalau tidak ada items, tetap bikin header kosong
-    invoice_id = repo.insert_invoice_header(
-        receiving_id=receiving_id,
-        supplier=supplier,
-        price_points=price_points or {},
-        payment_type=payment_type,
-        cash_deduct_per_kg_rp=cash_deduct_per_kg_rp,
-        tempo_hari=tempo_hari,
-        due_date=due_date,
-        grade_prices=grade_prices if is_manual else None,
-    )
-
-    if not items:
-        repo.update_invoice_totals(
-            invoice_id=invoice_id,
-            subtotal_rp=0,
-            total_paid_g=0,
-            cash_deduct_total_rp=0,
-            pph_amount_rp=0,
-            total_payable_rp=0,
-        )
-        return invoice_id
-
     # =========================
-    # VALIDASI MODE MANUAL
+    # VALIDASI MANUAL GRADE
     # =========================
     if is_manual:
         if not isinstance(grade_prices, dict):
@@ -116,6 +92,32 @@ def create_invoice_from_receiving(
         if missing:
             raise ValueError(f"Harga untuk grade {', '.join(missing)} wajib diisi dan > 0.")
 
+    # =========================
+    # INSERT HEADER
+    # (NOTE: grade_prices akan disimpan kalau repo kamu support)
+    # =========================
+    invoice_id = repo.insert_invoice_header(
+        receiving_id=receiving_id,
+        supplier=supplier,
+        price_points=price_points or {},
+        payment_type=payment_type,
+        cash_deduct_per_kg_rp=cash_deduct_per_kg_rp,
+        tempo_hari=tempo_hari,
+        due_date=due_date,
+        grade_prices=(grade_prices if is_manual else None),
+    )
+
+    if not items:
+        repo.update_invoice_totals(
+            invoice_id=invoice_id,
+            subtotal_rp=0,
+            total_paid_g=0,
+            cash_deduct_total_rp=0,
+            pph_amount_rp=0,
+            total_payable_rp=0,
+        )
+        return invoice_id
+
     partai_overrides = partai_overrides or {}
 
     subtotal_rp = 0
@@ -126,28 +128,39 @@ def create_invoice_from_receiving(
     # =========================
     for it in items:
         partai_no = int(it["partai_no"])
-        rs = it.get("round_size")
 
-        # tentukan harga / kg
-        if is_manual:
-            g = (it.get("grade_manual") or "").strip()
-            used_price = int(grade_prices.get(g) or 0)
-            if used_price <= 0:
-                raise ValueError(f"Partai {partai_no}: harga grade_manual '{g}' tidak valid.")
-        else:
-            base_price = interpolate_price(rs, price_points)
-
-            # fallback ke harga terdekat
-            if base_price is None and price_points:
-                nearest = min(price_points.keys(), key=lambda k: abs(k - rs))
-                base_price = price_points[nearest]
-
+        # berat
         net_g = kg_to_g(it.get("netto"))
         paid_g = net_g
 
         ov = partai_overrides.get(partai_no) or {}
         if ov.get("paid_g") is not None:
             paid_g = int(ov["paid_g"])
+
+        # harga/kg
+        if is_manual:
+            g = (it.get("grade_manual") or "").strip()
+            used_price = int(grade_prices.get(g) or 0)
+            if used_price <= 0:
+                raise ValueError(f"Partai {partai_no}: harga grade_manual '{g}' tidak valid.")
+        else:
+            rs = it.get("round_size")
+            try:
+                rs_int = int(rs) if rs is not None and str(rs).strip() != "" else None
+            except:
+                rs_int = None
+
+            base_price = interpolate_price(rs_int, price_points) if rs_int is not None else None
+
+            # fallback nearest jika interpolate gagal tapi ada price_points
+            if base_price is None and price_points and rs_int is not None:
+                nearest = min(price_points.keys(), key=lambda k: abs(int(k) - rs_int))
+                base_price = price_points[nearest]
+
+            if base_price is None:
+                raise ValueError(f"Harga tidak bisa dihitung untuk round_size={rs} (partai {partai_no}).")
+
+            used_price = int(base_price)
 
         line_total = mul_div_round(int(paid_g), int(used_price), 1000)
         note = ov.get("note") or it.get("note")
@@ -158,7 +171,7 @@ def create_invoice_from_receiving(
             partai_no=partai_no,
             net_g=int(net_g),
             paid_g=int(paid_g),
-            round_size=rs,
+            round_size=it.get("round_size"),
             price_per_kg_rp=int(used_price),
             line_total_rp=int(line_total),
             note=note,
@@ -167,6 +180,9 @@ def create_invoice_from_receiving(
         subtotal_rp += int(line_total)
         total_paid_g += int(paid_g)
 
+    # =========================
+    # totals
+    # =========================
     cash_deduct_total = 0
     if payment_type == "cash" and cash_deduct_per_kg_rp > 0:
         cash_deduct_total = mul_div_round(total_paid_g, cash_deduct_per_kg_rp, 1000)
@@ -185,21 +201,157 @@ def create_invoice_from_receiving(
 
     return invoice_id
 
-def kg_to_g(kg):
-    if kg is None:
-        return 0
-    s = str(kg)
-    try:
-        if "." in s:
-            whole, frac = s.split(".", 1)
-            frac = (frac + "000")[:3]
-            return int(whole) * 1000 + int(frac)
-        return int(s) * 1000
-    except Exception:
-        return int(round(float(kg) * 1000))
-
 def mul_div_round(a, b, d):
     return div_round(a * b, d)
+
+from . import repository as repo
+from .pricing import interpolate_price, div_round
+
+def rebuild_invoice_lines(
+    invoice_id: int,
+    receiving_id: int,
+    price_points: dict | None,
+    payment_type: str,
+    tempo_hari: int = 0,
+    cash_deduct_per_kg_rp: int = 0,
+    partai_overrides: dict | None = None,
+    grade_prices: dict | None = None,   # ✅ manual_grade
+):
+    """
+    Rebuild invoice_line + totals berdasarkan receiving_item terbaru.
+    - Mode 'udang_size': pakai interpolate_price dari price_points
+    - Mode 'manual_grade': pakai grade_manual + grade_prices
+      Jika grade_prices None → ambil dari invoice_header.grade_prices_json
+    """
+
+    rh = repo.fetch_receiving_header(receiving_id)
+    if not rh:
+        raise ValueError("Receiving header tidak ditemukan.")
+
+    jenis = (rh.get("jenis") or "").strip().lower()
+    mode = repo.get_jenis_mode(jenis)  # "udang_size" | "manual_grade"
+    is_manual = (mode == "manual_grade")
+
+    items = repo.fetch_receiving_items(receiving_id) or []
+    partai_overrides = partai_overrides or {}
+    price_points = price_points or {}
+
+    # ambil grade_prices dari header jika manual dan param belum dikirim
+    if is_manual and not isinstance(grade_prices, dict):
+        inv = repo.get_invoice_header(invoice_id)
+        try:
+            gp = json.loads(inv.get("grade_prices_json") or "{}")
+            if isinstance(gp, dict):
+                grade_prices = {str(k): int(v) for k, v in gp.items()}
+            else:
+                grade_prices = {}
+        except Exception:
+            grade_prices = {}
+
+    # validasi manual
+    if is_manual:
+        if not isinstance(grade_prices, dict):
+            raise ValueError("Manual grade butuh grade_prices (dict).")
+
+        required_grades = sorted({
+            (it.get("grade_manual") or "").strip()
+            for it in items
+            if (it.get("grade_manual") or "").strip()
+        })
+
+        if not required_grades:
+            raise ValueError("Tidak ada grade pada partai. Isi grade per partai dulu.")
+
+        missing = [g for g in required_grades if int(grade_prices.get(g) or 0) <= 0]
+        if missing:
+            raise ValueError(f"Harga untuk grade {', '.join(missing)} wajib diisi dan > 0.")
+
+    subtotal_rp = 0
+    total_paid_g = 0
+
+    conn = repo.get_conn()
+    try:
+        # hapus lines lama dulu (aman karena receiving_item_id UNIQUE)
+        conn.execute("DELETE FROM invoice_line WHERE invoice_id=?", (int(invoice_id),))
+
+        for it in items:
+            partai_no = int(it["partai_no"])
+            rs = it.get("round_size")
+
+            # tentukan harga/kg
+            if is_manual:
+                g = (it.get("grade_manual") or "").strip()
+                used_price = int(grade_prices.get(g) or 0)
+                if used_price <= 0:
+                    raise ValueError(f"Partai {partai_no}: harga grade '{g}' belum diisi.")
+            else:
+                base_price = interpolate_price(rs, price_points)
+                if base_price is None:
+                    raise ValueError(f"Harga tidak bisa dihitung untuk round_size={rs} (partai {partai_no}).")
+                used_price = int(base_price)
+
+            net_g = kg_to_g(it.get("netto"))
+            paid_g = net_g
+
+            ov = partai_overrides.get(partai_no) or {}
+            if ov.get("paid_g") is not None:
+                paid_g = int(ov["paid_g"])
+
+            line_total = mul_div_round(int(paid_g), int(used_price), 1000)
+            note = ov.get("note") or it.get("note")
+
+            conn.execute("""
+                INSERT INTO invoice_line (
+                    invoice_id, receiving_item_id, partai_no,
+                    net_g, paid_g, round_size, price_per_kg_rp, line_total_rp, note
+                ) VALUES (?,?,?,?,?,?,?,?,?)
+            """, (
+                int(invoice_id),
+                int(it["id"]),
+                int(partai_no),
+                int(net_g),
+                int(paid_g),
+                rs,
+                int(used_price),
+                int(line_total),
+                note
+            ))
+
+            subtotal_rp += int(line_total)
+            total_paid_g += int(paid_g)
+
+        # cash deduct
+        cash_deduct_total = 0
+        if (payment_type or "").strip().lower() == "cash" and int(cash_deduct_per_kg_rp or 0) > 0:
+            cash_deduct_total = mul_div_round(total_paid_g, int(cash_deduct_per_kg_rp), 1000)
+
+        # pph belum dipakai
+        pph_amount = 0
+        total_payable = subtotal_rp - cash_deduct_total - pph_amount
+
+        conn.execute("""
+            UPDATE invoice_header
+            SET subtotal_rp=?,
+                total_paid_g=?,
+                cash_deduct_total_rp=?,
+                pph_amount_rp=?,
+                total_payable_rp=?
+            WHERE id=?
+        """, (
+            int(subtotal_rp),
+            int(total_paid_g),
+            int(cash_deduct_total),
+            int(pph_amount),
+            int(total_payable),
+            int(invoice_id)
+        ))
+
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 def rebuild_invoice_from_receiving_if_exists(conn, receiving_id: int):
     """

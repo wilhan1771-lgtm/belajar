@@ -35,7 +35,16 @@ app.config["ADMIN_PASSWORD"] = "1234"   # atau ADMIN_PIN
 DATE_FMT = "%Y-%m-%d"
 print("INI FILE YANG AKTIF")
 
+import sqlite3
 
+conn = sqlite3.connect("receiving.db")
+cursor = conn.cursor()
+
+cursor.execute("PRAGMA table_info(invoices)")
+cols = cursor.fetchall()
+
+for c in cols:
+    print(c)
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":

@@ -111,13 +111,19 @@
         <div class="hint">Jika Cash, potongan cash/kg akan dipakai.</div>
       </div>
 
-      <div>
-        <label>Tempo (hari)</label>
-        <input name="tempo_hari" id="tempoHari" type="number" min="0" step="1"
-               value="{{ form.tempo_hari if form else 0 }}">
-        <div class="hint">Dipakai untuk Transfer (jatuh tempo = tanggal + tempo).</div>
-      </div>
-
+     <div>
+      <label>Tempo (hari)</label>
+      <input
+          name="tempo_hari"
+          id="tempoHari"
+          type="number"
+          min="0"
+          step="1"
+          required
+          value="{{ form.tempo_hari if form else '' }}"
+      >
+      <div class="hint">Dipakai untuk Transfer (jatuh tempo = tanggal + tempo).</div>
+     </div>
       <div>
         <label>Jatuh Tempo (tanggal)</label>
         <input type="text" id="jatuhTempo" readonly placeholder="auto">

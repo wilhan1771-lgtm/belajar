@@ -67,8 +67,7 @@ def insert_invoice_header(
              subtotal_rp, total_payable_rp, total_paid_g,
              status)
             VALUES (?, ?, ?, ?,
-                    ?, ?,
-                    ?, ?,
+                    ?, ?, ?,
                     ?, 0,
                     0, 0,
                     0, 0, 0,
@@ -78,14 +77,13 @@ def insert_invoice_header(
                 int(receiving_id),
                 supplier,
                 price_points_json,
-                grade_prices_json,   # ✅ simpan harga grade
+                grade_prices_json,
                 payment_type,
                 int(tempo_hari or 0),
                 due_date,
                 int(cash_deduct_per_kg_rp or 0),
             ),
         )
-
         conn.commit()
         return int(cur.lastrowid)
 
