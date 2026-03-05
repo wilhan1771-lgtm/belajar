@@ -3,7 +3,7 @@ from datetime import date
 import json
 from flask import current_app
 from . import receiving_bp
-
+from invoice.service import rebuild_invoice_from_receiving_if_exists
 from helpers.auth import require_login, login_required
 from helpers.db import init_db, get_conn
 from helpers.number_utils import to_int, to_float
@@ -11,7 +11,7 @@ from helpers.db import get_conn, DB_PATH
 from receiving.calculator import hitung_partai
 from receiving.service import update_receiving
 from invoice.service import create_invoice_from_receiving
-from invoice.repository import get_invoice_by_receiving
+from invoice.repository import get_invoice_by_receiving, get_jenis_mode
 
 @receiving_bp.get("/")
 def receiving():
@@ -134,7 +134,6 @@ def receiving_save():
 
 @receiving_bp.post("/update/<int:header_id>")
 def receiving_update(header_id):
-
     if not require_login():
         return jsonify({"ok": False, "msg": "Unauthorized"}), 401
 
@@ -187,7 +186,7 @@ def receiving_update(header_id):
             h = hitung_partai({**p, "timbangan": timbangan})
 
             kategori = p.get("kategori_kupasan")
-            if header and header.get("jenis") == "kupasan" and not kategori:
+            if header and (header.get("jenis") or "").strip().lower() == "kupasan" and not kategori:
                 kategori = old_kupasan.get(p.get("partai_no"))
 
             if pid and isinstance(pid, (int, float)) and int(pid) > 0:
@@ -229,7 +228,8 @@ def receiving_update(header_id):
                     pid,
                     header_id
                 ))
-
+                print("OLD round_size:", p.get("round_size"))
+                print("NEW round_size:", h.get("round_size"))
                 incoming_existing_ids.add(pid)
 
             else:
@@ -270,7 +270,7 @@ def receiving_update(header_id):
                     p.get("fiber")
                 ))
 
-        # ===== DELETE YANG TIDAK ADA DI PAYLOAD (kalau user hapus partai) =====
+        # ===== DELETE YANG TIDAK ADA DI PAYLOAD =====
         ids_to_delete = existing_ids - incoming_existing_ids
         if ids_to_delete:
             placeholders = ",".join(["?"] * len(ids_to_delete))
@@ -279,12 +279,27 @@ def receiving_update(header_id):
                 (header_id, *ids_to_delete)
             )
 
+        # ==========================================================
+        # ✅ AUTO REBUILD INVOICE (HANYA UNTUK mode udang_size)
+        # ==========================================================
+        rh = cur.execute(
+            "SELECT jenis FROM receiving_header WHERE id=?",
+            (header_id,)
+        ).fetchone()
+
+        jenis = (rh["jenis"] or "").strip().lower() if rh else ""
+        mode = get_jenis_mode(jenis)
+
+        # hanya udang_size yang aman auto-sync
+        if mode == "udang_size":
+            rebuild_invoice_from_receiving_if_exists(conn, header_id)
+
+        rebuild_invoice_from_receiving_if_exists(conn, header_id)
         conn.commit()
         return jsonify({"ok": True})
 
     except Exception as e:
         conn.rollback()
-        print("ERROR UPDATE RECEIVING:", e)
         return jsonify({"ok": False, "msg": str(e)}), 500
 
     finally:
@@ -335,19 +350,26 @@ def receiving_list():
             h.supplier,
             h.jenis,
             h.fiber,
+
             COALESCE(SUM(COALESCE(p.netto, 0)), 0) AS total_netto,
             COUNT(p.id) AS jml_partai,
+
             CASE
             WHEN LOWER(h.jenis) = 'kupasan'
-            THEN GROUP_CONCAT(DISTINCT p.kategori_kupasan)
+            THEN GROUP_CONCAT(DISTINCT
+                    COALESCE(
+                        NULLIF(TRIM(p.grade_manual),''),
+                        NULLIF(TRIM(p.kategori_kupasan),'')
+                    )
+                 )
             ELSE GROUP_CONCAT(DISTINCT COALESCE(p.round_size, p.size))
             END AS size_display
+
         FROM receiving_header h
         LEFT JOIN receiving_item p ON p.header_id = h.id
         {where_sql}
         GROUP BY h.id
         ORDER BY h.tanggal DESC, h.id DESC
-
     """, params).fetchall()
 
     total_berat = sum([(r["total_netto"] or 0) for r in rows])

@@ -1,9 +1,9 @@
 from flask import render_template, request, redirect, url_for, jsonify
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import json
-
+from .repository import get_jenis_mode
 from . import invoice_bp
-from .service import create_invoice_from_receiving, rebuild_invoice_lines
+from .service import create_invoice_from_receiving, rebuild_invoice_lines, kg_to_g
 from .pricing import interpolate_price
 from . import repository as repo
 from datetime import time, timedelta, datetime
@@ -113,15 +113,14 @@ def invoice_new(receiving_id):
     if not header:
         return "Receiving tidak ditemukan", 404
 
-    partai = repo.fetch_receiving_items(receiving_id)
+    partai = repo.fetch_receiving_items(receiving_id) or []
 
     jenis = (header.get("jenis") or "").strip().lower()
-    mode = repo.get_jenis_mode(jenis)  # "udang_size" | "kupasan" | "manual_grade"
-    is_kupasan = (mode == "kupasan")
+    mode = get_jenis_mode(jenis)  # "udang_size" | "manual_grade"
     is_manual = (mode == "manual_grade")
 
     # hanya untuk udang_size
-    price_keys = [] if (is_kupasan or is_manual) else needed_price_keys(partai)
+    price_keys = [] if is_manual else needed_price_keys(partai)
 
     existing = repo.get_invoice_by_receiving(receiving_id)
     if request.method == "GET" and existing:
@@ -133,31 +132,29 @@ def invoice_new(receiving_id):
             header=header,
             partai=partai,
             price_keys=price_keys,
-            mode=mode,
+            mode=mode,             # mode jenis
+            page_mode="new",       # UI new/edit
             form=None,
             error=None,
         )
 
     form = request.form.to_dict()
-    print("FORM KEYS:", list(form.keys()))
-    print("FORM:", form)
-    print("MODE:", mode, "JENIS:", jenis)
 
     payment_type = (form.get("payment_type") or "transfer").strip().lower()
     if payment_type not in ("cash", "transfer"):
         payment_type = "transfer"
 
     tempo_hari = to_int(form, "tempo_hari", 0)
+
     cash_deduct_per_kg_rp = to_int(form, "cash_deduct_per_kg_rp", 0)
     if payment_type != "cash":
         cash_deduct_per_kg_rp = 0
 
-    kupasan_prices = None
     price_points = {}
     grade_prices = None
 
     # =========================
-    # MANUAL GRADE
+    # MANUAL (grade_manual + grade_prices)
     # =========================
     if is_manual:
         grades = sorted({
@@ -166,11 +163,24 @@ def invoice_new(receiving_id):
             if (p.get("grade_manual") or "").strip()
         })
 
+        if not grades:
+            return render_template(
+                "invoice/create.html",
+                header=header,
+                partai=partai,
+                price_keys=price_keys,
+                mode=mode,
+                page_mode="new",
+                form=form,
+                error="Tidak ada grade_manual pada receiving_item. Isi grade dulu di receiving.",
+            )
+
         grade_prices = {}
         missing = []
 
         for g in grades:
-            key = f"grade_price_{g.strip().lower().replace(' ', '_').replace('/', '_')}"
+            safe = g.strip().lower().replace(" ", "_").replace("/", "_")
+            key = f"grade_price_{safe}"
             raw = (form.get(key) or "").strip()
             vv = int(raw.replace(".", "")) if raw else 0
 
@@ -186,36 +196,10 @@ def invoice_new(receiving_id):
                 partai=partai,
                 price_keys=price_keys,
                 mode=mode,
+                page_mode="new",
                 form=form,
                 error=f"Harga untuk grade {', '.join(missing)} wajib diisi.",
             )
-
-    # =========================
-    # KUPASAN
-    # =========================
-    elif is_kupasan:
-        needs_kecil = any(((p.get("kategori_kupasan") or "").strip().lower() == "kecil") for p in partai)
-        needs_besar = any(((p.get("kategori_kupasan") or "").strip().lower() == "besar") for p in partai)
-
-        hk = to_int(form, "kupasan_kecil_rp", 0)
-        hb = to_int(form, "kupasan_besar_rp", 0)
-
-        missing = []
-        if needs_kecil and hk <= 0: missing.append("kecil")
-        if needs_besar and hb <= 0: missing.append("besar")
-
-        if missing:
-            return render_template(
-                "invoice/create.html",
-                header=header,
-                partai=partai,
-                price_keys=price_keys,
-                mode=mode,
-                form=form,
-                error=f"Harga kupasan {', '.join(missing)} wajib diisi.",
-            )
-
-        kupasan_prices = {"kecil": hk, "besar": hb}
 
     # =========================
     # UDANG SIZE
@@ -236,11 +220,10 @@ def invoice_new(receiving_id):
                 partai=partai,
                 price_keys=price_keys,
                 mode=mode,
+                page_mode="new",
                 form=form,
                 error=f"Harga patokan wajib diisi untuk size: {missing_keys}",
             )
-
-    overrides = {}
 
     try:
         invoice_id = create_invoice_from_receiving(
@@ -249,23 +232,277 @@ def invoice_new(receiving_id):
             payment_type=payment_type,
             tempo_hari=tempo_hari,
             cash_deduct_per_kg_rp=cash_deduct_per_kg_rp,
-            partai_overrides=overrides,
-            kupasan_prices=kupasan_prices,
-            grade_prices=grade_prices,   # ✅ INI wajib untuk manual_grade
+            partai_overrides={},          # masih kosong
+            grade_prices=grade_prices,    # ✅ dipakai kalau manual
         )
         return redirect(url_for("invoice.invoice_view", invoice_id=invoice_id))
 
     except Exception as e:
-        print("CREATE INVOICE ERROR:", e)
         return render_template(
             "invoice/create.html",
             header=header,
             partai=partai,
             price_keys=price_keys,
             mode=mode,
+            page_mode="new",
             form=form,
             error=str(e),
         )
+@invoice_bp.route("/edit/<int:invoice_id>", methods=["GET", "POST"])invoice_edit(invoice_id):
+    inv = repo.get_invoice_header(invoice_id)
+    if not inv:
+        return "Invoice tidak ditemukan", 404
+
+    receiving_id = int(inv["receiving_id"])
+    header = repo.fetch_receiving_header(receiving_id)
+    if not header:
+        return "Receiving tidak ditemukan", 404
+
+    partai = repo.fetch_receiving_items(receiving_id) or []
+    lines = repo.fetch_invoice_lines(invoice_id) or []
+
+    # mode jenis: udang_size | manual_grade
+    jenis = (header.get("jenis") or "").strip().lower()
+    mode_receiving = repo.get_jenis_mode(jenis)
+    is_manual = (mode_receiving == "manual_grade")
+
+    # price_points hanya untuk udang_size
+    try:
+        pts = json.loads(inv.get("price_points_json") or "{}")
+        price_points = {int(k): int(v) for k, v in pts.items()}
+    except Exception:
+        price_points = {}
+
+    # hanya untuk udang_size
+    price_keys = [] if is_manual else needed_price_keys(partai)
+
+    def _render_err(msg, price_points_override=None):
+        return render_template(
+            "invoice/create.html",
+            header=header,
+            partai=partai,
+            price_keys=price_keys,
+            price_points=price_points_override if price_points_override is not None else price_points,
+            form=form,
+            error=msg,
+            inv=inv,
+            lines=lines,
+            page_mode="edit",
+            mode=mode_receiving,
+        )
+
+    # ================= GET =================
+    if request.method == "GET":
+        form = {
+            "payment_type": (inv.get("payment_type") or "transfer"),
+            "tempo_hari": str(inv.get("tempo_hari") or 0),
+            "cash_deduct_per_kg_rp": str(inv.get("cash_deduct_per_kg_rp") or 0),
+            "invoice_note": inv.get("note") or "",
+        }
+
+        # paid_kg default ikut receiving terbaru + grade per partai (manual)
+        for p in partai:
+            no = int(p["partai_no"])
+            net_g = kg_to_g(p.get("netto"))
+            form[f"paid_kg_{no}"] = f"{net_g/1000:.3f}"
+            form[f"grade_{no}"] = (p.get("grade_manual") or "")
+
+        # note prefill dari invoice_line
+        for r in lines:
+            no = int(r["partai_no"])
+            if r.get("note"):
+                form[f"note_{no}"] = r.get("note")
+
+        # udang_size prefill sampling points
+        if not is_manual:
+            for k in price_keys:
+                v = price_points.get(int(k))
+                if v is not None:
+                    form[f"p{k}"] = str(v)
+
+        return render_template(
+            "invoice/create.html",
+            header=header,
+            partai=partai,
+            price_keys=price_keys,
+            price_points=price_points,
+            form=form,
+            error=None,
+            inv=inv,
+            lines=lines,
+            page_mode="edit",
+            mode=mode_receiving,
+        )
+
+    # ================= POST =================
+    form = request.form.to_dict()
+
+    payment_type = (form.get("payment_type") or "transfer").strip().lower()
+    if payment_type not in ("cash", "transfer"):
+        payment_type = "transfer"
+
+    tempo_hari = to_int(form, "tempo_hari", 0)
+
+    cash_deduct_per_kg_rp = to_int(form, "cash_deduct_per_kg_rp", 0)
+    if payment_type != "cash":
+        cash_deduct_per_kg_rp = 0
+
+    # default paid ikut receiving terbaru
+    default_paid_g = {int(p["partai_no"]): kg_to_g(p.get("netto")) for p in partai}
+
+    overrides = {}
+    grade_updates = []  # (grade_manual, receiving_item_id)
+
+    for p in partai:
+        no = int(p["partai_no"])
+        rid = int(p["id"])
+
+        raw_paid = form.get(f"paid_kg_{no}")
+        note = (form.get(f"note_{no}") or "").strip()
+
+        # manual grade: simpan grade per partai ke receiving_item.grade_manual
+        if is_manual:
+            gm_new = (form.get(f"grade_{no}") or "").strip() or None
+            gm_old = (p.get("grade_manual") or "").strip() or None
+            if gm_new != gm_old:
+                grade_updates.append((gm_new, rid))
+
+        d = {}
+
+        # override paid hanya jika beda dari receiving netto terbaru
+        if raw_paid is not None and raw_paid.strip() != "":
+            try:
+                paid_g = parse_kg_to_g(raw_paid)
+            except ValueError as e:
+                return _render_err(str(e))
+            if paid_g is not None and int(paid_g) != int(default_paid_g.get(no, 0)):
+                d["paid_g"] = int(paid_g)
+
+        if note:
+            d["note"] = note
+
+        if d:
+            overrides[no] = d
+
+    new_price_points = {}
+    grade_prices = None
+
+    # ===== MANUAL GRADE (cumi + kupasan) =====
+    if is_manual:
+        # ambil grade dari FORM jika ada, fallback DB
+        grades_form = []
+        for p in partai:
+            no = int(p["partai_no"])
+            g = (form.get(f"grade_{no}") or "").strip()
+            if g and g not in grades_form:
+                grades_form.append(g)
+
+        grades_db = []
+        for p in partai:
+            g = (p.get("grade_manual") or "").strip()
+            if g and g not in grades_db:
+                grades_db.append(g)
+
+        grades = sorted(grades_form or grades_db)
+
+        if not grades:
+            return _render_err(
+                "Tidak ada grade pada partai. Isi grade per partai (mis: kecil/besar atau S/M/L/XL) lalu isi harga grade."
+            )
+
+        grade_prices = {}
+        missing = []
+        for g in grades:
+            safe = g.strip().lower().replace(" ", "_").replace("/", "_")
+            key = f"grade_price_{safe}"
+            raw = (form.get(key) or "").strip()
+            vv = int(raw.replace(".", "")) if raw else 0
+
+            if vv <= 0:
+                missing.append(g)
+            else:
+                grade_prices[g] = vv
+
+        if missing:
+            return _render_err(f"Harga untuk grade {', '.join(missing)} wajib diisi.")
+
+    # ===== UDANG SIZE =====
+    else:
+        missing_keys = []
+        for k in price_keys:
+            v = (form.get(f"p{k}") or "").strip()
+            if v == "":
+                missing_keys.append(k)
+            else:
+                new_price_points[int(k)] = int(v.replace(".", ""))
+
+        if missing_keys:
+            return _render_err(
+                f"Harga patokan wajib diisi untuk size: {missing_keys}",
+                price_points_override=new_price_points
+            )
+
+    # due_date
+    due_date = None
+    try:
+        d = datetime.strptime(header["tanggal"], "%Y-%m-%d").date()
+        due_date = (d + timedelta(days=int(tempo_hari or 0))).isoformat()
+    except Exception:
+        due_date = None
+
+    price_points_json = json.dumps({str(k): v for k, v in (new_price_points or {}).items()})
+    grade_prices_json = json.dumps(grade_prices or {})
+
+    conn = repo.get_conn()
+    try:
+        # simpan grade_manual ke receiving_item (manual mode)
+        if is_manual:
+            for gm, rid in grade_updates:
+                conn.execute("UPDATE receiving_item SET grade_manual=? WHERE id=?", (gm, rid))
+
+        # update invoice_header
+        conn.execute("""
+            UPDATE invoice_header
+            SET payment_type=?,
+                tempo_hari=?,
+                due_date=?,
+                cash_deduct_per_kg_rp=?,
+                price_points_json=?,
+                grade_prices_json=?,
+                note=?
+            WHERE id=?
+        """, (
+            payment_type,
+            int(tempo_hari or 0),
+            due_date,
+            int(cash_deduct_per_kg_rp or 0),
+            price_points_json,
+            (form.get("invoice_note") or "").strip() or None,
+            invoice_id
+        ))
+
+        # rebuild lines: hapus dulu (agar receiving_item_id UNIQUE aman)
+        conn.execute("DELETE FROM invoice_line WHERE invoice_id=?", (invoice_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+    # rebuild lines + totals
+    rebuild_invoice_lines(
+        invoice_id=invoice_id,
+        receiving_id=receiving_id,
+        price_points=new_price_points,
+        payment_type=payment_type,
+        tempo_hari=tempo_hari,
+        cash_deduct_per_kg_rp=cash_deduct_per_kg_rp,
+        partai_overrides=overrides,
+        grade_prices=grade_prices,   # ✅ dipakai kalau manual
+    )
+
+    return redirect(url_for("invoice.invoice_view", invoice_id=invoice_id))
 
 @invoice_bp.route("/view/<int:invoice_id>", methods=["GET"])
 def invoice_view(invoice_id):
@@ -286,276 +523,6 @@ def invoice_api(invoice_id):
         return jsonify({"ok": False, "error": "Invoice not found"}), 404
     lines = repo.fetch_invoice_lines(invoice_id)
     return jsonify({"ok": True, "header": h, "lines": lines})
-
-
-@invoice_bp.route("/edit/<int:invoice_id>", methods=["GET", "POST"])
-def invoice_edit(invoice_id):
-    inv = repo.get_invoice_header(invoice_id)
-    if not inv:
-        return "Invoice tidak ditemukan", 404
-
-    # ambil receiving_id dari invoice header (WAJIB di atas)
-    receiving_id = int(inv["receiving_id"])
-
-    header = repo.fetch_receiving_header(receiving_id)
-    if not header:
-        return "Receiving tidak ditemukan", 404
-
-    partai = repo.fetch_receiving_items(receiving_id)
-
-    jenis = (header.get("jenis") or "").strip().lower()
-    is_kupasan = (jenis == "kupasan")
-
-    # parse price_points_json (untuk non-kupasan)
-    try:
-        price_points = json.loads(inv.get("price_points_json") or "{}")
-        price_points = {int(k): int(v) for k, v in price_points.items()}
-    except Exception:
-        price_points = {}
-
-    # lines lama (untuk kebutuhan tampil edit + parsing paid/note)
-    lines = repo.fetch_invoice_lines(invoice_id)  # pastikan repo punya fungsi ini
-
-    # key input harga hanya buat non-kupasan
-    price_keys = [] if is_kupasan else needed_price_keys(partai)
-
-    # ===== GET =====
-    if request.method == "GET":
-        form = {
-            "payment_type": (inv.get("payment_type") or "transfer"),
-            "tempo_hari": str(inv.get("tempo_hari") or 0),
-            "cash_deduct_per_kg_rp": str(inv.get("cash_deduct_per_kg_rp") or 0),
-            "invoice_note": inv.get("invoice_note") or "",
-        }
-
-        # Prefill paid_kg / note dari invoice_line yang ada (biar edit nyaman)
-        # paid_g -> tampil kg (3 desimal)
-        for r in lines:
-            no = int(r["partai_no"])
-            paid_g = int(r.get("paid_g") or 0)
-            form[f"paid_kg_{no}"] = f"{paid_g/1000:.3f}"
-            if r.get("note"):
-                form[f"note_{no}"] = r.get("note")
-
-        # Prefill harga kupasan dari invoice_line
-        if is_kupasan:
-            kp = repo.get_kupasan_prices_from_invoice(invoice_id)  # sudah kamu fix di repo
-            if kp.get("kecil") is not None:
-                form["kupasan_kecil_rp"] = str(kp["kecil"])
-            if kp.get("besar") is not None:
-                form["kupasan_besar_rp"] = str(kp["besar"])
-
-        # Prefill sampling points untuk non-kupasan
-        if not is_kupasan:
-            for k in price_keys:
-                if int(k) in price_points:
-                    form[f"p{k}"] = str(price_points[int(k)])
-
-        return render_template(
-            "invoice/create.html",
-            header=header,
-            partai=partai,
-            price_keys=price_keys,
-            price_points=price_points,
-            form=form,
-            error=None,
-            inv=inv,
-            lines=lines,
-            mode="edit",
-        )
-
-    # ===== POST =====
-    form = request.form.to_dict()
-
-    payment_type = (form.get("payment_type") or "transfer").strip().lower()
-    if payment_type not in ("cash", "transfer"):
-        payment_type = "transfer"
-
-    tempo_hari = to_int(form, "tempo_hari", 0)
-
-    cash_deduct_per_kg_rp = to_int(form, "cash_deduct_per_kg_rp", 0)
-    if payment_type != "cash":
-        cash_deduct_per_kg_rp = 0
-
-    # overrides per partai: paid_g + note
-    overrides = {}
-    for p in partai:
-        no = int(p["partai_no"])
-        raw_paid = form.get(f"paid_kg_{no}")
-        note = (form.get(f"note_{no}") or "").strip()
-
-        d = {}
-        if raw_paid is not None and raw_paid.strip() != "":
-            try:
-                paid_g = parse_kg_to_g(raw_paid)
-            except ValueError as e:
-                return render_template(
-                    "invoice/create.html",
-                    mode="edit",
-                    inv=inv,
-                    lines=lines,
-                    header=header,
-                    partai=partai,
-                    price_keys=price_keys,
-                    price_points=price_points,
-                    form=form,
-                    error=str(e),
-                )
-            if paid_g is not None:
-                d["paid_g"] = paid_g
-
-        if note:
-            d["note"] = note
-
-        if d:
-            overrides[no] = d
-
-    new_price_points = {}
-    kupasan_prices = None
-
-    if is_kupasan:
-        # cek kebutuhan input berdasarkan kategori di receiving_item
-        needs_kecil = any((p.get("kategori_kupasan") or "").strip().lower() == "kecil" for p in partai)
-        needs_besar = any((p.get("kategori_kupasan") or "").strip().lower() == "besar" for p in partai)
-
-        hk = to_int(form, "kupasan_kecil_rp", 0)
-        hb = to_int(form, "kupasan_besar_rp", 0)
-
-        missing = []
-        if needs_kecil and hk <= 0:
-            missing.append("kecil")
-        if needs_besar and hb <= 0:
-            missing.append("besar")
-
-        # fallback kalau data kategori kosong semua (biar aman)
-        if not needs_kecil and not needs_besar:
-            if hk <= 0:
-                missing.append("kecil")
-            if hb <= 0:
-                missing.append("besar")
-
-        if missing:
-            return render_template(
-                "invoice/create.html",
-                mode="edit",
-                inv=inv,
-                lines=lines,
-                header=header,
-                partai=partai,
-                price_keys=price_keys,
-                price_points=price_points,
-                form=form,
-                error=f"Harga kupasan {', '.join(missing)} wajib diisi.",
-            )
-
-        kupasan_prices = {
-            "kecil": hk if hk > 0 else None,
-            "besar": hb if hb > 0 else None,
-        }
-
-    else:
-        # update sampling points
-        missing_keys = []
-        for k in price_keys:
-            v = (form.get(f"p{k}") or "").strip()
-            if v == "":
-                missing_keys.append(k)
-            else:
-                vv = v.replace(".", "")
-                new_price_points[int(k)] = int(vv)
-
-        if missing_keys:
-            return render_template(
-                "invoice/create.html",
-                mode="edit",
-                inv=inv,
-                lines=lines,
-                header=header,
-                partai=partai,
-                price_keys=price_keys,
-                price_points=new_price_points,
-                form=form,
-                error=f"Harga patokan wajib diisi untuk size: {missing_keys}",
-            )
-
-        # validasi interpolate round_size
-        missing_sizes = []
-        for p in partai:
-            rs = p.get("round_size")
-            if rs is None:
-                continue
-            if interpolate_price(rs, new_price_points) is None:
-                missing_sizes.append(rs)
-
-        if missing_sizes:
-            missing_sizes = sorted(set(missing_sizes))
-            return render_template(
-                "invoice/create.html",
-                mode="edit",
-                inv=inv,
-                lines=lines,
-                header=header,
-                partai=partai,
-                price_keys=price_keys,
-                price_points=new_price_points,
-                form=form,
-                error=f"Tidak bisa hitung harga untuk round_size: {missing_sizes}",
-            )
-
-    # hitung due_date
-    due_date = None
-    try:
-        d = datetime.strptime(header["tanggal"], "%Y-%m-%d").date()
-        due_date = (d + timedelta(days=int(tempo_hari or 0))).isoformat()
-    except Exception:
-        due_date = None
-
-    # simpan header invoice + rebuild lines + totals
-    price_points_json = json.dumps({str(k): v for k, v in (new_price_points or {}).items()})
-
-    conn = repo.get_conn()
-    try:
-        conn.execute("""
-            UPDATE invoice_header
-            SET payment_type=?,
-                tempo_hari=?,
-                due_date=?,
-                cash_deduct_per_kg_rp=?,
-                price_points_json=?,
-                note=?
-            WHERE id=?
-        """, (
-            payment_type,
-            int(tempo_hari or 0),
-            due_date,
-            int(cash_deduct_per_kg_rp or 0),
-            price_points_json,
-            (form.get("invoice_note") or "").strip() or None,
-            invoice_id
-        ))
-
-        # hapus lines lama
-        conn.execute("DELETE FROM invoice_line WHERE invoice_id=?", (invoice_id,))
-        conn.commit()
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()
-
-    # rebuild lines + totals
-    rebuild_invoice_lines(
-        invoice_id=invoice_id,
-        receiving_id=receiving_id,
-        price_points=new_price_points,
-        payment_type=payment_type,
-        tempo_hari=tempo_hari,
-        cash_deduct_per_kg_rp=cash_deduct_per_kg_rp,
-        partai_overrides=overrides,
-        kupasan_prices=kupasan_prices,
-    )
-
-    return redirect(url_for("invoice.invoice_view", invoice_id=invoice_id))
 
 @invoice_bp.route("/list", methods=["GET"])
 def invoice_list():

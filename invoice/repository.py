@@ -40,19 +40,34 @@ def insert_invoice_header(
     cash_deduct_per_kg_rp=0,
     tempo_hari=0,
     due_date=None,
+    grade_prices=None,   # ✅ tambahan
 ):
     conn = get_conn()
     try:
+
+        price_points_json = json.dumps(
+            {str(k): int(v) for k, v in (price_points or {}).items()},
+            ensure_ascii=False
+        )
+
+        grade_prices_json = json.dumps(
+            {str(k): int(v) for k, v in (grade_prices or {}).items()},
+            ensure_ascii=False
+        ) if grade_prices else None
+
         cur = conn.execute(
             """
             INSERT INTO invoice_header
-            (receiving_id, supplier, price_points_json, payment_type,
+            (receiving_id, supplier,
+             price_points_json, grade_prices_json,
+             payment_type,
              tempo_hari, due_date,
              cash_deduct_per_kg_rp, cash_deduct_total_rp,
              pph_rate_bp, pph_amount_rp,
              subtotal_rp, total_payable_rp, total_paid_g,
              status)
             VALUES (?, ?, ?, ?,
+                    ?, ?,
                     ?, ?,
                     ?, 0,
                     0, 0,
@@ -62,15 +77,18 @@ def insert_invoice_header(
             (
                 int(receiving_id),
                 supplier,
-                json.dumps({str(k): int(v) for k, v in (price_points or {}).items()}, ensure_ascii=False),
+                price_points_json,
+                grade_prices_json,   # ✅ simpan harga grade
                 payment_type,
                 int(tempo_hari or 0),
                 due_date,
                 int(cash_deduct_per_kg_rp or 0),
             ),
         )
+
         conn.commit()
         return int(cur.lastrowid)
+
     finally:
         conn.close()
 
@@ -134,16 +152,14 @@ def fetch_invoice_lines(invoice_id):
     conn = get_conn()
     try:
         rows = conn.execute("""
-            SELECT il.*,
-                   ri.kategori_kupasan AS kategori_kupasan
+            SELECT il.*
             FROM invoice_line il
-            LEFT JOIN receiving_item ri
-                   ON ri.id = il.receiving_item_id
             WHERE il.invoice_id = ?
             ORDER BY il.partai_no ASC, il.id ASC
         """, (invoice_id,)).fetchall()
 
         return [dict(r) for r in rows]
+
     finally:
         conn.close()
 
@@ -329,35 +345,6 @@ def update_invoice_totals(
     finally:
         conn.close()
 
-def get_kupasan_prices_from_invoice(invoice_id: int):
-    conn = get_conn()
-    try:
-        rows = conn.execute("""
-            SELECT
-                il.price_per_kg_rp AS price,
-                COALESCE(ri.kategori_kupasan, '') AS kategori
-            FROM invoice_line il
-            JOIN receiving_item ri
-              ON ri.id = il.receiving_item_id
-            WHERE il.invoice_id = ?
-        """, (invoice_id,)).fetchall()
-
-        hk = None
-        hb = None
-        for r in rows:
-            kategori = (r["kategori"] or "").strip().lower()
-            price = int(r["price"] or 0)
-            if price <= 0:
-                continue
-
-            if kategori == "kecil" and hk is None:
-                hk = price
-            elif kategori == "besar" and hb is None:
-                hb = price
-
-        return {"kecil": hk, "besar": hb}
-    finally:
-        conn.close()
 def get_jenis_mode(jenis: str) -> str:
     conn = get_conn()
     try:

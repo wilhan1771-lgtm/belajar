@@ -206,9 +206,9 @@ def init_db():
 
         # update mode untuk data lama
         conn.execute("""
-            UPDATE master_jenis
-            SET mode='kupasan'
-            WHERE LOWER(nama)='kupasan'
+        UPDATE master_jenis
+        SET mode='manual_grade'
+        WHERE LOWER(nama)='kupasan'
         """)
 
         conn.execute("""
@@ -217,6 +217,8 @@ def init_db():
             WHERE LOWER(nama) IN ('vannamei','dogol')
         """)
         ensure_column(conn, "receiving_item", "grade_manual", "TEXT")
+        ensure_column(conn,"invoice_header", "grade_prices_json", "TEXT")
+
         conn.commit()
         print("✅ Database baru siap:", DB_PATH)
     finally:

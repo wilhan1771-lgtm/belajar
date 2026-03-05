@@ -40,3 +40,24 @@ def interpolate_price(size, points):
     num = (p_lo - p_hi) * (size - lo)  # integer
     adj = div_round(num, 10)           # round
     return p_lo - adj
+def resolve_price(item, mode, price_map):
+    """
+    mode:
+    - udang_size
+    - manual_grade
+    - kupasan
+    """
+
+    if mode == "udang_size":
+        rs = item.get("round_size")
+        return interpolate_price(rs, price_map)
+
+    if mode == "manual_grade":
+        g = (item.get("grade_manual") or "").strip()
+        return price_map.get(g)
+
+    if mode == "kupasan":
+        g = (item.get("kategori_kupasan") or "").strip().lower()
+        return price_map.get(g)
+
+    return None
