@@ -25,6 +25,40 @@ def ensure_column(conn, table, column, definition):
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
         print(f"✔ Column '{column}' added to {table}")
 
+
+def seed_master_data(conn: sqlite3.Connection) -> None:
+        """
+        Isi master default jika belum ada.
+        """
+        cursor = conn.cursor()
+
+        # work_types default
+        default_work_types = [
+            ("KUPAS", "Kupas", "koin", 4),
+            ("BELAH", "Belah", "koin", 5),
+            ("PK", "PK / Deheading", "kg", 1),
+        ]
+
+        for kode, nama, satuan_input, konversi_ke_kg in default_work_types:
+            cursor.execute("""
+                INSERT OR IGNORE INTO work_types (kode, nama, satuan_input, konversi_ke_kg, aktif)
+                VALUES (?, ?, ?, ?, 1)
+                """, (kode, nama, satuan_input, konversi_ke_kg))
+
+        # sizes default
+        default_sizes = [
+            ("XL", 1),
+            ("L", 2),
+            ("M", 3),
+            ("S", 4),
+        ]
+
+        for kode, urutan in default_sizes:
+            cursor.execute("""
+                INSERT OR IGNORE INTO sizes (kode, urutan, aktif)
+                VALUES (?, ?, 1)
+                """, (kode, urutan))
+
 def init_db():
     conn = get_conn()
     try:
@@ -139,6 +173,7 @@ def init_db():
             CREATE TABLE IF NOT EXISTS master_jenis (
                   id INTEGER PRIMARY KEY AUTOINCREMENT,
                   nama TEXT NOT NULL UNIQUE,
+                  mode TEXT DEFAULT 'udang_size',
                   is_active INTEGER NOT NULL DEFAULT 1,
                   sort_order INTEGER NOT NULL DEFAULT 0
                 );
@@ -194,16 +229,251 @@ def init_db():
                 
                   FOREIGN KEY(production_id) REFERENCES production(id)
                 );
-        
+                    -- =========================
+                    -- 1. employees
+                    --  =========================
+                    
+                    CREATE TABLE IF NOT EXISTS employees (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        no_id TEXT NOT NULL UNIQUE,
+                        nama TEXT NOT NULL,
+                        bagian TEXT,
+                        jabatan TEXT,
+                        status_aktif INTEGER NOT NULL DEFAULT 1,
+                        tanggal_masuk TEXT,
+                        fingerprint_id TEXT,
+                        no_hp TEXT,
+                        catatan TEXT,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    );
+                  
+
+                    -- =========================
+                    -- 2. work_types
+                    -- =========================
+                     CREATE TABLE IF NOT EXISTS work_types (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        kode TEXT NOT NULL UNIQUE,
+                        nama TEXT NOT NULL,
+                        satuan_input TEXT NOT NULL,
+                        konversi_ke_kg REAL,
+                        aktif INTEGER NOT NULL DEFAULT 1
+                    );
+                 
+                        -- =========================
+                        -- 3. sizes
+                        -- =========================
+                    
+                        CREATE TABLE IF NOT EXISTS sizes (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            kode TEXT NOT NULL UNIQUE,
+                            urutan INTEGER NOT NULL DEFAULT 0,
+                            aktif INTEGER NOT NULL DEFAULT 1
+                        );
+
+                        -- =========================
+                        -- 4. work_rates
+                        -- =========================
+                        CREATE TABLE IF NOT EXISTS work_rates (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            work_type_id INTEGER NOT NULL,
+                            size_id INTEGER,
+                            harga_per_kg REAL NOT NULL DEFAULT 0,
+                            aktif INTEGER NOT NULL DEFAULT 1,
+                            berlaku_mulai TEXT,
+                            berlaku_sampai TEXT,
+                            catatan TEXT,
+                            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (work_type_id) REFERENCES work_types(id),
+                            FOREIGN KEY (size_id) REFERENCES sizes(id)
+                        );
+
+                    -- =========================
+                    -- 5. borongan_inputs
+                    -- 1 baris input per orang per tanggal
+                    -- =========================
+                
+                    CREATE TABLE IF NOT EXISTS borongan_inputs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        tanggal TEXT NOT NULL,
+                        no_id TEXT NOT NULL,
+                        kupas_xl_koin REAL NOT NULL DEFAULT 0,
+                        kupas_l_koin REAL NOT NULL DEFAULT 0,
+                        kupas_m_koin REAL NOT NULL DEFAULT 0,
+                        kupas_s_koin REAL NOT NULL DEFAULT 0,
+                        belah_xl_koin REAL NOT NULL DEFAULT 0,
+                        belah_l_koin REAL NOT NULL DEFAULT 0,
+                        belah_m_koin REAL NOT NULL DEFAULT 0,
+                        belah_s_koin REAL NOT NULL DEFAULT 0,
+                        pk_kg REAL NOT NULL DEFAULT 0,
+                        catatan TEXT,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (tanggal, no_id)
+                    );
+                
+                    -- =========================
+                    -- 6. borongan_logs
+                    -- hasil pecahan detail dari borongan_inputs
+                    -- =========================
+                    CREATE TABLE IF NOT EXISTS borongan_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        tanggal TEXT NOT NULL,
+                        no_id TEXT NOT NULL,
+                        nama TEXT NOT NULL,
+                    
+                        kupas_xl_koin REAL NOT NULL DEFAULT 0,
+                        kupas_l_koin REAL NOT NULL DEFAULT 0,
+                        kupas_m_koin REAL NOT NULL DEFAULT 0,
+                        kupas_s_koin REAL NOT NULL DEFAULT 0,
+                    
+                        belah_xl_koin REAL NOT NULL DEFAULT 0,
+                        belah_l_koin REAL NOT NULL DEFAULT 0,
+                        belah_m_koin REAL NOT NULL DEFAULT 0,
+                        belah_s_koin REAL NOT NULL DEFAULT 0,
+                    
+                        pk_l_kg REAL NOT NULL DEFAULT 0,
+                        pk_s_kg REAL NOT NULL DEFAULT 0,
+                    
+                        kupas_xl_kg REAL NOT NULL DEFAULT 0,
+                        kupas_l_kg REAL NOT NULL DEFAULT 0,
+                        kupas_m_kg REAL NOT NULL DEFAULT 0,
+                        kupas_s_kg REAL NOT NULL DEFAULT 0,
+                    
+                        belah_xl_kg REAL NOT NULL DEFAULT 0,
+                        belah_l_kg REAL NOT NULL DEFAULT 0,
+                        belah_m_kg REAL NOT NULL DEFAULT 0,
+                        belah_s_kg REAL NOT NULL DEFAULT 0,
+                    
+                        pk_l_kg_final REAL NOT NULL DEFAULT 0,
+                        pk_s_kg_final REAL NOT NULL DEFAULT 0,
+                    
+                        rate_kupas_xl REAL NOT NULL DEFAULT 0,
+                        rate_kupas_l REAL NOT NULL DEFAULT 0,
+                        rate_kupas_m REAL NOT NULL DEFAULT 0,
+                        rate_kupas_s REAL NOT NULL DEFAULT 0,
+                    
+                        rate_belah_xl REAL NOT NULL DEFAULT 0,
+                        rate_belah_l REAL NOT NULL DEFAULT 0,
+                        rate_belah_m REAL NOT NULL DEFAULT 0,
+                        rate_belah_s REAL NOT NULL DEFAULT 0,
+                    
+                        rate_pk_l REAL NOT NULL DEFAULT 0,
+                        rate_pk_s REAL NOT NULL DEFAULT 0,
+                    
+                        subtotal_kupas_xl REAL NOT NULL DEFAULT 0,
+                        subtotal_kupas_l REAL NOT NULL DEFAULT 0,
+                        subtotal_kupas_m REAL NOT NULL DEFAULT 0,
+                        subtotal_kupas_s REAL NOT NULL DEFAULT 0,
+                    
+                        subtotal_belah_xl REAL NOT NULL DEFAULT 0,
+                        subtotal_belah_l REAL NOT NULL DEFAULT 0,
+                        subtotal_belah_m REAL NOT NULL DEFAULT 0,
+                        subtotal_belah_s REAL NOT NULL DEFAULT 0,
+                    
+                        subtotal_pk_l REAL NOT NULL DEFAULT 0,
+                        subtotal_pk_s REAL NOT NULL DEFAULT 0,
+                    
+                        total_kg REAL NOT NULL DEFAULT 0,
+                        total_upah REAL NOT NULL DEFAULT 0,
+                    
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    
+                        UNIQUE (tanggal, no_id)
+                    );
+                        -- =========================
+                        -- 7. attendance_raw
+                        -- log mentah dari fingerprint / csv / import manual
+                        -- =========================
+
+                        CREATE TABLE IF NOT EXISTS attendance_raw (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            tanggal TEXT NOT NULL,
+                            waktu TEXT NOT NULL,
+                            fingerprint_id TEXT,
+                            no_id TEXT,
+                            nama_terbaca TEXT,
+                            tipe_scan TEXT,
+                            sumber TEXT,
+                            raw_payload TEXT,
+                            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                        );
+ 
+                    -- =========================
+                    -- 8. attendance_daily
+                    -- hasil rangkuman absensi harian
+                    -- =========================
+                
+                    CREATE TABLE IF NOT EXISTS attendance_daily (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        tanggal TEXT NOT NULL,
+                        no_id TEXT NOT NULL,
+                        jam_masuk TEXT,
+                        jam_pulang TEXT,
+                        total_jam_kerja REAL NOT NULL DEFAULT 0,
+                        status_hadir TEXT NOT NULL DEFAULT 'ALPHA',
+                        terlambat_menit REAL NOT NULL DEFAULT 0,
+                        lembur_menit REAL NOT NULL DEFAULT 0,
+                        uang_hadir REAL NOT NULL DEFAULT 0,
+                        catatan TEXT,
+                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE (tanggal, no_id)
+                    );
+
+
+            -- =========================
+            -- 9. payroll_daily
+            -- gabungan absensi + borongan per hari
+            -- =========================
+            CREATE TABLE IF NOT EXISTS payroll_daily (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tanggal TEXT NOT NULL,
+                no_id TEXT NOT NULL,
+                total_kg REAL NOT NULL DEFAULT 0,
+                total_upah_borongan REAL NOT NULL DEFAULT 0,
+                uang_hadir REAL NOT NULL DEFAULT 0,
+                uang_lembur REAL NOT NULL DEFAULT 0,
+                bonus REAL NOT NULL DEFAULT 0,
+                potongan REAL NOT NULL DEFAULT 0,
+                total_bayar REAL NOT NULL DEFAULT 0,
+                status_hadir TEXT,
+                total_jam_kerja REAL NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE (tanggal, no_id)
+            );
+                
         CREATE INDEX IF NOT EXISTS idx_production_packing_pid
         ON production_packing(production_id);
-
         CREATE INDEX IF NOT EXISTS idx_invoice_line_invoice
-            ON invoice_line(invoice_id);      
+        ON invoice_line(invoice_id);      
+        CREATE INDEX IF NOT EXISTS idx_employees_no_id
+        ON employees(no_id);
+        CREATE INDEX IF NOT EXISTS idx_borongan_inputs_tanggal_no_id
+        ON borongan_inputs(tanggal, no_id);
+        CREATE INDEX IF NOT EXISTS idx_attendance_raw_tanggal_fingerprint
+        ON attendance_raw(tanggal, fingerprint_id);
+        CREATE INDEX IF NOT EXISTS idx_attendance_daily_tanggal_no_id
+        ON attendance_daily(tanggal, no_id);
+        CREATE INDEX IF NOT EXISTS idx_payroll_daily_tanggal_no_id
+        ON payroll_daily(tanggal, no_id);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_work_rates_unique
+        ON work_rates(work_type_id, size_id);
+        DELETE FROM work_rates
+        WHERE work_type_id = (
+    SELECT id FROM work_types WHERE kode = 'PK'
+        )
+AND size_id IS NULL;
               """)
         # ensure kolom mode ada
         ensure_column(conn, "master_jenis", "mode", "TEXT DEFAULT 'udang_size'")
-
+        ensure_column(conn, "borongan_inputs", "pk_l_kg", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "borongan_inputs", "pk_s_kg", "REAL NOT NULL DEFAULT 0")
         # update mode untuk data lama
         conn.execute("""
         UPDATE master_jenis
@@ -218,7 +488,7 @@ def init_db():
         """)
         ensure_column(conn, "receiving_item", "grade_manual", "TEXT")
         ensure_column(conn,"invoice_header", "grade_prices_json", "TEXT")
-
+        seed_master_data(conn)
         conn.commit()
         print("✅ Database baru siap:", DB_PATH)
     finally:

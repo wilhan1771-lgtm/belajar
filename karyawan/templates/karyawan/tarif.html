@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tarif Kerja</title>
+</head>
+<body>
+
+<h1>Tarif Kerja</h1>
+
+<table border="1" cellpadding="8">
+
+<tr>
+    <th>Work</th>
+    <th>Size</th>
+    <th>Harga per KG</th>
+    <th>Update</th>
+</tr>
+
+{% for r in rates %}
+<tr>
+
+<form method="POST">
+
+<td>{{ r.work }}</td>
+
+<td>
+{% if r.size %}
+{{ r.size }}
+{% else %}
+-
+{% endif %}
+</td>
+
+<td>
+<input type="number" name="harga" value="{{ r.harga_per_kg }}">
+</td>
+
+<td>
+<input type="hidden" name="rate_id" value="{{ r.id }}">
+<button type="submit">Save</button>
+</td>
+
+</form>
+
+</tr>
+{% endfor %}
+
+</table>
+
+<br>
+
+<a href="{{ url_for('karyawan.karyawan_index') }}">⬅ Kembali</a>
+
+</body>
+</html>

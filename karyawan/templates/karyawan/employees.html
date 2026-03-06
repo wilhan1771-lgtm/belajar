@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Data Karyawan</title>
+</head>
+<body>
+
+<h1>Data Karyawan</h1>
+
+<h2>Tambah Karyawan</h2>
+
+<form method="POST">
+
+    <label>No ID</label><br>
+    <input type="text" name="no_id" required><br><br>
+
+    <label>Nama</label><br>
+    <input type="text" name="nama" required><br><br>
+
+    <label>Bagian</label><br>
+    <input type="text" name="bagian"><br><br>
+
+    <label>Jabatan</label><br>
+    <input type="text" name="jabatan"><br><br>
+
+    <label>Fingerprint ID</label><br>
+    <input type="text" name="fingerprint_id"><br><br>
+
+    <button type="submit">Simpan</button>
+
+</form>
+
+
+<hr>
+
+
+<h2>Daftar Karyawan</h2>
+
+<table border="1" cellpadding="8">
+
+<tr>
+    <th>No ID</th>
+    <th>Nama</th>
+    <th>Bagian</th>
+    <th>Jabatan</th>
+    <th>Fingerprint</th>
+</tr>
+
+{% for emp in employees %}
+<tr>
+    <td>{{ emp.no_id }}</td>
+    <td>{{ emp.nama }}</td>
+    <td>{{ emp.bagian }}</td>
+    <td>{{ emp.jabatan }}</td>
+    <td>{{ emp.fingerprint_id }}</td>
+</tr>
+{% endfor %}
+
+</table>
+
+<br>
+
+<a href="{{ url_for('karyawan.karyawan_index') }}">⬅ Kembali ke Menu Karyawan</a>
+
+</body>
+</html>

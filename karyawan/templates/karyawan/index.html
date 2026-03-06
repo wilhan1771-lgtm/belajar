@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Karyawan</title>
+</head>
+<body>
+  <h1>Modul Karyawan</h1>
+  <p>Kelola data karyawan, gaji borongan, absensi, dan payroll.</p>
+
+  <div>
+    <h2>Data Karyawan</h2>
+    <a href="{{ url_for('karyawan.employees_list') }}">Buka Data Karyawan</a>
+  </div>
+
+  <div>
+    <h2>Gaji Borongan</h2>
+    <a href="{{ url_for('karyawan.borongan_index') }}">Buka Gaji Borongan</a>
+  </div>
+
+  <div>
+    <h2>Absensi</h2>
+    <a href="{{ url_for('karyawan.absensi_index') }}">Buka Absensi</a>
+  </div>
+<div>
+  <h2>Tarif Kerja</h2>
+  <p>Atur harga kupas, belah, PK.</p>
+  <a href="{{ url_for('karyawan.tarif_index') }}">Buka Tarif</a>
+</div>
+</body>
+</html>

@@ -13,6 +13,8 @@ from production import production_bp
 from receiving.service import update_receiving
 from receiving.routes import receiving_bp
 from helpers.db import init_db, get_conn
+from karyawan.routes import karyawan_bp
+
 
 
 # init database
@@ -30,6 +32,7 @@ app.config.update(
 app.permanent_session_lifetime = timedelta(hours=8)
 app.register_blueprint(invoice_bp)
 app.register_blueprint(production_bp)
+app.register_blueprint(karyawan_bp)
 app.config["ADMIN_USERNAME"] = "admin"
 app.config["ADMIN_PASSWORD"] = "1234"   # atau ADMIN_PIN
 DATE_FMT = "%Y-%m-%d"

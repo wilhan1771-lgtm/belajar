@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Input Borongan Harian</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 16px;
+        }
+
+        h1, h2 {
+            margin-bottom: 8px;
+        }
+
+        .topbar {
+            display: flex;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .topbar label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+
+        .topbar input,
+        .topbar button,
+        .topbar a {
+            padding: 8px 10px;
+            font-size: 14px;
+        }
+
+        .btn {
+            cursor: pointer;
+        }
+
+        .btn-save {
+            background: #1f7a1f;
+            color: white;
+            border: 1px solid #1f7a1f;
+        }
+
+        .btn-add {
+            background: #0d6efd;
+            color: white;
+            border: 1px solid #0d6efd;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            table-layout: fixed;
+        }
+
+        th, td {
+            border: 1px solid #cfcfcf;
+            padding: 6px;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        th {
+            background: #f5f5f5;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px;
+            border: 1px solid #bbb;
+        }
+
+        input.nama {
+            background: #f9f9f9;
+        }
+
+        .col-noid { width: 70px; }
+        .col-nama { width: 180px; }
+        .col-small { width: 72px; }
+        .col-total { width: 110px; }
+        .col-action { width: 70px; }
+
+        .right {
+            text-align: right;
+        }
+
+        .summary-box {
+            margin-top: 14px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .status {
+            margin-top: 12px;
+            padding: 10px;
+            display: none;
+        }
+
+        .status.ok {
+            background: #e8f7e8;
+            color: #166116;
+            border: 1px solid #9ad39a;
+        }
+
+        .status.err {
+            background: #fdeaea;
+            color: #8b1e1e;
+            border: 1px solid #e4a8a8;
+        }
+
+        .muted {
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 10px;
+        }
+        table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th, td {
+    border: 1px solid #dcdcdc;
+    padding: 6px;
+    text-align: center;
+}
+
+th {
+    font-size: 13px;
+}
+
+input[type="number"], input[type="text"]{
+    width: 100%;
+    border: 1px solid #cfcfcf;
+    padding: 6px;
+    box-sizing: border-box;
+}
+
+tr:hover{
+    background:#f9f9f9;
+}
+
+/* kupas */
+.kupas {
+    background:#EAF4FF;
+}
+
+/* belah */
+.belah {
+    background:#EAFBF0;
+}
+
+/* pk */
+.pk {
+    background:#FFF6E5;
+}
+
+/* total */
+.total-cell{
+    background:#F4F4F4;
+    font-weight:bold;
+}
+
+.col-noid{
+    width:70px;
+}
+
+.col-nama{
+    width:180px;
+}
+    </style>
+</head>
+<body>
+
+<h1>Input Borongan Harian</h1>
+<p class="muted">
+    Satu tanggal untuk banyak karyawan. Ketik No ID, nama otomatis keluar, isi hasil kerja, lalu Save Semua.
+</p>
+
+<div class="topbar">
+    <div>
+        <label for="tanggal">Tanggal</label>
+        <input type="date" id="tanggal">
+    </div>
+
+    <div>
+        <button type="button" class="btn btn-add" id="btnAddRow">Tambah Baris</button>
+    </div>
+
+    <div>
+        <button type="button" class="btn btn-save" id="btnSaveAll">Save Semua</button>
+    </div>
+
+    <div>
+        <a href="{{ url_for('karyawan.karyawan_index') }}">Kembali</a>
+    </div>
+</div>
+
+<table id="gridTable">
+    <thead>
+        <tr>
+            <th class="col-noid">No ID</th>
+            <th class="col-nama">Nama</th>
+            <th class="kupas">K.XL</th>
+            <th class="kupas">K.L</th>
+            <th class="kupas">K.M</th>
+            <th class="kupas">K.S</th>
+
+            <th class="belah">B.XL</th>
+            <th class="belah">B.L</th>
+            <th class="belah">B.M</th>
+            <th class="belah">B.S</th>
+
+            <th class="pk">PK.L</th>
+            <th class="pk">PK.S</th>
+            <th class="col-total">Total</th>
+            <th class="col-action">Hapus</th>
+        </tr>
+    </thead>
+    <tbody id="gridBody"></tbody>
+</table>
+
+<div class="summary-box">
+    Total Semua: <span id="grandTotal">0</span>
+</div>
+
+<div id="statusBox" class="status"></div>
+
+<hr>
+
+<h2>Ringkasan Log Terakhir</h2>
+<table>
+    <thead>
+        <tr>
+            <th>Tanggal</th>
+            <th>No ID</th>
+            <th>Nama</th>
+            <th>Total KG</th>
+            <th>Total Upah</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in recent_summary %}
+        <tr>
+            <td>{{ row.tanggal }}</td>
+            <td>{{ row.no_id }}</td>
+            <td>{{ row.nama }}</td>
+            <td>{{ row.total_kg }}</td>
+            <td class="right">{{ "{:,.0f}".format(row.total_upah or 0) }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+const RATE_MAP = {{ rate_map_json|safe }};
+
+const FIELD_ORDER = [
+    "no_id",
+    "kupas_xl",
+    "kupas_l",
+    "kupas_m",
+    "kupas_s",
+    "belah_xl",
+    "belah_l",
+    "belah_m",
+    "belah_s",
+    "pk_l",
+    "pk_s"
+];
+
+function formatNumber(n) {
+    return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(n || 0));
+}
+
+function rowTemplate(rowIndex) {
+    return `
+        <tr data-row="${rowIndex}">
+            <td><input type="text" class="cell-noid" data-field="no_id"></td>
+            <td><input type="text" class="nama" data-field="nama" readonly></td>
+
+           <td class="kupas"><input type="number" data-field="kupas_xl" value="0"></td>
+            <td class="kupas"><input type="number" data-field="kupas_l" value="0"></td>
+            <td class="kupas"><input type="number" data-field="kupas_m" value="0"></td>
+            <td class="kupas"><input type="number" data-field="kupas_s" value="0"></td>
+
+            <td class="belah"><input type="number" data-field="belah_xl" value="0"></td>
+            <td class="belah"><input type="number" data-field="belah_l" value="0"></td>
+            <td class="belah"><input type="number" data-field="belah_m" value="0"></td>
+            <td class="belah"><input type="number" data-field="belah_s" value="0"></td>
+
+            <td class="pk"><input type="number" data-field="pk_l" value="0"></td>
+            <td class="pk"><input type="number" data-field="pk_s" value="0"></td>
+
+            <td class="right total-cell">0</td>
+            <td><button type="button" class="btn-delete">X</button></td>
+        </tr>
+    `;
+}
+
+function addRow(focusNoId = false) {
+    const tbody = document.getElementById("gridBody");
+    const rowIndex = tbody.querySelectorAll("tr").length;
+    tbody.insertAdjacentHTML("beforeend", rowTemplate(rowIndex));
+
+    const row = tbody.lastElementChild;
+    bindRow(row);
+
+    if (focusNoId) {
+        row.querySelector('[data-field="no_id"]').focus();
+    }
+}
+
+function bindRow(row) {
+    const noIdInput = row.querySelector('[data-field="no_id"]');
+    const allInputs = row.querySelectorAll("input");
+
+    noIdInput.addEventListener("blur", async () => {
+        await fillEmployeeName(row);
+    });
+
+    allInputs.forEach((inp) => {
+        if (inp.dataset.field !== "nama") {
+            inp.addEventListener("input", () => {
+                calculateRow(row);
+                calculateGrandTotal();
+            });
+
+            inp.addEventListener("keydown", (e) => handleEnterMove(e, row, inp));
+        }
+    });
+
+    row.querySelector(".btn-delete").addEventListener("click", () => {
+        row.remove();
+        calculateGrandTotal();
+    });
+}
+
+async function fillEmployeeName(row) {
+    const noId = row.querySelector('[data-field="no_id"]').value.trim();
+    const namaInput = row.querySelector('[data-field="nama"]');
+
+    if (!noId) {
+        namaInput.value = "";
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/karyawan/api/employee/${encodeURIComponent(noId)}`);
+        const data = await resp.json();
+
+        if (data.ok) {
+            namaInput.value = data.nama;
+        } else {
+            namaInput.value = "";
+        }
+    } catch (err) {
+        namaInput.value = "";
+    }
+}
+
+function getFieldValue(row, field) {
+    const el = row.querySelector(`[data-field="${field}"]`);
+    return Number(el?.value || 0);
+}
+
+function calculateRow(row) {
+    let total = 0;
+
+    total += getFieldValue(row, "kupas_xl") * 4 * (RATE_MAP["KUPAS_XL"] || 0);
+    total += getFieldValue(row, "kupas_l")  * 4 * (RATE_MAP["KUPAS_L"] || 0);
+    total += getFieldValue(row, "kupas_m")  * 4 * (RATE_MAP["KUPAS_M"] || 0);
+    total += getFieldValue(row, "kupas_s")  * 4 * (RATE_MAP["KUPAS_S"] || 0);
+
+    total += getFieldValue(row, "belah_xl") * 5 * (RATE_MAP["BELAH_XL"] || 0);
+    total += getFieldValue(row, "belah_l")  * 5 * (RATE_MAP["BELAH_L"] || 0);
+    total += getFieldValue(row, "belah_m")  * 5 * (RATE_MAP["BELAH_M"] || 0);
+    total += getFieldValue(row, "belah_s")  * 5 * (RATE_MAP["BELAH_S"] || 0);
+
+    total += getFieldValue(row, "pk_l") * (RATE_MAP["PK_L"] || 0);
+    total += getFieldValue(row, "pk_s") * (RATE_MAP["PK_S"] || 0);
+
+    row.querySelector(".total-cell").textContent = formatNumber(total);
+    row.dataset.total = total;
+}
+
+function calculateGrandTotal() {
+    let grand = 0;
+    document.querySelectorAll("#gridBody tr").forEach(row => {
+        grand += Number(row.dataset.total || 0);
+    });
+    document.getElementById("grandTotal").textContent = formatNumber(grand);
+}
+
+function handleEnterMove(e, row, currentInput) {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+
+    const field = currentInput.dataset.field;
+    const currentIndex = FIELD_ORDER.indexOf(field);
+
+    if (currentIndex === -1) return;
+
+    if (currentIndex < FIELD_ORDER.length - 1) {
+        const nextField = FIELD_ORDER[currentIndex + 1];
+        const nextInput = row.querySelector(`[data-field="${nextField}"]`);
+        if (nextInput) {
+            nextInput.focus();
+            nextInput.select?.();
+            return;
+        }
+    }
+
+    let nextRow = row.nextElementSibling;
+    if (!nextRow) {
+        addRow();
+        nextRow = document.querySelector("#gridBody tr:last-child");
+    }
+
+    const noIdInput = nextRow.querySelector('[data-field="no_id"]');
+    noIdInput.focus();
+    noIdInput.select?.();
+}
+
+function collectRows() {
+    const rows = [];
+
+    document.querySelectorAll("#gridBody tr").forEach(row => {
+        const no_id = row.querySelector('[data-field="no_id"]').value.trim();
+        const nama = row.querySelector('[data-field="nama"]').value.trim();
+
+        const data = {
+            no_id,
+            nama,
+            kupas_xl: getFieldValue(row, "kupas_xl"),
+            kupas_l: getFieldValue(row, "kupas_l"),
+            kupas_m: getFieldValue(row, "kupas_m"),
+            kupas_s: getFieldValue(row, "kupas_s"),
+            belah_xl: getFieldValue(row, "belah_xl"),
+            belah_l: getFieldValue(row, "belah_l"),
+            belah_m: getFieldValue(row, "belah_m"),
+            belah_s: getFieldValue(row, "belah_s"),
+            pk_l: getFieldValue(row, "pk_l"),
+            pk_s: getFieldValue(row, "pk_s")
+        };
+
+        const qtyTotal =
+            data.kupas_xl + data.kupas_l + data.kupas_m + data.kupas_s +
+            data.belah_xl + data.belah_l + data.belah_m + data.belah_s +
+            data.pk_l + data.pk_s;
+
+        if (no_id && qtyTotal > 0) {
+            rows.push(data);
+        }
+    });
+
+    return rows;
+}
+
+function showStatus(message, ok = true) {
+    const box = document.getElementById("statusBox");
+    box.style.display = "block";
+    box.className = "status " + (ok ? "ok" : "err");
+    box.textContent = message;
+}
+
+async function saveAll() {
+    const tanggal = document.getElementById("tanggal").value;
+    const rows = collectRows();
+
+    if (!tanggal) {
+        showStatus("Tanggal wajib diisi", false);
+        return;
+    }
+
+    if (rows.length === 0) {
+        showStatus("Belum ada data yang diisi", false);
+        return;
+    }
+
+    try {
+        const resp = await fetch("/karyawan/borongan/save", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ tanggal, rows })
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok && data.ok) {
+            showStatus(data.message, true);
+            setTimeout(() => {
+                window.location.reload();
+            }, 700);
+        } else {
+            showStatus(data.message || "Gagal simpan", false);
+        }
+    } catch (err) {
+        showStatus("Terjadi error saat save", false);
+    }
+}
+
+document.getElementById("btnAddRow").addEventListener("click", () => addRow(true));
+document.getElementById("btnSaveAll").addEventListener("click", saveAll);
+
+// initial rows
+for (let i = 0; i < 12; i++) {
+    addRow(i === 0);
+}
+</script>
+
+</body>
+</html>
