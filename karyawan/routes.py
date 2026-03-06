@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, redirect, url_for, json ,jsonify
 from helpers.db import get_conn
-
+from datetime import date
 
 
 karyawan_bp = Blueprint("karyawan",__name__,url_prefix="/karyawan", template_folder="templates")
@@ -331,3 +331,56 @@ def api_employee(no_id):
         "no_id": emp["no_id"],
         "nama": emp["nama"]
     })
+@karyawan_bp.route("/borongan/rekap")
+def borongan_rekap():
+
+    date_from = request.args.get("date_from")
+    date_to = request.args.get("date_to")
+    sort = request.args.get("sort","no_id")
+
+    if not date_from:
+        date_from = date.today().isoformat()
+
+    if not date_to:
+        date_to = date_from
+
+    order_map = {
+        "no_id":"CAST(no_id AS INTEGER), no_id",
+        "nama":"nama",
+        "upah":"total_upah DESC",
+        "kg":"total_kg DESC"
+    }
+
+    order_by = order_map.get(sort,"CAST(no_id AS INTEGER), no_id")
+
+    conn = get_conn()
+
+    rows = conn.execute(f"""
+        SELECT
+            tanggal,
+            no_id,
+            nama,
+            kupas_xl_koin + kupas_l_koin + kupas_m_koin + kupas_s_koin AS total_kupas,
+            belah_xl_koin + belah_l_koin + belah_m_koin + belah_s_koin AS total_belah,
+            pk_l_kg + pk_s_kg AS total_pk,
+            total_kg,
+            total_upah
+        FROM borongan_logs
+        WHERE tanggal BETWEEN ? AND ?
+        ORDER BY {order_by}
+    """,(date_from,date_to)).fetchall()
+
+    total_kg = sum(r["total_kg"] for r in rows)
+    total_upah = sum(r["total_upah"] for r in rows)
+
+    conn.close()
+
+    return render_template(
+        "karyawan/rekap_borongan.html",
+        rows=rows,
+        date_from=date_from,
+        date_to=date_to,
+        total_kg=total_kg,
+        total_upah=total_upah,
+        sort=sort
+    )

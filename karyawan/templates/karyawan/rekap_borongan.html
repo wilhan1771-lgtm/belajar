@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Rekap Borongan</title>
+
+<style>
+
+body{
+font-family:Arial;
+padding:20px;
+}
+
+table{
+border-collapse:collapse;
+width:100%;
+margin-top:10px;
+}
+
+th,td{
+border:1px solid #ddd;
+padding:6px;
+text-align:center;
+}
+
+th{
+background:#f5f5f5;
+}
+
+tr:hover{
+background:#fafafa;
+}
+
+.total{
+background:#f4f4f4;
+font-weight:bold;
+}
+
+.filter{
+margin-bottom:15px;
+}
+
+button{
+padding:6px 10px;
+}
+
+</style>
+</head>
+
+<body>
+
+<h2>Rekap Borongan</h2>
+
+<form class="filter">
+
+Dari :
+<input type="date" name="date_from" value="{{date_from}}">
+
+Sampai :
+<input type="date" name="date_to" value="{{date_to}}">
+
+Sort :
+<select name="sort">
+
+<option value="no_id" {% if sort=="no_id" %}selected{% endif %}>
+No ID
+</option>
+
+<option value="nama" {% if sort=="nama" %}selected{% endif %}>
+Nama
+</option>
+
+<option value="kg" {% if sort=="kg" %}selected{% endif %}>
+Total KG
+</option>
+
+<option value="upah" {% if sort=="upah" %}selected{% endif %}>
+Total Upah
+</option>
+
+</select>
+
+<button type="submit">Tampilkan</button>
+
+<a href="/karyawan/borongan">Input Borongan</a>
+
+</form>
+
+<table>
+
+<tr>
+<th>Tanggal</th>
+<th>No ID</th>
+<th>Nama</th>
+<th>Kupas</th>
+<th>Belah</th>
+<th>PK</th>
+<th>Total KG</th>
+<th>Total Upah</th>
+</tr>
+
+{% for r in rows %}
+
+<tr>
+<td>{{r.tanggal}}</td>
+<td>{{r.no_id}}</td>
+<td>{{r.nama}}</td>
+<td>{{r.total_kupas}}</td>
+<td>{{r.total_belah}}</td>
+<td>{{r.total_pk}}</td>
+<td>{{"%.1f"|format(r.total_kg)}}</td>
+<td>{{"{:,.0f}".format(r.total_upah)}}</td>
+</tr>
+
+{% endfor %}
+
+<tr class="total">
+<td colspan="6">TOTAL</td>
+<td>{{"%.1f"|format(total_kg)}}</td>
+<td>{{"{:,.0f}".format(total_upah)}}</td>
+</tr>
+
+</table>
+
+</body>
+</html>
