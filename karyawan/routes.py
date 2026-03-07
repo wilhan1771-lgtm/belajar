@@ -75,7 +75,13 @@ def employees_list():
 @karyawan_bp.route("/borongan", methods=["GET"])
 def borongan_index():
     conn = get_conn()
+    setting_rows = conn.execute("""
+        SELECT kode, nilai
+        FROM payroll_settings
+        WHERE aktif = 1
+    """).fetchall()
 
+    setting_map = {r["kode"]: float(r["nilai"] or 0) for r in setting_rows}
     rates = conn.execute("""
         SELECT
             wt.kode AS work_kode,
@@ -109,7 +115,7 @@ def borongan_index():
 
     return render_template(
         "karyawan/borongan.html",
-        rate_map_json=json.dumps(rate_map),
+        rate_map_json=json.dumps(rate_map),setting_map_json=json.dumps(setting_map),
         recent_summary=recent_summary
     )
 @karyawan_bp.route("/borongan/save", methods=["POST"])
@@ -125,212 +131,274 @@ def borongan_save():
         return jsonify({"ok": False, "message": "Data kosong"}), 400
 
     conn = get_conn()
+    try:
+        emp_rows = conn.execute("""
+            SELECT no_id, nama
+            FROM employees
+            WHERE status_aktif = 1
+        """).fetchall()
+        emp_map = {r["no_id"]: r["nama"] for r in emp_rows}
 
-    emp_rows = conn.execute("""
-        SELECT no_id, nama
-        FROM employees
-        WHERE status_aktif = 1
-    """).fetchall()
-    emp_map = {r["no_id"]: r["nama"] for r in emp_rows}
+        rate_rows = conn.execute("""
+            SELECT
+                wt.kode AS work_kode,
+                s.kode AS size_kode,
+                wr.harga_per_kg
+            FROM work_rates wr
+            JOIN work_types wt ON wt.id = wr.work_type_id
+            JOIN sizes s ON s.id = wr.size_id
+            WHERE wr.aktif = 1
+        """).fetchall()
 
-    rate_rows = conn.execute("""
-        SELECT
-            wt.kode AS work_kode,
-            s.kode AS size_kode,
-            wr.harga_per_kg
-        FROM work_rates wr
-        JOIN work_types wt ON wt.id = wr.work_type_id
-        JOIN sizes s ON s.id = wr.size_id
-        WHERE wr.aktif = 1
-    """).fetchall()
+        rate_map = {
+            f"{r['work_kode']}_{r['size_kode']}": float(r["harga_per_kg"] or 0)
+            for r in rate_rows
+        }
+        setting_rows = conn.execute("""
+            SELECT kode, nilai
+            FROM payroll_settings
+            WHERE aktif = 1
+        """).fetchall()
 
-    rate_map = {
-        f"{r['work_kode']}_{r['size_kode']}": float(r["harga_per_kg"] or 0)
-        for r in rate_rows
-    }
+        setting_map = {r["kode"]: float(r["nilai"] or 0) for r in setting_rows}
+        insert_rows = []
+        payroll_rows = []
 
-    insert_rows = []
+        for row in rows:
+            no_id = str(row.get("no_id", "")).strip()
+            if not no_id:
+                continue
 
-    for row in rows:
-        no_id = str(row.get("no_id", "")).strip()
-        if not no_id:
-            continue
+            if no_id not in emp_map:
+                return jsonify({
+                    "ok": False,
+                    "message": f"No ID {no_id} tidak ditemukan di master karyawan"
+                }), 400
 
-        if no_id not in emp_map:
-            conn.close()
-            return jsonify({
-                "ok": False,
-                "message": f"No ID {no_id} tidak ditemukan di master karyawan"
-            }), 400
+            nama = emp_map[no_id]
 
-        nama = emp_map[no_id]
+            kupas_xl_koin = float(row.get("kupas_xl", 0) or 0)
+            kupas_l_koin  = float(row.get("kupas_l", 0) or 0)
+            kupas_m_koin  = float(row.get("kupas_m", 0) or 0)
+            kupas_s_koin  = float(row.get("kupas_s", 0) or 0)
 
-        kupas_xl_koin = float(row.get("kupas_xl", 0) or 0)
-        kupas_l_koin  = float(row.get("kupas_l", 0) or 0)
-        kupas_m_koin  = float(row.get("kupas_m", 0) or 0)
-        kupas_s_koin  = float(row.get("kupas_s", 0) or 0)
+            belah_xl_koin = float(row.get("belah_xl", 0) or 0)
+            belah_l_koin  = float(row.get("belah_l", 0) or 0)
+            belah_m_koin  = float(row.get("belah_m", 0) or 0)
+            belah_s_koin  = float(row.get("belah_s", 0) or 0)
 
-        belah_xl_koin = float(row.get("belah_xl", 0) or 0)
-        belah_l_koin  = float(row.get("belah_l", 0) or 0)
-        belah_m_koin  = float(row.get("belah_m", 0) or 0)
-        belah_s_koin  = float(row.get("belah_s", 0) or 0)
+            pk_l_kg = float(row.get("pk_l", 0) or 0)
+            pk_s_kg = float(row.get("pk_s", 0) or 0)
+            hadir = int(row.get("hadir", 0) or 0)
+            hari_libur = int(row.get("hari_libur", 0) or 0)
+            lembur = int(row.get("lembur", 0) or 0)
+            qty_total = (
+                kupas_xl_koin + kupas_l_koin + kupas_m_koin + kupas_s_koin +
+                belah_xl_koin + belah_l_koin + belah_m_koin + belah_s_koin +
+                pk_l_kg + pk_s_kg
+            )
 
-        pk_l_kg = float(row.get("pk_l", 0) or 0)
-        pk_s_kg = float(row.get("pk_s", 0) or 0)
+            if qty_total <= 0:
+                continue
 
-        qty_total = (
-            kupas_xl_koin + kupas_l_koin + kupas_m_koin + kupas_s_koin +
-            belah_xl_koin + belah_l_koin + belah_m_koin + belah_s_koin +
-            pk_l_kg + pk_s_kg
-        )
+            kupas_xl_kg = kupas_xl_koin * 4
+            kupas_l_kg  = kupas_l_koin * 4
+            kupas_m_kg  = kupas_m_koin * 4
+            kupas_s_kg  = kupas_s_koin * 4
 
-        if qty_total <= 0:
-            continue
+            belah_xl_kg = belah_xl_koin * 5
+            belah_l_kg  = belah_l_koin * 5
+            belah_m_kg  = belah_m_koin * 5
+            belah_s_kg  = belah_s_koin * 5
 
-        kupas_xl_kg = kupas_xl_koin * 4
-        kupas_l_kg  = kupas_l_koin * 4
-        kupas_m_kg  = kupas_m_koin * 4
-        kupas_s_kg  = kupas_s_koin * 4
+            pk_l_kg_final = pk_l_kg
+            pk_s_kg_final = pk_s_kg
 
-        belah_xl_kg = belah_xl_koin * 5
-        belah_l_kg  = belah_l_koin * 5
-        belah_m_kg  = belah_m_koin * 5
-        belah_s_kg  = belah_s_koin * 5
+            rate_kupas_xl = rate_map.get("KUPAS_XL", 0)
+            rate_kupas_l  = rate_map.get("KUPAS_L", 0)
+            rate_kupas_m  = rate_map.get("KUPAS_M", 0)
+            rate_kupas_s  = rate_map.get("KUPAS_S", 0)
 
-        pk_l_kg_final = pk_l_kg
-        pk_s_kg_final = pk_s_kg
+            rate_belah_xl = rate_map.get("BELAH_XL", 0)
+            rate_belah_l  = rate_map.get("BELAH_L", 0)
+            rate_belah_m  = rate_map.get("BELAH_M", 0)
+            rate_belah_s  = rate_map.get("BELAH_S", 0)
 
-        rate_kupas_xl = rate_map.get("KUPAS_XL", 0)
-        rate_kupas_l  = rate_map.get("KUPAS_L", 0)
-        rate_kupas_m  = rate_map.get("KUPAS_M", 0)
-        rate_kupas_s  = rate_map.get("KUPAS_S", 0)
+            rate_pk_l = rate_map.get("PK_L", 0)
+            rate_pk_s = rate_map.get("PK_S", 0)
 
-        rate_belah_xl = rate_map.get("BELAH_XL", 0)
-        rate_belah_l  = rate_map.get("BELAH_L", 0)
-        rate_belah_m  = rate_map.get("BELAH_M", 0)
-        rate_belah_s  = rate_map.get("BELAH_S", 0)
+            subtotal_kupas_xl = kupas_xl_kg * rate_kupas_xl
+            subtotal_kupas_l  = kupas_l_kg * rate_kupas_l
+            subtotal_kupas_m  = kupas_m_kg * rate_kupas_m
+            subtotal_kupas_s  = kupas_s_kg * rate_kupas_s
 
-        rate_pk_l = rate_map.get("PK_L", 0)
-        rate_pk_s = rate_map.get("PK_S", 0)
+            subtotal_belah_xl = belah_xl_kg * rate_belah_xl
+            subtotal_belah_l  = belah_l_kg * rate_belah_l
+            subtotal_belah_m  = belah_m_kg * rate_belah_m
+            subtotal_belah_s  = belah_s_kg * rate_belah_s
 
-        subtotal_kupas_xl = kupas_xl_kg * rate_kupas_xl
-        subtotal_kupas_l  = kupas_l_kg * rate_kupas_l
-        subtotal_kupas_m  = kupas_m_kg * rate_kupas_m
-        subtotal_kupas_s  = kupas_s_kg * rate_kupas_s
+            subtotal_pk_l = pk_l_kg_final * rate_pk_l
+            subtotal_pk_s = pk_s_kg_final * rate_pk_s
 
-        subtotal_belah_xl = belah_xl_kg * rate_belah_xl
-        subtotal_belah_l  = belah_l_kg * rate_belah_l
-        subtotal_belah_m  = belah_m_kg * rate_belah_m
-        subtotal_belah_s  = belah_s_kg * rate_belah_s
+            total_kg = (
+                kupas_xl_kg + kupas_l_kg + kupas_m_kg + kupas_s_kg +
+                belah_xl_kg + belah_l_kg + belah_m_kg + belah_s_kg +
+                pk_l_kg_final + pk_s_kg_final
+            )
 
-        subtotal_pk_l = pk_l_kg_final * rate_pk_l
-        subtotal_pk_s = pk_s_kg_final * rate_pk_s
+            total_upah = (
+                subtotal_kupas_xl + subtotal_kupas_l + subtotal_kupas_m + subtotal_kupas_s +
+                subtotal_belah_xl + subtotal_belah_l + subtotal_belah_m + subtotal_belah_s +
+                subtotal_pk_l + subtotal_pk_s
+            )
+            insentif_kehadiran = setting_map.get("KEHADIRAN", 0) if hadir == 1 else 0
+            insentif_libur = setting_map.get("LIBUR", 0) if hari_libur == 1 else 0
+            insentif_lembur = setting_map.get("LEMBUR", 0) if lembur == 1 else 0
 
-        total_kg = (
-            kupas_xl_kg + kupas_l_kg + kupas_m_kg + kupas_s_kg +
-            belah_xl_kg + belah_l_kg + belah_m_kg + belah_s_kg +
-            pk_l_kg_final + pk_s_kg_final
-        )
+            total_insentif = insentif_kehadiran + insentif_libur + insentif_lembur
+            grand_total = total_upah + total_insentif
+            insert_rows.append((
+                tanggal, no_id, nama,
+                kupas_xl_koin, kupas_l_koin, kupas_m_koin, kupas_s_koin,
+                belah_xl_koin, belah_l_koin, belah_m_koin, belah_s_koin,
+                pk_l_kg, pk_s_kg,
+                kupas_xl_kg, kupas_l_kg, kupas_m_kg, kupas_s_kg,
+                belah_xl_kg, belah_l_kg, belah_m_kg, belah_s_kg,
+                pk_l_kg_final, pk_s_kg_final,
+                rate_kupas_xl, rate_kupas_l, rate_kupas_m, rate_kupas_s,
+                rate_belah_xl, rate_belah_l, rate_belah_m, rate_belah_s,
+                rate_pk_l, rate_pk_s,
+                subtotal_kupas_xl, subtotal_kupas_l, subtotal_kupas_m, subtotal_kupas_s,
+                subtotal_belah_xl, subtotal_belah_l, subtotal_belah_m, subtotal_belah_s,
+                subtotal_pk_l, subtotal_pk_s,
+                total_kg, total_upah,
+                hadir, hari_libur, lembur,
+                insentif_kehadiran, insentif_libur, insentif_lembur,
+                total_insentif, grand_total
+            ))
+            payroll_rows.append((
+                tanggal,
+                no_id,
+                total_kg,
+                total_upah,
+                insentif_kehadiran,
+                insentif_lembur,
+                insentif_libur,
+                0,
+                grand_total,
+                "HADIR" if hadir == 1 else "ALPHA",
+                0
+            ))
 
-        total_upah = (
-            subtotal_kupas_xl + subtotal_kupas_l + subtotal_kupas_m + subtotal_kupas_s +
-            subtotal_belah_xl + subtotal_belah_l + subtotal_belah_m + subtotal_belah_s +
-            subtotal_pk_l + subtotal_pk_s
-        )
+        if not insert_rows:
+            return jsonify({"ok": False, "message": "Tidak ada data yang diisi"}), 400
 
-        insert_rows.append((
-            tanggal, no_id, nama,
-            kupas_xl_koin, kupas_l_koin, kupas_m_koin, kupas_s_koin,
-            belah_xl_koin, belah_l_koin, belah_m_koin, belah_s_koin,
-            pk_l_kg, pk_s_kg,
-            kupas_xl_kg, kupas_l_kg, kupas_m_kg, kupas_s_kg,
-            belah_xl_kg, belah_l_kg, belah_m_kg, belah_s_kg,
-            pk_l_kg_final, pk_s_kg_final,
-            rate_kupas_xl, rate_kupas_l, rate_kupas_m, rate_kupas_s,
-            rate_belah_xl, rate_belah_l, rate_belah_m, rate_belah_s,
-            rate_pk_l, rate_pk_s,
-            subtotal_kupas_xl, subtotal_kupas_l, subtotal_kupas_m, subtotal_kupas_s,
-            subtotal_belah_xl, subtotal_belah_l, subtotal_belah_m, subtotal_belah_s,
-            subtotal_pk_l, subtotal_pk_s,
-            total_kg, total_upah
-        ))
+        submitted_no_ids = sorted(set(r[1] for r in insert_rows))
+        placeholders = ",".join("?" for _ in submitted_no_ids)
 
-    if not insert_rows:
-        conn.close()
-        return jsonify({"ok": False, "message": "Tidak ada data yang diisi"}), 400
+        conn.execute("BEGIN IMMEDIATE")
 
-    submitted_no_ids = [r[1] for r in insert_rows]
-    placeholders = ",".join("?" for _ in submitted_no_ids)
-
-    conn.execute("BEGIN")
-
-    conn.execute(f"""
-        DELETE FROM borongan_logs
+        conn.execute("""
+            DELETE FROM borongan_logs
+            WHERE tanggal = ?
+        """, (tanggal,))
+        conn.execute("""
+        DELETE FROM payroll_daily
         WHERE tanggal = ?
-          AND no_id IN ({placeholders})
-    """, [tanggal] + submitted_no_ids)
+        """, (tanggal,))
+        print("insert_rows sample:", insert_rows[0] if insert_rows else None)
+        print("payroll_rows sample:", payroll_rows[0] if payroll_rows else None)
+        print("len insert_rows[0] =", len(insert_rows[0]) if insert_rows else 0)
+        print("len payroll_rows[0] =", len(payroll_rows[0]) if payroll_rows else 0)
+        conn.executemany("""
+            INSERT INTO borongan_logs (
+                tanggal, no_id, nama,
+                kupas_xl_koin, kupas_l_koin, kupas_m_koin, kupas_s_koin,
+                belah_xl_koin, belah_l_koin, belah_m_koin, belah_s_koin,
+                pk_l_kg, pk_s_kg,
+                kupas_xl_kg, kupas_l_kg, kupas_m_kg, kupas_s_kg,
+                belah_xl_kg, belah_l_kg, belah_m_kg, belah_s_kg,
+                pk_l_kg_final, pk_s_kg_final,
+                rate_kupas_xl, rate_kupas_l, rate_kupas_m, rate_kupas_s,
+                rate_belah_xl, rate_belah_l, rate_belah_m, rate_belah_s,
+                rate_pk_l, rate_pk_s,
+                subtotal_kupas_xl, subtotal_kupas_l, subtotal_kupas_m, subtotal_kupas_s,
+                subtotal_belah_xl, subtotal_belah_l, subtotal_belah_m, subtotal_belah_s,
+                subtotal_pk_l, subtotal_pk_s,
+                total_kg, total_upah,
+                hadir, hari_libur, lembur,
+                insentif_kehadiran, insentif_libur, insentif_lembur,
+                total_insentif, grand_total
+            )
+            VALUES (
+                ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?, ?,
+                ?, ?,
+                ?, ?,
+                ?, ?, ?,
+                ?, ?, ?,
+                ?, ?
+            )
+        """, insert_rows)
+        conn.executemany("""
+            INSERT INTO payroll_daily (
+                tanggal, no_id, total_kg, total_upah_borongan,
+                uang_hadir, uang_lembur, bonus, potongan,
+                total_bayar, status_hadir, total_jam_kerja
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, payroll_rows)
+        conn.commit()
 
-    conn.executemany("""
-        INSERT INTO borongan_logs (
-            tanggal, no_id, nama,
-            kupas_xl_koin, kupas_l_koin, kupas_m_koin, kupas_s_koin,
-            belah_xl_koin, belah_l_koin, belah_m_koin, belah_s_koin,
-            pk_l_kg, pk_s_kg,
-            kupas_xl_kg, kupas_l_kg, kupas_m_kg, kupas_s_kg,
-            belah_xl_kg, belah_l_kg, belah_m_kg, belah_s_kg,
-            pk_l_kg_final, pk_s_kg_final,
-            rate_kupas_xl, rate_kupas_l, rate_kupas_m, rate_kupas_s,
-            rate_belah_xl, rate_belah_l, rate_belah_m, rate_belah_s,
-            rate_pk_l, rate_pk_s,
-            subtotal_kupas_xl, subtotal_kupas_l, subtotal_kupas_m, subtotal_kupas_s,
-            subtotal_belah_xl, subtotal_belah_l, subtotal_belah_m, subtotal_belah_s,
-            subtotal_pk_l, subtotal_pk_s,
-            total_kg, total_upah
-        )
-        VALUES (
-            ?, ?, ?,
-            ?, ?, ?, ?,
-            ?, ?, ?, ?,
-            ?, ?,
-            ?, ?, ?, ?,
-            ?, ?, ?, ?,
-            ?, ?,
-            ?, ?, ?, ?,
-            ?, ?, ?, ?,
-            ?, ?,
-            ?, ?, ?, ?,
-            ?, ?, ?, ?,
-            ?, ?,
-            ?, ?
-        )
-    """, insert_rows)
+        return jsonify({
+            "ok": True,
+            "message": f"Berhasil simpan {len(insert_rows)} baris borongan"
+        })
 
-    conn.commit()
-    conn.close()
-
-    return jsonify({
-        "ok": True,
-        "message": f"Berhasil simpan {len(insert_rows)} baris borongan"
-    })
+    except Exception as e:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        return jsonify({"ok": False, "message": f"Gagal simpan: {str(e)}"}), 500
+    finally:
+        conn.close()
 
 @karyawan_bp.route("/api/employee/<no_id>")
 def api_employee(no_id):
     conn = get_conn()
-    emp = conn.execute("""
-        SELECT no_id, nama
-        FROM employees
-        WHERE no_id = ?
-    """, (no_id.strip(),)).fetchone()
-    conn.close()
+    try:
+        emp = conn.execute("""
+            SELECT no_id, nama
+            FROM employees
+            WHERE TRIM(no_id) = TRIM(?)
+            LIMIT 1
+        """, (no_id,)).fetchone()
 
-    if not emp:
-        return jsonify({"ok": False, "message": "Karyawan tidak ditemukan"}), 404
+        if not emp:
+            return jsonify({
+                "ok": False,
+                "message": f"No ID {no_id} tidak ditemukan"
+            }), 404
 
-    return jsonify({
-        "ok": True,
-        "no_id": emp["no_id"],
-        "nama": emp["nama"]
-    })
+        return jsonify({
+            "ok": True,
+            "no_id": emp["no_id"],
+            "nama": emp["nama"]
+        })
+    finally:
+        conn.close()
+
 @karyawan_bp.route("/borongan/rekap")
 def borongan_rekap():
 
@@ -384,3 +452,47 @@ def borongan_rekap():
         total_upah=total_upah,
         sort=sort
     )
+@karyawan_bp.route("/api/borongan/<tanggal>")
+def api_borongan_tanggal(tanggal):
+    conn = get_conn()
+    try:
+        rows = conn.execute("""
+            SELECT *
+            FROM borongan_logs
+            WHERE tanggal = ?
+            ORDER BY CAST(no_id AS INTEGER), no_id
+        """, (tanggal,)).fetchall()
+
+        return jsonify([dict(r) for r in rows])
+    finally:
+        conn.close()
+
+@karyawan_bp.route("/borongan/delete/<tanggal>", methods=["DELETE"])
+def borongan_delete_tanggal(tanggal):
+    conn = get_conn()
+    try:
+        conn.execute("""
+            DELETE FROM borongan_logs
+            WHERE tanggal = ?
+        """, (tanggal,))
+
+        conn.execute("""
+            DELETE FROM payroll_daily
+            WHERE tanggal = ?
+        """, (tanggal,))
+
+        conn.commit()
+
+        return jsonify({
+            "ok": True,
+            "message": f"Data tanggal {tanggal} berhasil dihapus"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "ok": False,
+            "message": str(e)
+        }), 500
+
+    finally:
+        conn.close()

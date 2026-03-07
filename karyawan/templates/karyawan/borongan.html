@@ -3,305 +3,557 @@
 <head>
     <meta charset="UTF-8">
     <title>Input Borongan Harian</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            padding: 16px;
-        }
+   <style>
+    :root {
+        --bg: #f5f7fb;
+        --card: #ffffff;
+        --border: #e5e7eb;
+        --text: #1f2937;
+        --muted: #6b7280;
 
-        h1, h2 {
-            margin-bottom: 8px;
-        }
+        --kupas: #eef6ff;
+        --belah: #eefcf3;
+        --pk: #fff8eb;
+        --total: #f3f4f6;
 
-        .topbar {
-            display: flex;
-            gap: 12px;
-            align-items: end;
-            margin-bottom: 16px;
-            flex-wrap: wrap;
-        }
+        --primary: #2563eb;
+        --primary-dark: #1d4ed8;
+        --success: #15803d;
+        --success-dark: #166534;
+        --danger: #dc2626;
+    }
 
-        .topbar label {
-            display: block;
-            font-size: 14px;
-            margin-bottom: 4px;
-        }
+    * {
+        box-sizing: border-box;
+    }
 
-        .topbar input,
-        .topbar button,
-        .topbar a {
-            padding: 8px 10px;
-            font-size: 14px;
-        }
+    body {
+        font-family: Arial, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        padding: 24px;
+    }
 
-        .btn {
-            cursor: pointer;
-        }
+    .page-wrap {
+        max-width: 1500px;
+        margin: 0 auto;
+    }
 
-        .btn-save {
-            background: #1f7a1f;
-            color: white;
-            border: 1px solid #1f7a1f;
-        }
+    .page-title {
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 6px;
+    }
 
-        .btn-add {
-            background: #0d6efd;
-            color: white;
-            border: 1px solid #0d6efd;
-        }
+    .page-subtitle {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 18px;
+    }
 
-        table {
-            border-collapse: collapse;
-            width: 100%;
-            table-layout: fixed;
-        }
+    .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 18px;
+        box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+    }
 
-        th, td {
-            border: 1px solid #cfcfcf;
-            padding: 6px;
-            text-align: center;
-            font-size: 13px;
-        }
+    .topbar-card {
+        margin-bottom: 18px;
+    }
 
-        th {
-            background: #f5f5f5;
-        }
+    .topbar {
+        display: flex;
+        gap: 12px;
+        align-items: end;
+        flex-wrap: wrap;
+    }
 
-        input[type="text"],
-        input[type="number"] {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 6px;
-            border: 1px solid #bbb;
-        }
+    .field-group label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 6px;
+    }
 
-        input.nama {
-            background: #f9f9f9;
-        }
+    .field-group input[type="date"] {
+        min-width: 180px;
+    }
 
-        .col-noid { width: 70px; }
-        .col-nama { width: 180px; }
-        .col-small { width: 72px; }
-        .col-total { width: 110px; }
-        .col-action { width: 70px; }
+    input[type="text"],
+    input[type="number"],
+    input[type="date"],
+    select,
+    textarea {
+        width: 100%;
+        padding: 9px 10px;
+        border: 1px solid #d6dbe3;
+        border-radius: 10px;
+        outline: none;
+        background: white;
+        transition: 0.15s ease;
+        font-size: 13px;
+    }
 
-        .right {
-            text-align: right;
-        }
+    input:focus,
+    select:focus,
+    textarea:focus {
+        border-color: #9db8ff;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.10);
+    }
 
-        .summary-box {
-            margin-top: 14px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-
-        .status {
-            margin-top: 12px;
-            padding: 10px;
-            display: none;
-        }
-
-        .status.ok {
-            background: #e8f7e8;
-            color: #166116;
-            border: 1px solid #9ad39a;
-        }
-
-        .status.err {
-            background: #fdeaea;
-            color: #8b1e1e;
-            border: 1px solid #e4a8a8;
-        }
-
-        .muted {
-            color: #666;
-            font-size: 13px;
-            margin-bottom: 10px;
-        }
-        table {
-    border-collapse: collapse;
-    width: 100%;
+    .btn {
+        border: none;
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 39px;
+    }
+.btn-danger {
+    background: #d9534f;
+    color: white;
+    border-radius: 6px;
+    padding: 8px 14px;
 }
 
-th, td {
-    border: 1px solid #dcdcdc;
-    padding: 6px;
-    text-align: center;
+.btn-danger:hover {
+    background: #c9302c;
 }
+    .btn-add {
+        background: var(--primary);
+        color: white;
+    }
 
-th {
-    font-size: 13px;
-}
+    .btn-add:hover {
+        background: var(--primary-dark);
+    }
 
-input[type="number"], input[type="text"]{
-    width: 100%;
-    border: 1px solid #cfcfcf;
-    padding: 6px;
-    box-sizing: border-box;
-}
+    .btn-save {
+        background: var(--success);
+        color: white;
+    }
 
-tr:hover{
-    background:#f9f9f9;
-}
+    .btn-save:hover {
+        background: var(--success-dark);
+    }
 
-/* kupas */
-.kupas {
-    background:#EAF4FF;
-}
+    .btn-link {
+        background: #eef2ff;
+        color: #374151;
+    }
 
-/* belah */
-.belah {
-    background:#EAFBF0;
-}
+    .btn-link:hover {
+        background: #e5e7eb;
+    }
 
-/* pk */
-.pk {
-    background:#FFF6E5;
-}
+    .grid-card {
+        overflow: hidden;
+    }
 
-/* total */
-.total-cell{
-    background:#F4F4F4;
-    font-weight:bold;
-}
+    .table-wrap {
+        overflow-x: auto;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+    }
 
-.col-noid{
-    width:70px;
-}
+    table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        min-width: 1320px;
+        background: white;
+    }
 
-.col-nama{
-    width:180px;
-}
-    </style>
+    thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #f8fafc;
+        color: #374151;
+        font-size: 12px;
+        font-weight: 700;
+        border-bottom: 1px solid var(--border);
+        padding: 10px 8px;
+        text-align: center;
+        white-space: nowrap;
+    }
+
+    tbody td {
+        border-bottom: 1px solid #edf0f4;
+        padding: 6px;
+        text-align: center;
+        background: white;
+    }
+
+    tbody tr:hover td {
+        background: #fafcff;
+    }
+
+    .kupas {
+        background: var(--kupas) !important;
+    }
+
+    .belah {
+        background: var(--belah) !important;
+    }
+
+    .pk {
+        background: var(--pk) !important;
+    }
+
+    .total-cell {
+        background: var(--total) !important;
+        font-weight: 700;
+        text-align: right;
+        padding-right: 12px;
+        white-space: nowrap;
+    }
+
+    .nama {
+        background: #f9fafb;
+        font-weight: 600;
+    }
+
+    .btn-delete {
+        border: 1px solid #f0b4b4;
+        background: #fff5f5;
+        color: #b91c1c;
+        border-radius: 10px;
+        padding: 7px 10px;
+        cursor: pointer;
+        font-weight: 700;
+    }
+
+    .btn-delete:hover {
+        background: #fee2e2;
+    }
+
+    .summary-box {
+        margin-top: 14px;
+        display: inline-block;
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        border-radius: 12px;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 700;
+    }
+
+    .status {
+        margin-top: 14px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        display: none;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .status.ok {
+        background: #ecfdf3;
+        color: #166534;
+        border: 1px solid #bbf7d0;
+    }
+
+    .status.err {
+        background: #fef2f2;
+        color: #991b1b;
+        border: 1px solid #fecaca;
+    }
+
+    .section-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin: 22px 0 12px;
+    }
+
+    .right {
+        text-align: right;
+    }
+
+    .mini-table-wrap {
+        overflow-x: auto;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: white;
+    }
+
+    .mini-table-wrap table {
+        min-width: 700px;
+    }
+
+    .mini-table-wrap th {
+        background: #f8fafc;
+    }
+
+    .col-noid { width: 85px; }
+    .col-nama { width: 190px; }
+    .col-small { width: 78px; }
+    .col-total { width: 120px; }
+    .col-action { width: 78px; }
+</style>
 </head>
 <body>
 
-<h1>Input Borongan Harian</h1>
-<p class="muted">
-    Satu tanggal untuk banyak karyawan. Ketik No ID, nama otomatis keluar, isi hasil kerja, lalu Save Semua.
-</p>
+<div class="page-wrap">
 
-<div class="topbar">
-    <div>
+    <div class="page-title">Input Borongan Harian</div>
+    <div class="page-subtitle">
+        Satu tanggal untuk banyak karyawan. Ketik No ID, nama otomatis keluar, isi hasil kerja, lalu save semua.
+    </div>
+
+    <div class="topbar">
+    <div class="field-group">
         <label for="tanggal">Tanggal</label>
         <input type="date" id="tanggal">
     </div>
 
-    <div>
+        <button type="button" class="btn btn-link" id="btnSearch">Search</button>
         <button type="button" class="btn btn-add" id="btnAddRow">Tambah Baris</button>
-    </div>
-
-    <div>
         <button type="button" class="btn btn-save" id="btnSaveAll">Save Semua</button>
+        <button type="button" class="btn btn-danger" id="btnDeleteTanggal">Delete Tanggal</button>
+         <a class="btn btn-link" href="{{ url_for('karyawan.karyawan_index') }}">Kembali</a>
+    </div>
+<div class="field-group" style="display:flex; gap:16px; align-items:center; margin-top:8px;">
+    <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="checkHadirSemua">
+        Kehadiran semua
+    </label>
+
+    <label style="display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="checkLiburSemua">
+        Hari libur / minggu semua
+    </label>
+</div>
+        <div class="summary-box">
+            Total Semua: <span id="grandTotal">0</span>
+        </div>
+
+        <div id="statusBox" class="status"></div>
     </div>
 
-    <div>
-        <a href="{{ url_for('karyawan.karyawan_index') }}">Kembali</a>
+    <div class="card grid-card">
+        <div class="table-wrap">
+            <table id="gridTable">
+                <thead>
+                    <tr>
+                        <th class="col-noid">No ID</th>
+                        <th class="col-nama">Nama</th>
+
+                        <th class="col-small kupas">K.XL</th>
+                        <th class="col-small kupas">K.L</th>
+                        <th class="col-small kupas">K.M</th>
+                        <th class="col-small kupas">K.S</th>
+
+                        <th class="col-small belah">B.XL</th>
+                        <th class="col-small belah">B.L</th>
+                        <th class="col-small belah">B.M</th>
+                        <th class="col-small belah">B.S</th>
+
+                        <th class="col-small pk">PK.L</th>
+                        <th class="col-small pk">PK.S</th>
+
+                        <th class="col-total">Total</th>
+                        <th class="col-action">Hapus</th>
+                    </tr>
+                </thead>
+                <tbody id="gridBody"></tbody>
+            </table>
+        </div>
     </div>
+
+    <div class="section-title">Ringkasan Log Terakhir</div>
+
+    <div class="card">
+        <div class="mini-table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Tanggal</th>
+                        <th>No ID</th>
+                        <th>Nama</th>
+                        <th>Total KG</th>
+                        <th>Total Upah</th>
+                        <th class="col-small">Hadir</th>
+                        <th class="col-small">Libur</th>
+                        <th class="col-small">Lembur</th>
+                        <th class="col-total">Insentif</th>
+                        <th class="col-total">Grand Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in recent_summary %}
+                    <tr>
+                        <td>{{ row.tanggal }}</td>
+                        <td>{{ row.no_id }}</td>
+                        <td>{{ row.nama }}</td>
+                        <td>{{ row.total_kg }}</td>
+                        <td class="right">{{ "{:,.0f}".format(row.total_upah or 0) }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
 </div>
-
-<table id="gridTable">
-    <thead>
-        <tr>
-            <th class="col-noid">No ID</th>
-            <th class="col-nama">Nama</th>
-            <th class="kupas">K.XL</th>
-            <th class="kupas">K.L</th>
-            <th class="kupas">K.M</th>
-            <th class="kupas">K.S</th>
-
-            <th class="belah">B.XL</th>
-            <th class="belah">B.L</th>
-            <th class="belah">B.M</th>
-            <th class="belah">B.S</th>
-
-            <th class="pk">PK.L</th>
-            <th class="pk">PK.S</th>
-            <th class="col-total">Total</th>
-            <th class="col-action">Hapus</th>
-        </tr>
-    </thead>
-    <tbody id="gridBody"></tbody>
-</table>
-
-<div class="summary-box">
-    Total Semua: <span id="grandTotal">0</span>
-</div>
-
-<div id="statusBox" class="status"></div>
-
-<hr>
-
-<h2>Ringkasan Log Terakhir</h2>
-<table>
-    <thead>
-        <tr>
-            <th>Tanggal</th>
-            <th>No ID</th>
-            <th>Nama</th>
-            <th>Total KG</th>
-            <th>Total Upah</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for row in recent_summary %}
-        <tr>
-            <td>{{ row.tanggal }}</td>
-            <td>{{ row.no_id }}</td>
-            <td>{{ row.nama }}</td>
-            <td>{{ row.total_kg }}</td>
-            <td class="right">{{ "{:,.0f}".format(row.total_upah or 0) }}</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
 
 <script>
+const SETTING_MAP = {{ setting_map_json|safe }};
 const RATE_MAP = {{ rate_map_json|safe }};
+async function deleteTanggal() {
+    const tanggal = document.getElementById("tanggal").value;
 
-const FIELD_ORDER = [
-    "no_id",
-    "kupas_xl",
-    "kupas_l",
-    "kupas_m",
-    "kupas_s",
-    "belah_xl",
-    "belah_l",
-    "belah_m",
-    "belah_s",
-    "pk_l",
-    "pk_s"
-];
+    if (!tanggal) {
+        showStatus("Pilih tanggal dulu", false);
+        return;
+    }
+
+    const confirmDelete = confirm(
+        `Yakin ingin menghapus semua data borongan tanggal ${tanggal}?`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+        const resp = await fetch(`/karyawan/borongan/delete/${tanggal}`, {
+            method: "DELETE"
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok && data.ok) {
+            showStatus(data.message, true);
+
+            document.getElementById("gridBody").innerHTML = "";
+            addRow(true);
+            calculateGrandTotal();
+
+        } else {
+            showStatus(data.message || "Gagal delete data", false);
+        }
+
+    } catch (err) {
+        showStatus("Terjadi error saat delete", false);
+    }
+}
+async function loadTanggal() {
+    const tanggal = document.getElementById("tanggal").value;
+
+    if (!tanggal) {
+        showStatus("Pilih tanggal dulu", false);
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/karyawan/api/borongan/${tanggal}`);
+        const rows = await resp.json();
+
+        document.getElementById("gridBody").innerHTML = "";
+
+        if (!rows || rows.length === 0) {
+            addRow(true);
+            calculateGrandTotal();
+            showStatus("Tidak ada data untuk tanggal ini", false);
+            return;
+        }
+
+        rows.forEach(r => {
+            addRow();
+            const row = document.querySelector("#gridBody tr:last-child");
+
+            row.querySelector('[data-field="no_id"]').value = r.no_id || "";
+            row.querySelector('[data-field="nama"]').value = r.nama || "";
+
+            row.querySelector('[data-field="kupas_xl"]').value = r.kupas_xl_koin || 0;
+            row.querySelector('[data-field="kupas_l"]').value = r.kupas_l_koin || 0;
+            row.querySelector('[data-field="kupas_m"]').value = r.kupas_m_koin || 0;
+            row.querySelector('[data-field="kupas_s"]').value = r.kupas_s_koin || 0;
+            row.querySelector('[data-field="belah_xl"]').value = r.belah_xl_koin || 0;
+            row.querySelector('[data-field="belah_l"]').value = r.belah_l_koin || 0;
+            row.querySelector('[data-field="belah_m"]').value = r.belah_m_koin || 0;
+            row.querySelector('[data-field="belah_s"]').value = r.belah_s_koin || 0;
+            row.querySelector('[data-field="pk_l"]').value = r.pk_l_kg || 0;
+            row.querySelector('[data-field="pk_s"]').value = r.pk_s_kg || 0;
+            row.querySelector('[data-field="hadir"]').checked = Number(r.hadir || 0) === 1;
+            row.querySelector('[data-field="hari_libur"]').checked = Number(r.hari_libur || 0) === 1;
+            row.querySelector('[data-field="lembur"]').checked = Number(r.lembur || 0) === 1;
+            calculateRow(row);
+        });
+
+        calculateGrandTotal();
+        showStatus(`Data tanggal ${tanggal} berhasil dimuat`, true);
+
+    } catch (err) {
+        showStatus("Gagal load data tanggal", false);
+    }
+}
 
 function formatNumber(n) {
     return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(n || 0));
 }
+function findDuplicateNoId(currentRow, noId) {
+    if (!noId) return null;
 
+    const rows = document.querySelectorAll("#gridBody tr");
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+
+        if (row === currentRow) continue;
+
+        const otherNoId = row.querySelector('[data-field="no_id"]')?.value.trim();
+
+        if (otherNoId && otherNoId === noId) {
+            return {
+                rowElement: row,
+                rowNumber: i + 1
+            };
+        }
+    }
+
+    return null;
+}
 function rowTemplate(rowIndex) {
     return `
         <tr data-row="${rowIndex}">
             <td><input type="text" class="cell-noid" data-field="no_id"></td>
             <td><input type="text" class="nama" data-field="nama" readonly></td>
 
-           <td class="kupas"><input type="number" data-field="kupas_xl" value="0"></td>
-            <td class="kupas"><input type="number" data-field="kupas_l" value="0"></td>
-            <td class="kupas"><input type="number" data-field="kupas_m" value="0"></td>
-            <td class="kupas"><input type="number" data-field="kupas_s" value="0"></td>
+            <td class="kupas"><input type="number" step="0.01" min="0" value="0" data-field="kupas_xl"></td>
+            <td class="kupas"><input type="number" step="0.01" min="0" value="0" data-field="kupas_l"></td>
+            <td class="kupas"><input type="number" step="0.01" min="0" value="0" data-field="kupas_m"></td>
+            <td class="kupas"><input type="number" step="0.01" min="0" value="0" data-field="kupas_s"></td>
 
-            <td class="belah"><input type="number" data-field="belah_xl" value="0"></td>
-            <td class="belah"><input type="number" data-field="belah_l" value="0"></td>
-            <td class="belah"><input type="number" data-field="belah_m" value="0"></td>
-            <td class="belah"><input type="number" data-field="belah_s" value="0"></td>
+            <td class="belah"><input type="number" step="0.01" min="0" value="0" data-field="belah_xl"></td>
+            <td class="belah"><input type="number" step="0.01" min="0" value="0" data-field="belah_l"></td>
+            <td class="belah"><input type="number" step="0.01" min="0" value="0" data-field="belah_m"></td>
+            <td class="belah"><input type="number" step="0.01" min="0" value="0" data-field="belah_s"></td>
 
-            <td class="pk"><input type="number" data-field="pk_l" value="0"></td>
-            <td class="pk"><input type="number" data-field="pk_s" value="0"></td>
+            <td class="pk"><input type="number" step="0.01" min="0" value="0" data-field="pk_l"></td>
+            <td class="pk"><input type="number" step="0.01" min="0" value="0" data-field="pk_s"></td>
 
-            <td class="right total-cell">0</td>
+            <td><input type="checkbox" data-field="hadir"></td>
+            <td><input type="checkbox" data-field="hari_libur"></td>
+            <td><input type="checkbox" data-field="lembur"></td>
+
+            <td class="total-cell right">0</td>
+            <td class="total-insentif-cell right">0</td>
+            <td class="grand-total-cell right">0</td>
+
             <td><button type="button" class="btn-delete">X</button></td>
         </tr>
     `;
 }
-
 function addRow(focusNoId = false) {
     const tbody = document.getElementById("gridBody");
     const rowIndex = tbody.querySelectorAll("tr").length;
@@ -317,14 +569,34 @@ function addRow(focusNoId = false) {
 
 function bindRow(row) {
     const noIdInput = row.querySelector('[data-field="no_id"]');
+    const namaInput = row.querySelector('[data-field="nama"]');
     const allInputs = row.querySelectorAll("input");
+
+    noIdInput.addEventListener("change", async () => {
+        await fillEmployeeName(row);
+    });
 
     noIdInput.addEventListener("blur", async () => {
         await fillEmployeeName(row);
     });
 
+    noIdInput.addEventListener("keydown", async (e) => {
+        if (e.key === "Enter") {
+            e.preventDefault();
+
+            const ok = await fillEmployeeName(row);
+            if (!ok) return;
+
+            const nextInput = row.querySelector('[data-field="kupas_xl"]');
+            if (nextInput) {
+                nextInput.focus();
+                nextInput.select?.();
+            }
+        }
+    });
+
     allInputs.forEach((inp) => {
-        if (inp.dataset.field !== "nama") {
+        if (inp.dataset.field !== "nama" && inp.dataset.field !== "no_id") {
             inp.addEventListener("input", () => {
                 calculateRow(row);
                 calculateGrandTotal();
@@ -333,36 +605,84 @@ function bindRow(row) {
             inp.addEventListener("keydown", (e) => handleEnterMove(e, row, inp));
         }
     });
-
+    ["hadir", "hari_libur", "lembur"].forEach(field => {
+    const cb = row.querySelector(`[data-field="${field}"]`);
+    if (cb) {
+        cb.addEventListener("change", () => {
+            calculateRow(row);
+            calculateGrandTotal();
+        });
+     }
+    });
     row.querySelector(".btn-delete").addEventListener("click", () => {
         row.remove();
         calculateGrandTotal();
     });
 }
+function applyMassCheckbox(fieldName, checked) {
+    document.querySelectorAll(`#gridBody tr`).forEach(row => {
+        const cb = row.querySelector(`[data-field="${fieldName}"]`);
+        if (cb) {
+            cb.checked = checked;
+            calculateRow(row);
+        }
+    });
+    calculateGrandTotal();
+}
+function addRow(focusNoId = false) {
+    const tbody = document.getElementById("gridBody");
+    const rowIndex = tbody.querySelectorAll("tr").length;
+    tbody.insertAdjacentHTML("beforeend", rowTemplate(rowIndex));
+
+    const row = tbody.lastElementChild;
+    bindRow(row);
+
+    if (focusNoId) {
+        row.querySelector('[data-field="no_id"]').focus();
+    }
+}
 
 async function fillEmployeeName(row) {
-    const noId = row.querySelector('[data-field="no_id"]').value.trim();
+    const noIdInput = row.querySelector('[data-field="no_id"]');
     const namaInput = row.querySelector('[data-field="nama"]');
+    const noId = noIdInput.value.trim();
 
     if (!noId) {
         namaInput.value = "";
-        return;
+        return true;
+    }
+
+    const dup = findDuplicateNoId(row, noId);
+    if (dup) {
+        namaInput.value = "";
+        showStatus(`No ID ${noId} sudah ada di baris ${dup.rowNumber}. Satu karyawan harus satu baris.`, false);
+        noIdInput.focus();
+        noIdInput.select?.();
+        return false;
     }
 
     try {
         const resp = await fetch(`/karyawan/api/employee/${encodeURIComponent(noId)}`);
         const data = await resp.json();
 
-        if (data.ok) {
-            namaInput.value = data.nama;
+        if (resp.ok && data.ok) {
+            namaInput.value = data.nama || "";
+            return true;
         } else {
             namaInput.value = "";
+            showStatus(`No ID ${noId} tidak ditemukan`, false);
+            return false;
         }
     } catch (err) {
+            console.log("lookup no id:", noId);
+        console.log("response status:", resp.status);
+        console.log("response data:", data);
+        console.error("Lookup employee error:", err);
         namaInput.value = "";
+        showStatus("Gagal mengambil data karyawan", false);
+        return false;
     }
 }
-
 function getFieldValue(row, field) {
     const el = row.querySelector(`[data-field="${field}"]`);
     return Number(el?.value || 0);
@@ -384,18 +704,32 @@ function calculateRow(row) {
     total += getFieldValue(row, "pk_l") * (RATE_MAP["PK_L"] || 0);
     total += getFieldValue(row, "pk_s") * (RATE_MAP["PK_S"] || 0);
 
-    row.querySelector(".total-cell").textContent = formatNumber(total);
-    row.dataset.total = total;
-}
+    const hadir = row.querySelector('[data-field="hadir"]').checked;
+    const hariLibur = row.querySelector('[data-field="hari_libur"]').checked;
+    const lembur = row.querySelector('[data-field="lembur"]').checked;
 
+    const insentifKehadiran = hadir ? (SETTING_MAP["KEHADIRAN"] || 0) : 0;
+    const insentifLibur = hariLibur ? (SETTING_MAP["LIBUR"] || 0) : 0;
+    const insentifLembur = lembur ? (SETTING_MAP["LEMBUR"] || 0) : 0;
+
+    const totalInsentif = insentifKehadiran + insentifLibur + insentifLembur;
+    const grandTotal = total + totalInsentif;
+
+    row.querySelector(".total-cell").textContent = formatNumber(total);
+    row.querySelector(".total-insentif-cell").textContent = formatNumber(totalInsentif);
+    row.querySelector(".grand-total-cell").textContent = formatNumber(grandTotal);
+
+    row.dataset.total = total;
+    row.dataset.totalInsentif = totalInsentif;
+    row.dataset.grandTotal = grandTotal;
+}
 function calculateGrandTotal() {
     let grand = 0;
     document.querySelectorAll("#gridBody tr").forEach(row => {
-        grand += Number(row.dataset.total || 0);
+        grand += Number(row.dataset.grandTotal || 0);
     });
     document.getElementById("grandTotal").textContent = formatNumber(grand);
 }
-
 function handleEnterMove(e, row, currentInput) {
     if (e.key !== "Enter") return;
     e.preventDefault();
@@ -445,7 +779,10 @@ function collectRows() {
             belah_m: getFieldValue(row, "belah_m"),
             belah_s: getFieldValue(row, "belah_s"),
             pk_l: getFieldValue(row, "pk_l"),
-            pk_s: getFieldValue(row, "pk_s")
+            pk_s: getFieldValue(row, "pk_s"),
+            hadir: row.querySelector('[data-field="hadir"]').checked ? 1 : 0,
+            hari_libur: row.querySelector('[data-field="hari_libur"]').checked ? 1 : 0,
+            lembur: row.querySelector('[data-field="lembur"]').checked ? 1 : 0
         };
 
         const qtyTotal =
@@ -467,7 +804,27 @@ function showStatus(message, ok = true) {
     box.className = "status " + (ok ? "ok" : "err");
     box.textContent = message;
 }
+function validateDuplicateNoIds(rows) {
+    const seen = new Map();
 
+    for (let i = 0; i < rows.length; i++) {
+        const noId = rows[i].no_id;
+        if (!noId) continue;
+
+        if (seen.has(noId)) {
+            return {
+                ok: false,
+                no_id: noId,
+                firstRow: seen.get(noId),
+                secondRow: i + 1
+            };
+        }
+
+        seen.set(noId, i + 1);
+    }
+
+    return { ok: true };
+}
 async function saveAll() {
     const tanggal = document.getElementById("tanggal").value;
     const rows = collectRows();
@@ -479,6 +836,15 @@ async function saveAll() {
 
     if (rows.length === 0) {
         showStatus("Belum ada data yang diisi", false);
+        return;
+    }
+
+    const dupCheck = validateDuplicateNoIds(rows);
+    if (!dupCheck.ok) {
+        showStatus(
+            `No ID ${dupCheck.no_id} double di baris ${dupCheck.firstRow} dan ${dupCheck.secondRow}. Satu karyawan harus satu baris.`,
+            false
+        );
         return;
     }
 
@@ -505,10 +871,12 @@ async function saveAll() {
         showStatus("Terjadi error saat save", false);
     }
 }
-
+document.getElementById("checkHadirSemua").addEventListener("change", function () {applyMassCheckbox("hadir", this.checked);});
+document.getElementById("checkLiburSemua").addEventListener("change", function () {applyMassCheckbox("hari_libur", this.checked);});
 document.getElementById("btnAddRow").addEventListener("click", () => addRow(true));
 document.getElementById("btnSaveAll").addEventListener("click", saveAll);
-
+document.getElementById("btnSearch").addEventListener("click", loadTanggal);
+document.getElementById("btnDeleteTanggal").addEventListener("click", deleteTanggal);
 // initial rows
 for (let i = 0; i < 12; i++) {
     addRow(i === 0);

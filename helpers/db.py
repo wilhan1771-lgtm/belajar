@@ -446,6 +446,19 @@ def init_db():
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE (tanggal, no_id)
             );
+                -- =========================
+                -- 10. payroll_settings
+                -- setting nominal insentif / bonus
+                -- =========================
+                CREATE TABLE IF NOT EXISTS payroll_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kode TEXT NOT NULL UNIQUE,
+                    nama TEXT NOT NULL,
+                    nilai REAL NOT NULL DEFAULT 0,
+                    aktif INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                );
                 
         CREATE INDEX IF NOT EXISTS idx_production_packing_pid
         ON production_packing(production_id);
@@ -466,14 +479,34 @@ def init_db():
         ON work_rates(work_type_id, size_id);
         DELETE FROM work_rates
         WHERE work_type_id = (
-    SELECT id FROM work_types WHERE kode = 'PK'
+        SELECT id FROM work_types WHERE kode = 'PK'
         )
-AND size_id IS NULL;
-              """)
+        AND size_id IS NULL;
+            """)
         # ensure kolom mode ada
         ensure_column(conn, "master_jenis", "mode", "TEXT DEFAULT 'udang_size'")
         ensure_column(conn, "borongan_inputs", "pk_l_kg", "REAL NOT NULL DEFAULT 0")
         ensure_column(conn, "borongan_inputs", "pk_s_kg", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "borongan_logs", "hadir", "INTEGER NOT NULL DEFAULT 0")
+        ensure_column(conn, "borongan_logs", "hari_libur", "INTEGER NOT NULL DEFAULT 0")
+        ensure_column(conn, "borongan_logs", "lembur", "INTEGER NOT NULL DEFAULT 0")
+        ensure_column(conn, "borongan_logs", "insentif_kehadiran", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "borongan_logs", "insentif_libur", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "borongan_logs", "insentif_lembur", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "borongan_logs", "total_insentif", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "borongan_logs", "grand_total", "REAL NOT NULL DEFAULT 0")
+        default_payroll_settings = [
+            ("KEHADIRAN", "Bonus Kehadiran", 50000),
+            ("LIBUR", "Insentif Hari Libur/Minggu", 20000),
+            ("LEMBUR", "Insentif Lembur", 10000),
+        ]
+
+        for kode, nama, nilai in default_payroll_settings:
+            conn.execute("""
+                INSERT OR IGNORE INTO payroll_settings (kode, nama, nilai, aktif)
+                VALUES (?, ?, ?, 1)
+            """, (kode, nama, nilai))
+
         # update mode untuk data lama
         conn.execute("""
         UPDATE master_jenis
