@@ -14,7 +14,7 @@
         --kupas: #eef6ff;
         --belah: #eefcf3;
         --pk: #fff8eb;
-        --total: #f3f4f6;
+        --total: white;
 
         --primary: #2563eb;
         --primary-dark: #1d4ed8;
@@ -209,7 +209,12 @@
     .pk {
         background: var(--pk) !important;
     }
-
+.input-active{
+    background: #e8f7e8;
+    border-color: #6cc070;
+    color: #2563eb;
+    font-weight: 600;
+}
     .total-cell {
         background: var(--total) !important;
         font-weight: 700;
@@ -289,12 +294,37 @@
 
     .mini-table-wrap table {
         min-width: 700px;
-    }
+    }.hasil-summary{
+    margin-top:14px;
+    margin-bottom:14px;
+    padding:14px 16px;
+    border:1px solid #cfe2ff;
+    background:#f8fbff;
+    border-radius:12px;
+    line-height:1.9;
+    font-size:15px;
+}
+.hasil-summary-grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap:12px;
+    margin:14px 0;
+}
+
+.hasil-item{
+    background:#f8fbff;
+    border:1px solid #cfe2ff;
+    width : 40 px;
+    border-radius:12px;
+    padding:12px 14px;
+    line-height:1.7;
+}
 
     .mini-table-wrap th {
         background: #f8fafc;
     }
 
+    .col-box { width : 30px;}
     .col-noid { width: 85px; }
     .col-nama { width: 190px; }
     .col-small { width: 78px; }
@@ -307,10 +337,6 @@
 <div class="page-wrap">
 
     <div class="page-title">Input Borongan Harian</div>
-    <div class="page-subtitle">
-        Satu tanggal untuk banyak karyawan. Ketik No ID, nama otomatis keluar, isi hasil kerja, lalu save semua.
-    </div>
-
     <div class="topbar">
     <div class="field-group">
         <label for="tanggal">Tanggal</label>
@@ -334,63 +360,110 @@
         Hari libur / minggu semua
     </label>
 </div>
-        <div class="summary-box">
+        <div class="hasil-item">
             Total Semua: <span id="grandTotal">0</span>
         </div>
 
         <div id="statusBox" class="status"></div>
     </div>
-
-    <div class="card grid-card">
-        <div class="table-wrap">
-            <table id="gridTable">
-                <thead>
-                    <tr>
-                        <th class="col-noid">No ID</th>
-                        <th class="col-nama">Nama</th>
-
-                        <th class="col-small kupas">K.XL</th>
-                        <th class="col-small kupas">K.L</th>
-                        <th class="col-small kupas">K.M</th>
-                        <th class="col-small kupas">K.S</th>
-
-                        <th class="col-small belah">B.XL</th>
-                        <th class="col-small belah">B.L</th>
-                        <th class="col-small belah">B.M</th>
-                        <th class="col-small belah">B.S</th>
-
-                        <th class="col-small pk">PK.L</th>
-                        <th class="col-small pk">PK.S</th>
-
-                        <th class="col-total">Total</th>
-                        <th class="col-action">Hapus</th>
-                    </tr>
-                </thead>
-                <tbody id="gridBody"></tbody>
-            </table>
-        </div>
+<div class="hasil-summary-grid">
+    <div class="hasil-item">
+        <strong>HASIL Kupas</strong><br>
+        XL: <span id="sumKupasXL">0</span> |
+        L: <span id="sumKupasL">0</span> |
+        M: <span id="sumKupasM">0</span> |
+        S: <span id="sumKupasS">0</span>
     </div>
 
-    <div class="section-title">Ringkasan Log Terakhir</div>
+    <div class="hasil-item">
+        <strong>HASIL Belah</strong><br>
+        XL: <span id="sumBelahXL">0</span> |
+        L: <span id="sumBelahL">0</span> |
+        M: <span id="sumBelahM">0</span> |
+        S: <span id="sumBelahS">0</span>
+    </div>
 
-    <div class="card">
-        <div class="mini-table-wrap">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Tanggal</th>
-                        <th>No ID</th>
-                        <th>Nama</th>
-                        <th>Total KG</th>
-                        <th>Total Upah</th>
-                        <th class="col-small">Hadir</th>
-                        <th class="col-small">Libur</th>
-                        <th class="col-small">Lembur</th>
-                        <th class="col-total">Insentif</th>
-                        <th class="col-total">Grand Total</th>
-                    </tr>
-                </thead>
-                <tbody>
+    <div class="hasil-item">
+        <strong>HASIL PK</strong><br>
+        L: <span id="sumPKL">0</span> |
+        S: <span id="sumPKS">0</span>
+    </div>
+
+    <div class="hasil-item">
+        <strong>Jumlah Kehadiran</strong><br>
+        <span id="sumHadirOrang">0</span> orang
+    </div>
+
+    <div class="hasil-item">
+        <strong>Jumlah Lembur</strong><br>
+        <span id="sumLemburOrang">0</span> orang
+    </div>
+</div>
+<div class="card grid-card">
+    <div class="table-wrap">
+        <table id="gridTable">
+            <thead>
+
+                <!-- HEADER BARIS 1 -->
+                <tr>
+                    <th rowspan="2" class="col-noid">No ID</th>
+                    <th rowspan="2" class="col-nama">Nama</th>
+
+                    <th colspan="4" class="kupas">Kupas</th>
+                    <th colspan="4" class="belah">Belah</th>
+                    <th colspan="2" class="pk">PK</th>
+
+                    <th rowspan="2" class="col-total">Upah</th>
+                    <th rowspan="2" class="col-box">Hadir</th>
+                    <th rowspan="2" class="col-box">Libur</th>
+                    <th rowspan="2" class="col-box">Lembur</th>
+                    <th rowspan="2" class="col-total">Insentif</th>
+                    <th rowspan="2" class="col-total">Total</th>
+                    <th rowspan="2" class="col-action">Hapus</th>
+                </tr>
+
+                <!-- HEADER BARIS 2 -->
+                <tr>
+                    <th class="col-small kupas">XL</th>
+                    <th class="col-small kupas">L</th>
+                    <th class="col-small kupas">M</th>
+                    <th class="col-small kupas">S</th>
+
+                    <th class="col-small belah">XL</th>
+                    <th class="col-small belah">L</th>
+                    <th class="col-small belah">M</th>
+                    <th class="col-small belah">S</th>
+
+                    <th class="col-small pk">L</th>
+                    <th class="col-small pk">S</th>
+                </tr>
+
+            </thead>
+
+            <tbody id="gridBody"></tbody>
+        </table>
+    </div>
+</div>
+            <div class="section-title">Ringkasan Log Terakhir</div>
+
+<div class="card">
+    <div class="mini-table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th class="col-date">Tanggal</th>
+                    <th class="col-noid">No ID</th>
+                    <th class="col-nama">Nama</th>
+                    <th class="col-total">Total KG</th>
+                    <th class="col-total">Total Upah</th>
+                    <th class="col-box">Hadir</th>
+                    <th class="col-box">Libur</th>
+                    <th class="col-box">Lembur</th>
+                    <th class="col-total">Insentif</th>
+                    <th class="col-total">Grand Total</th>
+                </tr>
+            </thead>
+            <tbody>
                     {% for row in recent_summary %}
                     <tr>
                         <td>{{ row.tanggal }}</td>
@@ -410,93 +483,6 @@
 <script>
 const SETTING_MAP = {{ setting_map_json|safe }};
 const RATE_MAP = {{ rate_map_json|safe }};
-async function deleteTanggal() {
-    const tanggal = document.getElementById("tanggal").value;
-
-    if (!tanggal) {
-        showStatus("Pilih tanggal dulu", false);
-        return;
-    }
-
-    const confirmDelete = confirm(
-        `Yakin ingin menghapus semua data borongan tanggal ${tanggal}?`
-    );
-
-    if (!confirmDelete) return;
-
-    try {
-        const resp = await fetch(`/karyawan/borongan/delete/${tanggal}`, {
-            method: "DELETE"
-        });
-
-        const data = await resp.json();
-
-        if (resp.ok && data.ok) {
-            showStatus(data.message, true);
-
-            document.getElementById("gridBody").innerHTML = "";
-            addRow(true);
-            calculateGrandTotal();
-
-        } else {
-            showStatus(data.message || "Gagal delete data", false);
-        }
-
-    } catch (err) {
-        showStatus("Terjadi error saat delete", false);
-    }
-}
-async function loadTanggal() {
-    const tanggal = document.getElementById("tanggal").value;
-
-    if (!tanggal) {
-        showStatus("Pilih tanggal dulu", false);
-        return;
-    }
-
-    try {
-        const resp = await fetch(`/karyawan/api/borongan/${tanggal}`);
-        const rows = await resp.json();
-
-        document.getElementById("gridBody").innerHTML = "";
-
-        if (!rows || rows.length === 0) {
-            addRow(true);
-            calculateGrandTotal();
-            showStatus("Tidak ada data untuk tanggal ini", false);
-            return;
-        }
-
-        rows.forEach(r => {
-            addRow();
-            const row = document.querySelector("#gridBody tr:last-child");
-
-            row.querySelector('[data-field="no_id"]').value = r.no_id || "";
-            row.querySelector('[data-field="nama"]').value = r.nama || "";
-
-            row.querySelector('[data-field="kupas_xl"]').value = r.kupas_xl_koin || 0;
-            row.querySelector('[data-field="kupas_l"]').value = r.kupas_l_koin || 0;
-            row.querySelector('[data-field="kupas_m"]').value = r.kupas_m_koin || 0;
-            row.querySelector('[data-field="kupas_s"]').value = r.kupas_s_koin || 0;
-            row.querySelector('[data-field="belah_xl"]').value = r.belah_xl_koin || 0;
-            row.querySelector('[data-field="belah_l"]').value = r.belah_l_koin || 0;
-            row.querySelector('[data-field="belah_m"]').value = r.belah_m_koin || 0;
-            row.querySelector('[data-field="belah_s"]').value = r.belah_s_koin || 0;
-            row.querySelector('[data-field="pk_l"]').value = r.pk_l_kg || 0;
-            row.querySelector('[data-field="pk_s"]').value = r.pk_s_kg || 0;
-            row.querySelector('[data-field="hadir"]').checked = Number(r.hadir || 0) === 1;
-            row.querySelector('[data-field="hari_libur"]').checked = Number(r.hari_libur || 0) === 1;
-            row.querySelector('[data-field="lembur"]').checked = Number(r.lembur || 0) === 1;
-            calculateRow(row);
-        });
-
-        calculateGrandTotal();
-        showStatus(`Data tanggal ${tanggal} berhasil dimuat`, true);
-
-    } catch (err) {
-        showStatus("Gagal load data tanggal", false);
-    }
-}
 
 function formatNumber(n) {
     return new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2 }).format(Number(n || 0));
@@ -541,12 +527,12 @@ function rowTemplate(rowIndex) {
 
             <td class="pk"><input type="number" step="0.01" min="0" value="0" data-field="pk_l"></td>
             <td class="pk"><input type="number" step="0.01" min="0" value="0" data-field="pk_s"></td>
-
+            <td class="total-cell right">0</td>
             <td><input type="checkbox" data-field="hadir"></td>
             <td><input type="checkbox" data-field="hari_libur"></td>
             <td><input type="checkbox" data-field="lembur"></td>
 
-            <td class="total-cell right">0</td>
+
             <td class="total-insentif-cell right">0</td>
             <td class="grand-total-cell right">0</td>
 
@@ -683,6 +669,15 @@ async function fillEmployeeName(row) {
         return false;
     }
 }
+function highlightInput(el){
+    const val = parseFloat(el.value) || 0;
+
+    if(val > 0){
+        el.classList.add("input-active");
+    }else{
+        el.classList.remove("input-active");
+    }
+}
 function getFieldValue(row, field) {
     const el = row.querySelector(`[data-field="${field}"]`);
     return Number(el?.value || 0);
@@ -759,46 +754,64 @@ function handleEnterMove(e, row, currentInput) {
     noIdInput.focus();
     noIdInput.select?.();
 }
-
-function collectRows() {
-    const rows = [];
-
-    document.querySelectorAll("#gridBody tr").forEach(row => {
-        const no_id = row.querySelector('[data-field="no_id"]').value.trim();
-        const nama = row.querySelector('[data-field="nama"]').value.trim();
-
-        const data = {
-            no_id,
-            nama,
-            kupas_xl: getFieldValue(row, "kupas_xl"),
-            kupas_l: getFieldValue(row, "kupas_l"),
-            kupas_m: getFieldValue(row, "kupas_m"),
-            kupas_s: getFieldValue(row, "kupas_s"),
-            belah_xl: getFieldValue(row, "belah_xl"),
-            belah_l: getFieldValue(row, "belah_l"),
-            belah_m: getFieldValue(row, "belah_m"),
-            belah_s: getFieldValue(row, "belah_s"),
-            pk_l: getFieldValue(row, "pk_l"),
-            pk_s: getFieldValue(row, "pk_s"),
-            hadir: row.querySelector('[data-field="hadir"]').checked ? 1 : 0,
-            hari_libur: row.querySelector('[data-field="hari_libur"]').checked ? 1 : 0,
-            lembur: row.querySelector('[data-field="lembur"]').checked ? 1 : 0
-        };
-
-        const qtyTotal =
-            data.kupas_xl + data.kupas_l + data.kupas_m + data.kupas_s +
-            data.belah_xl + data.belah_l + data.belah_m + data.belah_s +
-            data.pk_l + data.pk_s;
-
-        if (no_id && qtyTotal > 0) {
-            rows.push(data);
-        }
-    });
-
-    return rows;
+function angka(v) {
+    return parseFloat(v) || 0;
 }
 
-function showStatus(message, ok = true) {
+function sumClass(className) {
+    let total = 0;
+    document.querySelectorAll('.' + className).forEach(el => {
+        total += angka(el.value);
+    });
+    return total;
+}
+
+function countChecked(className) {
+    let total = 0;
+    document.querySelectorAll('.' + className).forEach(el => {
+        if (el.checked) total++;
+    });
+    return total;
+}
+
+function getSum(field) {
+    let total = 0;
+    document.querySelectorAll(`#gridBody input[data-field="${field}"]`).forEach(el => {
+        total += parseFloat(el.value) || 0;
+    });
+    return total;
+}
+
+function countChecked(field) {
+    let total = 0;
+    document.querySelectorAll(`#gridBody input[data-field="${field}"]`).forEach(el => {
+        if (el.checked) total++;
+    });
+    return total;
+}
+
+function setText(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = value;
+}
+
+function updateHasilSummary() {
+    setText('sumKupasXL', getSum('kupas_xl'));
+    setText('sumKupasL',  getSum('kupas_l'));
+    setText('sumKupasM',  getSum('kupas_m'));
+    setText('sumKupasS',  getSum('kupas_s'));
+
+    setText('sumBelahXL', getSum('belah_xl'));
+    setText('sumBelahL',  getSum('belah_l'));
+    setText('sumBelahM',  getSum('belah_m'));
+    setText('sumBelahS',  getSum('belah_s'));
+
+    setText('sumPKL', getSum('pk_l'));
+    setText('sumPKS', getSum('pk_s'));
+
+    setText('sumHadirOrang', countChecked('hadir'));
+    setText('sumLemburOrang', countChecked('lembur'));
+}function showStatus(message, ok = true) {
     const box = document.getElementById("statusBox");
     box.style.display = "block";
     box.className = "status " + (ok ? "ok" : "err");
@@ -824,6 +837,139 @@ function validateDuplicateNoIds(rows) {
     }
 
     return { ok: true };
+}
+function collectRows() {
+    const rows = [];
+
+    document.querySelectorAll("#gridBody tr").forEach(row => {
+        const no_id = row.querySelector('[data-field="no_id"]')?.value.trim() || '';
+        const nama = row.querySelector('[data-field="nama"]')?.value.trim() || '';
+
+        const data = {
+            no_id,
+            nama,
+            kupas_xl: getFieldValue(row, "kupas_xl"),
+            kupas_l: getFieldValue(row, "kupas_l"),
+            kupas_m: getFieldValue(row, "kupas_m"),
+            kupas_s: getFieldValue(row, "kupas_s"),
+            belah_xl: getFieldValue(row, "belah_xl"),
+            belah_l: getFieldValue(row, "belah_l"),
+            belah_m: getFieldValue(row, "belah_m"),
+            belah_s: getFieldValue(row, "belah_s"),
+            pk_l: getFieldValue(row, "pk_l"),
+            pk_s: getFieldValue(row, "pk_s"),
+            hadir: row.querySelector('[data-field="hadir"]')?.checked ? 1 : 0,
+            hari_libur: row.querySelector('[data-field="hari_libur"]')?.checked ? 1 : 0,
+            lembur: row.querySelector('[data-field="lembur"]')?.checked ? 1 : 0
+        };
+
+        const qtyTotal =
+            data.kupas_xl + data.kupas_l + data.kupas_m + data.kupas_s +
+            data.belah_xl + data.belah_l + data.belah_m + data.belah_s +
+            data.pk_l + data.pk_s;
+
+        if (no_id && qtyTotal > 0) {
+            rows.push(data);
+        }
+    });
+
+    return rows;
+}
+
+async function deleteTanggal() {
+    const tanggal = document.getElementById("tanggal").value;
+
+    if (!tanggal) {
+        showStatus("Pilih tanggal dulu", false);
+        return;
+    }
+
+    const confirmDelete = confirm(
+        `Yakin ingin menghapus semua data borongan tanggal ${tanggal}?`
+    );
+
+    if (!confirmDelete) return;
+
+    try {
+        const resp = await fetch(`/karyawan/borongan/delete/${tanggal}`, {
+            method: "DELETE"
+        });
+
+        const data = await resp.json();
+
+        if (resp.ok && data.ok) {
+            showStatus(data.message, true);
+
+            document.getElementById("gridBody").innerHTML = "";
+            addRow(true);
+            calculateGrandTotal();
+
+        } else {
+            showStatus(data.message || "Gagal delete data", false);
+        }
+
+    } catch (err) {
+        showStatus("Terjadi error saat delete", false);
+    }
+}
+async function loadTanggal() {
+    const tanggal = document.getElementById("tanggal").value;
+
+    if (!tanggal) {
+        showStatus("Pilih tanggal dulu", false);
+        return;
+    }
+
+    try {
+        const resp = await fetch(`/karyawan/api/borongan/${tanggal}`);
+        const rows = await resp.json();
+
+        document.getElementById("gridBody").innerHTML = "";
+
+        if (!rows || rows.length === 0) {
+            addRow(true);
+            calculateGrandTotal();
+            updateHasilSummary();
+            showStatus("Tidak ada data untuk tanggal ini", false);
+            return;
+        }
+
+        rows.forEach(r => {
+            addRow();
+            const row = document.querySelector("#gridBody tr:last-child");
+
+            row.querySelector('[data-field="no_id"]').value = r.no_id || "";
+            row.querySelector('[data-field="nama"]').value = r.nama || "";
+
+            row.querySelector('[data-field="kupas_xl"]').value = r.kupas_xl_koin || 0;
+            row.querySelector('[data-field="kupas_l"]').value = r.kupas_l_koin || 0;
+            row.querySelector('[data-field="kupas_m"]').value = r.kupas_m_koin || 0;
+            row.querySelector('[data-field="kupas_s"]').value = r.kupas_s_koin || 0;
+
+            row.querySelector('[data-field="belah_xl"]').value = r.belah_xl_koin || 0;
+            row.querySelector('[data-field="belah_l"]').value = r.belah_l_koin || 0;
+            row.querySelector('[data-field="belah_m"]').value = r.belah_m_koin || 0;
+            row.querySelector('[data-field="belah_s"]').value = r.belah_s_koin || 0;
+
+            row.querySelector('[data-field="pk_l"]').value = r.pk_l_kg || 0;
+            row.querySelector('[data-field="pk_s"]').value = r.pk_s_kg || 0;
+
+            row.querySelector('[data-field="hadir"]').checked = Number(r.hadir || 0) === 1;
+            row.querySelector('[data-field="hari_libur"]').checked = Number(r.hari_libur || 0) === 1;
+            row.querySelector('[data-field="lembur"]').checked = Number(r.lembur || 0) === 1;
+
+            calculateRow(row);
+        });
+
+        calculateGrandTotal();
+        updateHasilSummary();
+        document.querySelectorAll('#gridBody input[type="number"]').forEach(el=>{highlightInput(el);});
+        showStatus(`Data tanggal ${tanggal} berhasil dimuat`, true);
+
+    } catch (err) {
+        console.error(err);
+        showStatus("Gagal load data tanggal", false);
+    }
 }
 async function saveAll() {
     const tanggal = document.getElementById("tanggal").value;
@@ -871,16 +1017,37 @@ async function saveAll() {
         showStatus("Terjadi error saat save", false);
     }
 }
+
 document.getElementById("checkHadirSemua").addEventListener("change", function () {applyMassCheckbox("hadir", this.checked);});
 document.getElementById("checkLiburSemua").addEventListener("change", function () {applyMassCheckbox("hari_libur", this.checked);});
-document.getElementById("btnAddRow").addEventListener("click", () => addRow(true));
 document.getElementById("btnSaveAll").addEventListener("click", saveAll);
 document.getElementById("btnSearch").addEventListener("click", loadTanggal);
 document.getElementById("btnDeleteTanggal").addEventListener("click", deleteTanggal);
+
+document.addEventListener("input", function(e){
+
+    if(e.target.matches('#gridBody input[type="number"]')){
+        highlightInput(e.target);
+    }
+
+    if(e.target.closest("#gridBody")){
+        updateHasilSummary();
+    }
+
+});
+
+document.addEventListener("change", function (e) {
+    if (e.target.closest("#gridBody")) {
+        updateHasilSummary();
+    }
+});
+
 // initial rows
 for (let i = 0; i < 12; i++) {
     addRow(i === 0);
 }
+
+updateHasilSummary();
 </script>
 
 </body>

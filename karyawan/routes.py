@@ -401,10 +401,11 @@ def api_employee(no_id):
 
 @karyawan_bp.route("/borongan/rekap")
 def borongan_rekap():
-
     date_from = request.args.get("date_from")
     date_to = request.args.get("date_to")
-    sort = request.args.get("sort","no_id")
+    sort = request.args.get("sort", "no_id")
+    mode = request.args.get("mode", "rekap")
+    no_id = request.args.get("no_id", "").strip()
 
     if not date_from:
         date_from = date.today().isoformat()
@@ -412,34 +413,117 @@ def borongan_rekap():
     if not date_to:
         date_to = date_from
 
-    order_map = {
-        "no_id":"CAST(no_id AS INTEGER), no_id",
-        "nama":"nama",
-        "upah":"total_upah DESC",
-        "kg":"total_kg DESC"
-    }
-
-    order_by = order_map.get(sort,"CAST(no_id AS INTEGER), no_id")
-
     conn = get_conn()
 
-    rows = conn.execute(f"""
-        SELECT
-            tanggal,
-            no_id,
-            nama,
-            kupas_xl_koin + kupas_l_koin + kupas_m_koin + kupas_s_koin AS total_kupas,
-            belah_xl_koin + belah_l_koin + belah_m_koin + belah_s_koin AS total_belah,
-            pk_l_kg + pk_s_kg AS total_pk,
-            total_kg,
-            total_upah
-        FROM borongan_logs
-        WHERE tanggal BETWEEN ? AND ?
-        ORDER BY {order_by}
-    """,(date_from,date_to)).fetchall()
+    if mode == "detail":
+        order_map = {
+            "no_id": "CAST(no_id AS INTEGER), no_id, tanggal",
+            "nama": "nama, tanggal",
+            "upah": "total_upah DESC, tanggal",
+            "kg": "total_kg DESC, tanggal",
+            "tanggal": "tanggal, CAST(no_id AS INTEGER), no_id"
+        }
+        order_by = order_map.get(sort, "CAST(no_id AS INTEGER), no_id, tanggal")
 
-    total_kg = sum(r["total_kg"] for r in rows)
-    total_upah = sum(r["total_upah"] for r in rows)
+        sql = f"""
+            SELECT
+                tanggal,
+                no_id,
+                nama,
+                (kupas_xl_koin + kupas_l_koin + kupas_m_koin + kupas_s_koin) AS total_kupas,
+                (belah_xl_koin + belah_l_koin + belah_m_koin + belah_s_koin) AS total_belah,
+                (pk_l_kg + pk_s_kg) AS total_pk,
+                total_kg,
+                total_upah,
+                hadir,
+                lembur,
+                hari_libur,
+                total_insentif,
+                grand_total
+            FROM borongan_logs
+            WHERE tanggal BETWEEN ? AND ?
+        """
+        params = [date_from, date_to]
+
+        if no_id:
+            sql += " AND no_id = ?"
+            params.append(no_id)
+
+        sql += f" ORDER BY {order_by}"
+
+        rows = conn.execute(sql, params).fetchall()
+
+        summary = {
+            "total_kupas": sum((r["total_kupas"] or 0) for r in rows),
+            "total_belah": sum((r["total_belah"] or 0) for r in rows),
+            "total_pk": sum((r["total_pk"] or 0) for r in rows),
+            "total_kg": sum((r["total_kg"] or 0) for r in rows),
+            "total_upah": sum((r["total_upah"] or 0) for r in rows),
+            "total_insentif": sum((r["total_insentif"] or 0) for r in rows),
+            "total_grand": sum((r["grand_total"] or 0) for r in rows),
+        }
+
+    else:
+        order_map = {
+            "no_id": "CAST(no_id AS INTEGER), no_id",
+            "nama": "nama",
+            "upah": "sum_total_upah DESC",
+            "kg": "sum_total_kg DESC"
+        }
+        order_by = order_map.get(sort, "CAST(no_id AS INTEGER), no_id")
+
+        sql = f"""
+            SELECT
+                no_id,
+                nama,
+                SUM(kupas_xl_koin) AS kupas_xl,
+                SUM(kupas_l_koin) AS kupas_l,
+                SUM(kupas_m_koin) AS kupas_m,
+                SUM(kupas_s_koin) AS kupas_s,
+                SUM(belah_xl_koin) AS belah_xl,
+                SUM(belah_l_koin) AS belah_l,
+                SUM(belah_m_koin) AS belah_m,
+                SUM(belah_s_koin) AS belah_s,
+                SUM(pk_l_kg) AS pk_l,
+                SUM(pk_s_kg) AS pk_s,
+                SUM(kupas_xl_koin + kupas_l_koin + kupas_m_koin + kupas_s_koin) AS sum_total_kupas,
+                SUM(belah_xl_koin + belah_l_koin + belah_m_koin + belah_s_koin) AS sum_total_belah,
+                SUM(pk_l_kg + pk_s_kg) AS sum_total_pk,
+                SUM(total_kg) AS sum_total_kg,
+                SUM(total_upah) AS sum_total_upah,
+                SUM(hadir) AS sum_hadir,
+                SUM(lembur) AS sum_lembur,
+                SUM(hari_libur) AS sum_libur,
+                SUM(insentif_kehadiran) AS sum_insentif_kehadiran,
+                SUM(insentif_libur) AS sum_insentif_libur,
+                SUM(insentif_lembur) AS sum_insentif_lembur,
+                SUM(total_insentif) AS sum_insentif,
+                SUM(grand_total) AS sum_grand_total
+            FROM borongan_logs
+            WHERE tanggal BETWEEN ? AND ?
+        """
+        params = [date_from, date_to]
+
+        if no_id:
+            sql += " AND no_id = ?"
+            params.append(no_id)
+
+        sql += f"""
+            GROUP BY no_id, nama
+            ORDER BY {order_by}
+        """
+
+        rows = conn.execute(sql, params).fetchall()
+
+        summary = {
+            "total_kupas": sum((r["sum_total_kupas"] or 0) for r in rows),
+            "total_belah": sum((r["sum_total_belah"] or 0) for r in rows),
+            "total_pk": sum((r["sum_total_pk"] or 0) for r in rows),
+            "total_kg": sum((r["sum_total_kg"] or 0) for r in rows),
+            "total_upah": sum((r["sum_total_upah"] or 0) for r in rows),
+            "total_insentif": sum((r["sum_insentif"] or 0) for r in rows),
+            "total_grand": sum((r["sum_grand_total"] or 0) for r in rows),
+        }
 
     conn.close()
 
@@ -448,10 +532,12 @@ def borongan_rekap():
         rows=rows,
         date_from=date_from,
         date_to=date_to,
-        total_kg=total_kg,
-        total_upah=total_upah,
-        sort=sort
+        sort=sort,
+        mode=mode,
+        no_id=no_id,
+        summary=summary
     )
+
 @karyawan_bp.route("/api/borongan/<tanggal>")
 def api_borongan_tanggal(tanggal):
     conn = get_conn()
