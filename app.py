@@ -33,6 +33,7 @@ app.permanent_session_lifetime = timedelta(hours=8)
 app.register_blueprint(invoice_bp)
 app.register_blueprint(production_bp)
 app.register_blueprint(karyawan_bp)
+app.register_blueprint(receiving_bp, url_prefix="/receiving")
 app.config["ADMIN_USERNAME"] = "admin"
 app.config["ADMIN_PASSWORD"] = "1234"   # atau ADMIN_PIN
 DATE_FMT = "%Y-%m-%d"
@@ -343,10 +344,11 @@ if app.debug:
 print("=== ROUTE LIST ===")
 print(app.url_map)
 
-app.register_blueprint(receiving_bp, url_prefix="/receiving")
-# Run
-# =========================
 if __name__ == "__main__":
-
-    app.run(host="0.0.0.0", port=5000, debug=True, use_reloader=False)
+    app.run(
+        host="0.0.0.0",
+        port=5000,
+        debug=False,
+        threaded=True
+    )
 

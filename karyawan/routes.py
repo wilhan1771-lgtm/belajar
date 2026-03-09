@@ -45,33 +45,6 @@ def tarif_index():
 
     return render_template("karyawan/tarif.html", rates=rates)
 
-
-@karyawan_bp.route("/employees", methods=["GET", "POST"])
-def employees_list():
-    conn = get_conn()
-
-    if request.method == "POST":
-        no_id = request.form["no_id"]
-        nama = request.form["nama"]
-        bagian = request.form.get("bagian")
-        jabatan = request.form.get("jabatan")
-        fingerprint_id = request.form.get("fingerprint_id")
-
-        conn.execute("""
-            INSERT INTO employees (no_id, nama, bagian, jabatan, fingerprint_id)
-            VALUES (?, ?, ?, ?, ?)
-        """, (no_id, nama, bagian, jabatan, fingerprint_id))
-        conn.commit()
-        return redirect(url_for("karyawan.employees_list"))
-
-    employees = conn.execute("""
-        SELECT * FROM employees
-        ORDER BY CAST(no_id AS INTEGER), no_id
-    """).fetchall()
-
-    conn.close()
-    return render_template("karyawan/employees.html", employees=employees)
-
 @karyawan_bp.route("/borongan", methods=["GET"])
 def borongan_index():
     conn = get_conn()
@@ -373,6 +346,100 @@ def borongan_save():
         return jsonify({"ok": False, "message": f"Gagal simpan: {str(e)}"}), 500
     finally:
         conn.close()
+
+@karyawan_bp.route("/employees")
+def employees_list():
+    conn = get_conn()
+
+    q = request.args.get("q", "").strip()
+    bagian = request.args.get("bagian", "").strip()
+    jabatan = request.args.get("jabatan", "").strip()
+    sort = request.args.get("sort", "no_id")
+
+    order_map = {
+        "no_id": "CAST(no_id AS INTEGER), no_id",
+        "nama": "nama",
+        "bagian": "bagian, nama",
+        "jabatan": "jabatan, nama"
+    }
+    order_by = order_map.get(sort, "CAST(no_id AS INTEGER), no_id")
+
+    sql = "SELECT * FROM employees WHERE 1=1"
+    params = []
+
+    if q:
+        sql += " AND (no_id LIKE ? OR nama LIKE ?)"
+        params.extend([f"%{q}%", f"%{q}%"])
+
+    if bagian:
+        sql += " AND bagian = ?"
+        params.append(bagian)
+
+    if jabatan:
+        sql += " AND jabatan = ?"
+        params.append(jabatan)
+
+    sql += f" ORDER BY {order_by}"
+
+    employees = conn.execute(sql, params).fetchall()
+    conn.close()
+
+    return render_template("karyawan/employees.html", employees=employees)
+
+@karyawan_bp.route("/employees/add", methods=["GET", "POST"])
+def employee_add():
+    conn = get_conn()
+
+    if request.method == "POST":
+        no_id = request.form["no_id"]
+        nama = request.form["nama"]
+        bagian = request.form.get("bagian")
+        jabatan = request.form.get("jabatan")
+        fingerprint_id = request.form.get("fingerprint_id")
+
+        conn.execute("""
+            INSERT INTO employees (no_id, nama, bagian, jabatan, fingerprint_id)
+            VALUES (?, ?, ?, ?, ?)
+        """, (no_id, nama, bagian, jabatan, fingerprint_id))
+        conn.commit()
+        conn.close()
+        return redirect(url_for("karyawan.employees_list"))
+
+    conn.close()
+    return render_template("karyawan/employee_form.html", employee=None)
+
+@karyawan_bp.route("/employees/<int:id>/edit", methods=["GET", "POST"])
+def employee_edit(id):
+    conn = get_conn()
+
+    if request.method == "POST":
+        no_id = request.form["no_id"]
+        nama = request.form["nama"]
+        bagian = request.form.get("bagian")
+        jabatan = request.form.get("jabatan")
+        fingerprint_id = request.form.get("fingerprint_id")
+
+        conn.execute("""
+            UPDATE employees
+            SET no_id = ?, nama = ?, bagian = ?, jabatan = ?, fingerprint_id = ?
+            WHERE id = ?
+        """, (no_id, nama, bagian, jabatan, fingerprint_id, id))
+        conn.commit()
+        conn.close()
+        return redirect(url_for("karyawan.employees_list"))
+
+    employee = conn.execute("SELECT * FROM employees WHERE id = ?", (id,)).fetchone()
+    conn.close()
+
+    return render_template("karyawan/employee_form.html", employee=employee)
+
+@karyawan_bp.route("/employees/<int:id>/delete", methods=["POST"])
+def employee_delete(id):
+    conn = get_conn()
+    conn.execute("DELETE FROM employees WHERE id = ?", (id,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for("karyawan.employees_list"))
 
 @karyawan_bp.route("/api/employee/<no_id>")
 def api_employee(no_id):

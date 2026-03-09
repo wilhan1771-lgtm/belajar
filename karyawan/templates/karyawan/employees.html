@@ -6,20 +6,17 @@
   <title>Data Karyawan</title>
   <style>
     * { box-sizing: border-box; }
-
     body {
       margin: 0;
-      font-family: Arial, Helvetica, sans-serif;
+      font-family: Arial, sans-serif;
       background: #f4f7fb;
       color: #1f2937;
     }
-
     .container {
       max-width: 1200px;
       margin: 0 auto;
       padding: 28px 20px 40px;
     }
-
     .header-box {
       background: linear-gradient(135deg, #2563eb, #1d4ed8);
       color: white;
@@ -27,17 +24,10 @@
       padding: 26px 28px;
       margin-bottom: 22px;
     }
-
     .header-box h1 {
       margin: 0 0 8px;
       font-size: 30px;
     }
-
-    .header-box p {
-      margin: 0;
-      opacity: 0.95;
-    }
-
     .toolbar {
       background: white;
       border: 1px solid #e5e7eb;
@@ -49,29 +39,24 @@
       align-items: end;
       margin-bottom: 18px;
     }
-
     .field {
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
-
     .field label {
       font-size: 13px;
-      color: #475569;
       font-weight: 700;
+      color: #475569;
     }
-
     .field input, .field select {
       height: 38px;
       min-width: 170px;
       padding: 0 10px;
       border: 1px solid #cbd5e1;
       border-radius: 10px;
-      background: #fff;
       font-size: 14px;
     }
-
     .btn {
       height: 38px;
       padding: 0 16px;
@@ -85,22 +70,8 @@
       justify-content: center;
       font-size: 14px;
     }
-
-    .btn-primary {
-      background: #2563eb;
-      color: #fff;
-    }
-
-    .btn-green {
-      background: #16a34a;
-      color: #fff;
-    }
-
-    .btn-gray {
-      background: #e5e7eb;
-      color: #111827;
-    }
-
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-green { background: #16a34a; color: white; }
     .table-card {
       background: white;
       border: 1px solid #e5e7eb;
@@ -108,35 +79,23 @@
       padding: 14px;
       overflow: auto;
     }
-
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 900px;
+      min-width: 850px;
     }
-
     th, td {
       border-bottom: 1px solid #e5e7eb;
       padding: 12px 10px;
       text-align: left;
-      font-size: 14px;
     }
-
     th {
       background: #f8fafc;
-      font-weight: 800;
-      color: #0f172a;
     }
-
-    tr:hover td {
-      background: #f8fbff;
-    }
-
     .aksi {
       display: flex;
       gap: 8px;
     }
-
     .btn-sm {
       padding: 8px 12px;
       border-radius: 8px;
@@ -144,20 +103,11 @@
       font-weight: 700;
       text-decoration: none;
       display: inline-block;
-    }
-
-    .btn-edit {
-      background: #facc15;
-      color: #111827;
-    }
-
-    .btn-delete {
-      background: #ef4444;
-      color: #fff;
       border: none;
       cursor: pointer;
     }
-
+    .btn-edit { background: #facc15; color: #111827; }
+    .btn-delete { background: #ef4444; color: white; }
     .top-actions {
       display: flex;
       justify-content: space-between;
@@ -166,7 +116,6 @@
       gap: 10px;
       flex-wrap: wrap;
     }
-
     .back-link {
       text-decoration: none;
       color: #3730a3;
@@ -178,7 +127,7 @@
   <div class="container">
     <div class="header-box">
       <h1>Data Karyawan</h1>
-      <p>Kelola daftar karyawan, bagian kerja, jabatan, dan fingerprint ID.</p>
+      <p>Kelola daftar karyawan, bagian, jabatan, dan fingerprint ID.</p>
     </div>
 
     <div class="top-actions">
@@ -194,32 +143,21 @@
 
       <div class="field">
         <label>Bagian</label>
-        <select name="bagian">
-          <option value="">Semua Bagian</option>
-          <option value="Borongan">Borongan</option>
-          <option value="Absensi">Absensi</option>
-          <option value="Admin">Admin</option>
-        </select>
+        <input type="text" name="bagian" value="{{ request.args.get('bagian', '') }}" placeholder="Contoh: Borongan">
       </div>
 
       <div class="field">
         <label>Jabatan</label>
-        <select name="jabatan">
-          <option value="">Semua Jabatan</option>
-          <option value="Kupas">Kupas</option>
-          <option value="Belah">Belah</option>
-          <option value="PK">PK</option>
-          <option value="Mandor">Mandor</option>
-        </select>
+        <input type="text" name="jabatan" value="{{ request.args.get('jabatan', '') }}" placeholder="Contoh: Kupas">
       </div>
 
       <div class="field">
         <label>Urutkan</label>
         <select name="sort">
-          <option value="no_id">No ID</option>
-          <option value="nama">Nama</option>
-          <option value="bagian">Bagian</option>
-          <option value="jabatan">Jabatan</option>
+          <option value="no_id" {{ 'selected' if request.args.get('sort', 'no_id') == 'no_id' else '' }}>No ID</option>
+          <option value="nama" {{ 'selected' if request.args.get('sort') == 'nama' else '' }}>Nama</option>
+          <option value="bagian" {{ 'selected' if request.args.get('sort') == 'bagian' else '' }}>Bagian</option>
+          <option value="jabatan" {{ 'selected' if request.args.get('sort') == 'jabatan' else '' }}>Jabatan</option>
         </select>
       </div>
 
@@ -239,17 +177,17 @@
           </tr>
         </thead>
         <tbody>
-          {% for k in rows %}
+          {% for k in employees %}
           <tr>
             <td>{{ k.no_id }}</td>
             <td>{{ k.nama }}</td>
-            <td>{{ k.bagian }}</td>
-            <td>{{ k.jabatan }}</td>
+            <td>{{ k.bagian or '-' }}</td>
+            <td>{{ k.jabatan or '-' }}</td>
             <td>{{ k.fingerprint_id or '-' }}</td>
             <td>
               <div class="aksi">
                 <a href="{{ url_for('karyawan.employee_edit', id=k.id) }}" class="btn-sm btn-edit">Edit</a>
-                <form method="post" action="{{ url_for('karyawan.employee_delete', id=k.id) }}" onsubmit="return confirm('Hapus karyawan ini?');">
+                <form method="post" action="{{ url_for('karyawan.employee_delete', id=k.id) }}" onsubmit="return confirm('Hapus karyawan ini?');" style="margin:0;">
                   <button type="submit" class="btn-sm btn-delete">Hapus</button>
                 </form>
               </div>

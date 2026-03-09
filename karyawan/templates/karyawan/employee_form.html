@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ 'Edit Karyawan' if employee else 'Tambah Karyawan' }}</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f4f7fb;
+      color: #1f2937;
+    }
+
+    .container {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 30px 20px 40px;
+    }
+
+    .top-link {
+      margin-bottom: 14px;
+    }
+
+    .top-link a {
+      text-decoration: none;
+      color: #3730a3;
+      font-weight: 700;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 20px;
+      padding: 26px;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.06);
+    }
+
+    .header {
+      margin-bottom: 24px;
+    }
+
+    .header h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      color: #0f172a;
+    }
+
+    .header p {
+      margin: 0;
+      color: #64748b;
+      line-height: 1.5;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .field label {
+      font-size: 14px;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .field input,
+    .field select {
+      height: 44px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      padding: 0 12px;
+      font-size: 14px;
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .field input:focus,
+    .field select:focus {
+      border-color: #2563eb;
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    .hint {
+      font-size: 12px;
+      color: #64748b;
+    }
+
+    .actions {
+      margin-top: 24px;
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      height: 44px;
+      padding: 0 18px;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: #fff;
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .btn-secondary:hover {
+      background: #d1d5db;
+    }
+
+    @media (max-width: 640px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .card {
+        padding: 20px;
+      }
+
+      .header h1 {
+        font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="top-link">
+      <a href="{{ url_for('karyawan.employees_list') }}">← Kembali ke Data Karyawan</a>
+    </div>
+
+    <div class="card">
+      <div class="header">
+        <h1>{{ 'Edit Karyawan' if employee else 'Tambah Karyawan' }}</h1>
+        <p>
+          {{ 'Perbarui data karyawan di bawah ini.' if employee else 'Isi data karyawan baru dengan lengkap.' }}
+        </p>
+      </div>
+
+      <form method="post">
+        <div class="form-grid">
+          <div class="field">
+            <label for="no_id">No ID</label>
+            <input
+              type="text"
+              id="no_id"
+              name="no_id"
+              value="{{ employee.no_id if employee else '' }}"
+              required
+            >
+          </div>
+
+          <div class="field">
+            <label for="nama">Nama</label>
+            <input
+              type="text"
+              id="nama"
+              name="nama"
+              value="{{ employee.nama if employee else '' }}"
+              required
+            >
+          </div>
+
+          <div class="field">
+            <label for="bagian">Bagian</label>
+            <select id="bagian" name="bagian">
+              <option value="">Pilih Bagian</option>
+              <option value="Borongan" {{ 'selected' if employee and employee.bagian == 'Borongan' else '' }}>Borongan</option>
+              <option value="Absensi" {{ 'selected' if employee and employee.bagian == 'Absensi' else '' }}>Absensi</option>
+              <option value="Admin" {{ 'selected' if employee and employee.bagian == 'Admin' else '' }}>Admin</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="jabatan">Jabatan</label>
+            <input
+              type="text"
+              id="jabatan"
+              name="jabatan"
+              value="{{ employee.jabatan if employee else '' }}"
+              placeholder="Contoh: Kupas / Belah / PK / Mandor"
+            >
+          </div>
+
+          <div class="field full">
+            <label for="fingerprint_id">Fingerprint ID</label>
+            <input
+              type="text"
+              id="fingerprint_id"
+              name="fingerprint_id"
+              value="{{ employee.fingerprint_id if employee else '' }}"
+              placeholder="Isi jika digunakan"
+            >
+            <div class="hint">Boleh dikosongkan jika belum dipakai.</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button type="submit" class="btn btn-primary">
+            {{ 'Update Karyawan' if employee else 'Simpan Karyawan' }}
+          </button>
+          <a href="{{ url_for('karyawan.employees_list') }}" class="btn btn-secondary">Batal</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</body>
+</html>

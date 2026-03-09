@@ -344,7 +344,7 @@
     </div>
 
         <button type="button" class="btn btn-link" id="btnSearch">Search</button>
-        <button type="button" class="btn btn-add" id="btnAddRow">Tambah Baris</button>
+
         <button type="button" class="btn btn-save" id="btnSaveAll">Save Semua</button>
         <button type="button" class="btn btn-danger" id="btnDeleteTanggal">Delete Tanggal</button>
          <a class="btn btn-link" href="{{ url_for('karyawan.karyawan_index') }}">Kembali</a>
@@ -366,28 +366,39 @@
 
         <div id="statusBox" class="status"></div>
     </div>
+
 <div class="hasil-summary-grid">
-    <div class="hasil-item">
-        <strong>HASIL Kupas</strong><br>
-        XL: <span id="sumKupasXL">0</span> |
-        L: <span id="sumKupasL">0</span> |
-        M: <span id="sumKupasM">0</span> |
-        S: <span id="sumKupasS">0</span>
-    </div>
+
+<div class="hasil-item">
+    <strong>HASIL Kupas</strong><br>
+    XL: <span id="sumKupasXL">0</span> |
+    L: <span id="sumKupasL">0</span> |
+    M: <span id="sumKupasM">0</span> |
+    S: <span id="sumKupasS">0</span><br>
+    Total: <span id="sumKupasTotal">0</span> |
+    KG: <span id="sumKupasKG">0</span>
+</div>
 
     <div class="hasil-item">
-        <strong>HASIL Belah</strong><br>
-        XL: <span id="sumBelahXL">0</span> |
-        L: <span id="sumBelahL">0</span> |
-        M: <span id="sumBelahM">0</span> |
-        S: <span id="sumBelahS">0</span>
-    </div>
+    <strong>HASIL Belah</strong><br>
+    XL: <span id="sumBelahXL">0</span> |
+    L: <span id="sumBelahL">0</span> |
+    M: <span id="sumBelahM">0</span> |
+    S: <span id="sumBelahS">0</span><br>
+    Total: <span id="sumBelahTotal">0</span> |
+    KG: <span id="sumBelahKG">0</span>
+</div>
 
     <div class="hasil-item">
         <strong>HASIL PK</strong><br>
         L: <span id="sumPKL">0</span> |
         S: <span id="sumPKS">0</span>
+        <br>
+        Total: <span id="sumPKTotal">0</span>
+        | KG: <span id="sumPKKG">0</span>
     </div>
+
+
 
     <div class="hasil-item">
         <strong>Jumlah Kehadiran</strong><br>
@@ -444,6 +455,7 @@
         </table>
     </div>
 </div>
+        <button type="button" class="btn btn-add" id="btnAddRow">Tambah Baris</button>
             <div class="section-title">Ringkasan Log Terakhir</div>
 
 <div class="card">
@@ -540,18 +552,6 @@ function rowTemplate(rowIndex) {
         </tr>
     `;
 }
-function addRow(focusNoId = false) {
-    const tbody = document.getElementById("gridBody");
-    const rowIndex = tbody.querySelectorAll("tr").length;
-    tbody.insertAdjacentHTML("beforeend", rowTemplate(rowIndex));
-
-    const row = tbody.lastElementChild;
-    bindRow(row);
-
-    if (focusNoId) {
-        row.querySelector('[data-field="no_id"]').focus();
-    }
-}
 
 function bindRow(row) {
     const noIdInput = row.querySelector('[data-field="no_id"]');
@@ -605,6 +605,19 @@ function bindRow(row) {
         calculateGrandTotal();
     });
 }
+function addRow(focusNoId = false) {
+    const tbody = document.getElementById("gridBody");
+    const rowIndex = tbody.querySelectorAll("tr").length;
+    tbody.insertAdjacentHTML("beforeend", rowTemplate(rowIndex));
+
+    const row = tbody.lastElementChild;
+    bindRow(row);
+
+    if (focusNoId) {
+        row.querySelector('[data-field="no_id"]').focus();
+    }
+}
+
 function applyMassCheckbox(fieldName, checked) {
     document.querySelectorAll(`#gridBody tr`).forEach(row => {
         const cb = row.querySelector(`[data-field="${fieldName}"]`);
@@ -796,22 +809,49 @@ function setText(id, value) {
 }
 
 function updateHasilSummary() {
-    setText('sumKupasXL', getSum('kupas_xl'));
-    setText('sumKupasL',  getSum('kupas_l'));
-    setText('sumKupasM',  getSum('kupas_m'));
-    setText('sumKupasS',  getSum('kupas_s'));
+    const kupasXL = getSum('kupas_xl');
+    const kupasL  = getSum('kupas_l');
+    const kupasM  = getSum('kupas_m');
+    const kupasS  = getSum('kupas_s');
 
-    setText('sumBelahXL', getSum('belah_xl'));
-    setText('sumBelahL',  getSum('belah_l'));
-    setText('sumBelahM',  getSum('belah_m'));
-    setText('sumBelahS',  getSum('belah_s'));
+    const belahXL = getSum('belah_xl');
+    const belahL  = getSum('belah_l');
+    const belahM  = getSum('belah_m');
+    const belahS  = getSum('belah_s');
 
-    setText('sumPKL', getSum('pk_l'));
-    setText('sumPKS', getSum('pk_s'));
+    const pkL = getSum('pk_l');
+    const pkS = getSum('pk_s');
+
+    setText('sumKupasXL', kupasXL);
+    setText('sumKupasL', kupasL);
+    setText('sumKupasM', kupasM);
+    setText('sumKupasS', kupasS);
+
+    setText('sumBelahXL', belahXL);
+    setText('sumBelahL', belahL);
+    setText('sumBelahM', belahM);
+    setText('sumBelahS', belahS);
+
+    setText('sumPKL', pkL);
+    setText('sumPKS', pkS);
+
+    const totalKupas = kupasXL + kupasL + kupasM + kupasS;
+    const totalBelah = belahXL + belahL + belahM + belahS;
+    const totalPK = pkL + pkS;
+
+    setText('sumKupasTotal', totalKupas);
+    setText('sumKupasKG', totalKupas * 4);
+
+    setText('sumBelahTotal', totalBelah);
+    setText('sumBelahKG', totalBelah * 5);
+
+    setText('sumPKTotal', totalPK);
+    setText('sumPKKG', totalPK);
 
     setText('sumHadirOrang', countChecked('hadir'));
     setText('sumLemburOrang', countChecked('lembur'));
-}function showStatus(message, ok = true) {
+}
+function showStatus(message, ok = true) {
     const box = document.getElementById("statusBox");
     box.style.display = "block";
     box.className = "status " + (ok ? "ok" : "err");
@@ -1017,37 +1057,64 @@ async function saveAll() {
         showStatus("Terjadi error saat save", false);
     }
 }
+document.getElementById("checkHadirSemua").addEventListener("change", function () {
+    applyMassCheckbox("hadir", this.checked);
+    calculateGrandTotal();
+    updateHasilSummary();
+});
 
-document.getElementById("checkHadirSemua").addEventListener("change", function () {applyMassCheckbox("hadir", this.checked);});
-document.getElementById("checkLiburSemua").addEventListener("change", function () {applyMassCheckbox("hari_libur", this.checked);});
+document.getElementById("checkLiburSemua").addEventListener("change", function () {
+    applyMassCheckbox("hari_libur", this.checked);
+    calculateGrandTotal();
+    updateHasilSummary();
+});
+
 document.getElementById("btnSaveAll").addEventListener("click", saveAll);
 document.getElementById("btnSearch").addEventListener("click", loadTanggal);
 document.getElementById("btnDeleteTanggal").addEventListener("click", deleteTanggal);
+document.getElementById("btnAddRow").addEventListener("click", addRow);
+document.addEventListener("input", function (e) {
+    const row = e.target.closest("#gridBody tr");
+    if (!row) return;
 
-document.addEventListener("input", function(e){
-
-    if(e.target.matches('#gridBody input[type="number"]')){
+    if (e.target.matches('#gridBody input[type="number"]')) {
         highlightInput(e.target);
-    }
-
-    if(e.target.closest("#gridBody")){
+        calculateRow(row);
+        calculateGrandTotal();
         updateHasilSummary();
     }
-
 });
 
 document.addEventListener("change", function (e) {
-    if (e.target.closest("#gridBody")) {
+    const row = e.target.closest("#gridBody tr");
+    if (!row) return;
+
+    const field = e.target.dataset.field;
+
+    if (["hadir", "hari_libur", "lembur"].includes(field)) {
+        calculateRow(row);
+        calculateGrandTotal();
         updateHasilSummary();
     }
 });
 
+document.addEventListener("click", function (e) {
+    if (e.target.classList.contains("btn-delete")) {
+        const row = e.target.closest("tr");
+        if (row) {
+            row.remove();
+            calculateGrandTotal();
+            updateHasilSummary();
+        }
+    }
+});
 // initial rows
 for (let i = 0; i < 12; i++) {
     addRow(i === 0);
 }
 
 updateHasilSummary();
+calculateGrandTotal();
 </script>
 
 </body>
