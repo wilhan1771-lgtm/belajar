@@ -106,45 +106,77 @@ def calc_invoice_totals(det_rows, pph_rate=0.0, cash_deduct_per_kg=0.0, reject_k
 # Helpers
 # =========================
 
-@app.route("/admin/db/table/<table_name>", methods=["GET"])
+@app.route("/admin/db/table/<table_name>")
 def admin_db_table_view(table_name):
+
     if not require_login():
         return redirect(url_for("login"))
 
     conn = get_conn()
+
     try:
-        tables = [r["name"] for r in conn.execute("""
-            SELECT name FROM sqlite_master WHERE type='table'
-        """).fetchall()]
+        tables = [r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()]
+
         if table_name not in tables:
             return "Table tidak valid", 400
 
-        limit = request.args.get("limit", "200")
-        try:
-            limit = int(limit)
-        except:
-            limit = 200
-        limit = max(1, min(limit, 2000))
+        page = int(request.args.get("page", 1))
+        per_page = 50
+        offset = (page - 1) * per_page
 
-        cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
+        cols = [r["name"] for r in conn.execute(
+            f"PRAGMA table_info({table_name})"
+        ).fetchall()]
 
-        rows = conn.execute(f"""
-            SELECT * FROM {table_name}
-            ORDER BY rowid DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
+        rows = conn.execute(
+            f"SELECT * FROM {table_name} LIMIT {per_page} OFFSET {offset}"
+        ).fetchall()
+
+        total = conn.execute(
+            f"SELECT COUNT(*) as c FROM {table_name}"
+        ).fetchone()["c"]
 
         return render_template(
             "admin_db_table.html",
             table_name=table_name,
             cols=cols,
             rows=[dict(r) for r in rows],
-            limit=limit
+            page=page,
+            total=total,
+            per_page=per_page
         )
+
     finally:
         conn.close()
+@app.post("/admin/db/delete/<table_name>/<int:row_id>")
+def admin_db_delete(table_name, row_id):
 
+    if not require_login():
+        return {"ok": False, "msg": "Unauthorized"}, 401
 
+    conn = get_conn()
+
+    try:
+        tables = [r["name"] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()]
+
+        if table_name not in tables:
+            return {"ok": False, "msg": "Table tidak valid"}
+
+        conn.execute(
+            f"DELETE FROM {table_name} WHERE id=?",
+            (row_id,)
+        )
+
+        conn.commit()
+
+        return {"ok": True}
+
+    finally:
+        conn.close()
 # =========================
 # Menus (optional, kamu masih pakai)
 # =========================
@@ -153,46 +185,6 @@ def admin_db_table_view(table_name):
 # =======================
 def require_login() -> bool:
     return bool(session.get("user"))
-
-@app.route("/admin/db/table/<table_name>", methods=["GET"])
-def admin_db_table(table_name):
-    if not require_login():
-        return redirect(url_for("login"))
-
-    # whitelist table name (anti SQL injection)
-    conn = get_conn()
-    tables = [r["name"] for r in conn.execute("""
-        SELECT name FROM sqlite_master WHERE type='table'
-    """).fetchall()]
-    if table_name not in tables:
-        conn.close()
-        return "Table tidak valid", 400
-
-    limit = request.args.get("limit", "200")
-    try:
-        limit = int(limit)
-    except:
-        limit = 200
-    limit = max(1, min(limit, 2000))
-
-    # ambil column list
-    cols = [r["name"] for r in conn.execute(f"PRAGMA table_info({table_name})").fetchall()]
-
-    rows = conn.execute(f"""
-        SELECT * FROM {table_name}
-        ORDER BY rowid DESC
-        LIMIT ?
-    """, (limit,)).fetchall()
-
-    conn.close()
-    return render_template(
-        "admin_db_table.html",
-        table_name=table_name,
-        cols=cols,
-        rows=[dict(r) for r in rows],
-        limit=limit
-    )
-
 
 @app.route("/logout")
 def logout():
@@ -204,28 +196,27 @@ def logout():
 # DEBUG RECEIVING
 # =========================
 
-if app.debug:
+@app.route("/admin/db")
+def admin_db_tables():
+    if not require_login():
+        return redirect(url_for("login"))
 
-    @app.get("/receiving/debug")
-    def receiving_debug():
-        if not require_login():
-            return redirect(url_for("login"))
+    conn = get_conn()
+    try:
+        tables = conn.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table'
+            ORDER BY name
+        """).fetchall()
 
-        conn = get_conn()
-        try:
-            headers = conn.execute(
-                "SELECT * FROM receiving_header ORDER BY id DESC LIMIT 50"
-            ).fetchall()
-            partai = conn.execute(
-                "SELECT * FROM receiving_item ORDER BY id DESC LIMIT 200"
-            ).fetchall()
+        tables = [r["name"] for r in tables]
 
-            return {
-                "headers": [dict(r) for r in headers],
-                "partai": [dict(r) for r in partai],
-            }
-        finally:
-            conn.close()
+        return render_template(
+            "admin_db_tables.html",
+            tables=tables
+        )
+    finally:
+        conn.close()
 
 @app.get("/debug/cols/<table>")
 def debug_cols(table):

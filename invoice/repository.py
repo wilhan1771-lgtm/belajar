@@ -49,16 +49,22 @@ def insert_invoice_header(
             {str(k): int(v) for k, v in (price_points or {}).items()},
             ensure_ascii=False
         )
+        rec = conn.execute("""
+            SELECT tanggal
+            FROM receiving_header
+            WHERE id = ?
+        """, (receiving_id,)).fetchone()
 
+        tanggal_invoice = rec["tanggal"] if rec else None
         grade_prices_json = json.dumps(
             {str(k): int(v) for k, v in (grade_prices or {}).items()},
             ensure_ascii=False
         ) if grade_prices else None
-
         cur = conn.execute(
             """
             INSERT INTO invoice_header
-            (receiving_id, supplier,
+            (tanggal,
+             receiving_id, supplier,
              price_points_json, grade_prices_json,
              payment_type,
              tempo_hari, due_date,
@@ -66,7 +72,7 @@ def insert_invoice_header(
              pph_rate_bp, pph_amount_rp,
              subtotal_rp, total_payable_rp, total_paid_g,
              status)
-            VALUES (?, ?, ?, ?,
+            VALUES (?, ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, 0,
                     0, 0,
@@ -74,6 +80,7 @@ def insert_invoice_header(
                     'draft')
             """,
             (
+                tanggal_invoice,  # ← ambil dari receiving
                 int(receiving_id),
                 supplier,
                 price_points_json,

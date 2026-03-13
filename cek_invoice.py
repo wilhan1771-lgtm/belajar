@@ -1,6 +1,19 @@
-import sqlite3
-DB_PATH = r"C:\Users\Win 10\PycharmProjects\udang\belajar\receiving.db"
-conn = sqlite3.connect(DB_PATH)
-rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
-print([r[0] for r in rows])
-conn.close()
+from helpers.db import get_conn
+
+conn = get_conn()
+
+try:
+    conn.execute("""
+    UPDATE invoice_header
+    SET tanggal = (
+        SELECT tanggal
+        FROM receiving_header
+        WHERE receiving_header.id = invoice_header.receiving_id
+    )
+    """)
+
+    conn.commit()
+    print("Tanggal invoice berhasil disamakan dengan receiving")
+
+finally:
+    conn.close()

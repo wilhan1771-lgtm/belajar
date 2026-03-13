@@ -1,0 +1,11 @@
+<h2>Database Tables</h2>
+
+<ul style="font-size:16px">
+{% for t in tables %}
+<li>
+<a href="/admin/db/table/{{t}}">
+{{t}}
+</a>
+</li>
+{% endfor %}
+</ul>
