@@ -1,0 +1,32 @@
+<h2>Add Data - {{table}}</h2>
+
+<form method="post">
+
+<table border="1" cellpadding="6">
+
+{% for c in cols %}
+
+{% if c.name != 'id' %}
+
+<tr>
+<td>{{c.name}}</td>
+<td>
+<input type="text" name="{{c.name}}">
+</td>
+</tr>
+
+{% endif %}
+
+{% endfor %}
+
+</table>
+
+<br>
+
+<button type="submit">Save</button>
+
+</form>
+
+<br>
+
+<a href="/admin/db/table/{{table}}">⬅ Back</a>

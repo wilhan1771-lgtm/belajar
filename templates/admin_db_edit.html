@@ -1,0 +1,33 @@
+<h2>Edit Table: {{table}}</h2>
+
+<form method="post">
+
+<table border="1" cellpadding="6">
+
+{% for k in row.keys() %}
+
+<tr>
+
+<td>{{k}}</td>
+
+<td>
+
+{% if k == 'id' %}
+<input name="{{k}}" value="{{row[k]}}" readonly>
+{% else %}
+<input name="{{k}}" value="{{row[k]}}">
+{% endif %}
+
+</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+<br>
+
+<button type="submit">Update</button>
+
+</form>

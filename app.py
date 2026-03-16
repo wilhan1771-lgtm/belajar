@@ -177,6 +177,65 @@ def admin_db_delete(table_name, row_id):
 
     finally:
         conn.close()
+@app.route("/admin/db/add/<table>", methods=["GET","POST"])
+def admin_db_add(table):
+
+    conn = get_conn()
+
+    if request.method == "POST":
+
+        cols = request.form.keys()
+        values = list(request.form.values())
+
+        col_sql = ",".join(cols)
+        q = ",".join(["?"]*len(values))
+
+        conn.execute(
+            f"INSERT INTO {table} ({col_sql}) VALUES ({q})",
+            values
+        )
+
+        conn.commit()
+
+        return redirect(f"/admin/db/table/{table}")
+
+    cur = conn.execute(f"PRAGMA table_info({table})")
+    cols = cur.fetchall()
+
+    return render_template(
+        "admin_db_add.html",
+        table=table,
+        cols=cols
+    )
+@app.route("/admin/db/edit/<table>/<int:id>", methods=["GET","POST"])
+def admin_db_edit(table,id):
+
+    conn = get_conn()
+
+    if request.method == "POST":
+
+        cols = request.form.keys()
+        values = list(request.form.values())
+
+        set_sql = ",".join([f"{c}=?" for c in cols])
+
+        conn.execute(
+            f"UPDATE {table} SET {set_sql} WHERE id=?",
+            values + [id]
+        )
+
+        conn.commit()
+
+        return redirect(f"/admin/db/table/{table}")
+
+    cur = conn.execute(f"SELECT * FROM {table} WHERE id=?", (id,))
+    row = dict(cur.fetchone())
+
+    return render_template(
+        "admin_db_edit.html",
+        table=table,
+        row=row
+    )
 # =========================
 # Menus (optional, kamu masih pakai)
 # =========================

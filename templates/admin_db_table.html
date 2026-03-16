@@ -1,7 +1,15 @@
 <h2>Table: {{table_name}}</h2>
 
 <div style="margin-bottom:15px">
+
 Total rows: <b>{{total}}</b>
+
+&nbsp;&nbsp;
+
+<button onclick="addRow('{{table_name}}')">
+Add Data
+</button>
+
 </div>
 
 <table border="1" cellpadding="6" cellspacing="0"
@@ -26,9 +34,15 @@ style="border-collapse:collapse;font-size:13px;width:100%">
 {% endfor %}
 
 <td>
+
+<button onclick="editRow('{{table_name}}', {{r['id']}})">
+Edit
+</button>
+
 <button onclick="deleteRow('{{table_name}}', {{r['id']}})">
 Delete
 </button>
+
 </td>
 
 </tr>
@@ -68,6 +82,14 @@ function deleteRow(table, id){
         }
     })
 
+}
+
+function editRow(table,id){
+    window.location = `/admin/db/edit/${table}/${id}`;
+}
+
+function addRow(table){
+    window.location = `/admin/db/add/${table}`;
 }
 
 </script>

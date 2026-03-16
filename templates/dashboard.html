@@ -1,208 +1,227 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Dashboard</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard</title>
 
-  <style>
-    :root{
-      --bg:#f8fafc;
-      --card:#ffffff;
-      --text:#0f172a;
-      --muted:#64748b;
-      --primary:#2563eb;
-      --danger:#ef4444;
-      --border:#e5e7eb;
-      --radius:16px;
-    }
+<style>
 
-    *{ box-sizing:border-box; }
+:root{
+--bg:#f5f7fb;
+--card:#ffffff;
+--primary:#2563eb;
+--text:#0f172a;
+--muted:#64748b;
+--border:#e5e7eb;
+--danger:#ef4444;
+}
 
-    body{
-      margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      background:var(--bg);
-      color:var(--text);
-      padding:24px;
-    }
+*{box-sizing:border-box}
 
-    .container{
-      max-width: 1040px;
-      margin:auto;
-    }
+body{
+margin:0;
+font-family:system-ui,Segoe UI,Roboto;
+background:var(--bg);
+padding:30px;
+}
 
-    /* ===== TOP BAR ===== */
-    .topbar{
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
-      margin-bottom:28px;
-    }
+.container{
+max-width:1100px;
+margin:auto;
+}
 
-    .topbar h1{
-      margin:0;
-      font-size:22px;
-      font-weight:800;
-    }
+.topbar{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:25px;
+}
 
-    .logout{
-      background:var(--danger);
-      color:white;
-      padding:10px 14px;
-      border-radius:12px;
-      font-size:13px;
-      font-weight:700;
-      text-decoration:none;
-    }
+.topbar h1{
+margin:0;
+font-size:22px;
+}
 
-    /* ===== SECTION ===== */
-    .section-title{
-      font-size:12px;
-      font-weight:800;
-      letter-spacing:.08em;
-      text-transform:uppercase;
-      color:var(--muted);
-      margin:22px 0 12px;
-    }
+.logout{
+background:#ef4444;
+color:white;
+padding:10px 14px;
+border-radius:10px;
+text-decoration:none;
+font-weight:700;
+font-size:13px;
+}
 
-    /* ===== GRID ===== */
-    .grid{
-      display:grid;
-      grid-template-columns: repeat(2, minmax(0,1fr));
-      gap:18px;
-    }
+.hero{
+background:linear-gradient(135deg,#3b82f6,#1d4ed8);
+color:white;
+padding:25px;
+border-radius:16px;
+margin-bottom:25px;
+}
 
-    /* ===== CARD ===== */
-    .card{
-      background:var(--card);
-      border-radius:var(--radius);
-      padding:20px;
-      border:1px solid var(--border);
-      box-shadow:0 10px 28px rgba(0,0,0,.06);
-      transition:all .15s ease;
-      display:flex;
-      flex-direction:column;
-      gap:8px;
-    }
+.hero h2{
+margin:0;
+}
 
-    .card:hover{
-      transform:translateY(-3px);
-      box-shadow:0 16px 40px rgba(0,0,0,.10);
-    }
+.section-title{
+font-size:12px;
+font-weight:700;
+text-transform:uppercase;
+color:var(--muted);
+margin:20px 0 10px;
+}
 
-    .card h2{
-      margin:0;
-      font-size:16px;
-      font-weight:800;
-    }
+.grid{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:18px;
+}
 
-    .card p{
-      margin:0;
-      font-size:13px;
-      color:var(--muted);
-      line-height:1.5;
-      flex:1;
-    }
+.card{
+background:white;
+padding:20px;
+border-radius:16px;
+border:1px solid var(--border);
+box-shadow:0 10px 30px rgba(0,0,0,.05);
+display:flex;
+flex-direction:column;
+gap:10px;
+}
 
-    /* ===== BUTTON ===== */
-    .btn{
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      width:100%;
-      padding:13px 14px;
-      border-radius:14px;
-      font-size:13px;
-      font-weight:800;
-      text-decoration:none;
-      margin-top:12px;
-      transition:.15s;
-    }
+.card:hover{
+transform:translateY(-3px);
+}
 
-    .btn-primary{
-      background:linear-gradient(135deg,#2563eb,#1d4ed8);
-      color:white;
-    }
+.icon{
+font-size:24px;
+}
 
-    .btn-primary:hover{ opacity:.9; }
+.card h3{
+margin:0;
+font-size:16px;
+}
 
-    .btn-outline{
-      border:1px solid var(--border);
-      color:var(--text);
-      background:white;
-    }
+.card p{
+font-size:13px;
+color:#64748b;
+margin:0;
+}
 
-    .btn-outline:hover{
-      background:#f1f5f9;
-    }
+.btn{
+display:block;
+text-align:center;
+padding:12px;
+border-radius:10px;
+font-size:13px;
+font-weight:700;
+text-decoration:none;
+margin-top:10px;
+}
 
-    /* ===== RESPONSIVE ===== */
-    @media(max-width:640px){
-      .grid{ grid-template-columns:1fr; }
-    }
-  </style>
+.btn-primary{
+background:#2563eb;
+color:white;
+}
+
+.btn-outline{
+border:1px solid #e5e7eb;
+color:#0f172a;
+}
+
+@media(max-width:900px){
+.grid{grid-template-columns:repeat(2,1fr);}
+}
+
+@media(max-width:600px){
+.grid{grid-template-columns:1fr;}
+}
+
+</style>
 </head>
 
 <body>
-  <div class="container">
 
-    <div class="topbar">
-      <h1>Halo, {{ user }} 👋</h1>
-      <a class="logout" href="/logout">Logout</a>
-    </div>
+<div class="container">
 
-    <!-- AKSI UTAMA -->
-    <div class="section-title">Aksi Utama</div>
-    <div class="grid">
+<div class="topbar">
 
-      <div class="card">
-        <h2>➕ Timbangan Bahan Baku</h2>
-        <p>Input receiving udang (barang masuk) untuk transaksi hari ini.</p>
-        <a class="btn btn-primary" href="{{ url_for('receiving.receiving') }}">
-          Buka Receiving
-        </a>
-      </div>
+<a class="logout" href="/logout">Logout</a>
+</div>
 
-      <div class="card">
-        <h2>🏭 Production List</h2>
-        <p>Lihat, cari, dan cek riwayat produksi (RM, FG/Soaking, Yield).</p>
-        <a class="btn btn-outline" href="{{ url_for('production.production_list') }}">
-          Buka Production List
-        </a>
-      </div>
-      <div class="card">
-        <h2>KARYAWAN</h2>
-        <p>gaji karyawan/abensi.</p>
-        <a class="btn btn-outline" href="{{ url_for('karyawan.karyawan_index') }}">
-          Buka karyawan list
-        </a>
-      </div>
+<div class="hero">
+<h2>Sistem Manajemen Udang</h2>
+<p>Data receiving, produksi, invoice dan karyawan.</p>
+</div>
 
-    </div>
+<div class="section-title">Operasional</div>
 
-    <!-- DATA & RIWAYAT -->
-    <div class="section-title">Data & Riwayat</div>
-    <div class="grid">
+<div class="grid">
 
-      <div class="card">
-        <h2>📦 Receiving List</h2>
-        <p>Lihat, cari, dan cek riwayat receiving.</p>
-        <a class="btn btn-outline" href="{{ url_for('receiving.receiving_list') }}">
-          Buka Receiving List
-        </a>
-      </div>
+<div class="card">
+<div class="icon">⚖️</div>
+<h3>Receiving</h3>
+<p>Input timbangan bahan baku udang.</p>
+<a class="btn btn-primary" href="{{ url_for('receiving.receiving') }}">
+Buka Receiving
+</a>
+</div>
 
-      <div class="card">
-        <h2>🧾 Invoice List</h2>
-        <p>Daftar invoice yang sudah dibuat (lihat / void / cetak).</p>
-        <a class="btn btn-outline" href="{{ url_for('invoice.invoice_list') }}">
-          Buka Invoice List
-        </a>
-      </div>
+<div class="card">
+<div class="icon">🏭</div>
+<h3>Production</h3>
+<p>Monitor proses produksi udang.</p>
+<a class="btn btn-outline" href="{{ url_for('production.production_list') }}">
+Buka Production
+</a>
+</div>
 
-    </div>
+<div class="card">
+<div class="icon">🧾</div>
+<h3>Invoice</h3>
+<p>Lihat daftar invoice supplier.</p>
+<a class="btn btn-outline" href="{{ url_for('invoice.invoice_list') }}">
+Buka Invoice
+</a>
+</div>
 
-  </div>
+</div>
+
+<div class="section-title">Manajemen</div>
+
+<div class="grid">
+
+<div class="card">
+<div class="icon">👷</div>
+<h3>Karyawan</h3>
+<p>Kelola data karyawan dan gaji borongan.</p>
+<a class="btn btn-outline" href="{{ url_for('karyawan.karyawan_index') }}">
+Buka Modul
+</a>
+</div>
+
+<div class="card">
+<div class="icon">📦</div>
+<h3>Receiving List</h3>
+<p>Lihat riwayat bahan baku masuk.</p>
+<a class="btn btn-outline" href="{{ url_for('receiving.receiving_list') }}">
+Lihat Data
+</a>
+</div>
+
+<div class="card">
+<div class="icon">📊</div>
+<h3>Laporan</h3>
+<p>Analisa produksi dan pembelian.</p>
+<a class="btn btn-outline" href="#">
+Buka Laporan
+</a>
+</div>
+
+</div>
+
+</div>
+
 </body>
 </html>
