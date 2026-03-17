@@ -97,26 +97,26 @@
         .summary-grid{
             display:grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap:12px;
-            margin-bottom:16px;
+            gap:8px;
+            margin-bottom:10px;
         }
 
         .summary-card{
             background:#fff;
             border:1px solid #e5e7eb;
             border-radius:14px;
-            padding:14px 16px;
+            padding:10px 12px;
         }
 
         .summary-card .label{
-            font-size:13px;
+            font-size:10px;
             color:#64748b;
             margin-bottom:6px;
-            font-weight:700;
+            font-weight:500;
         }
 
         .summary-card .value{
-            font-size:26px;
+            font-size:20px;
             font-weight:800;
             color:#0f172a;
         }
@@ -160,7 +160,10 @@
         .print-only{
             display:none;
         }
-
+        @page{
+    size:A4 potrait;
+    margin:3mm;
+}
         @media print{
             body{
                 background:#fff;
