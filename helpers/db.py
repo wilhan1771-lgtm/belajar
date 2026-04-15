@@ -391,40 +391,23 @@ def init_db():
 
                         CREATE TABLE IF NOT EXISTS attendance_raw (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
-                            tanggal TEXT NOT NULL,
-                            waktu TEXT NOT NULL,
+                            tanggal DATE,
+                            waktu DATETIME,
                             fingerprint_id TEXT,
                             no_id TEXT,
-                            nama_terbaca TEXT,
-                            tipe_scan TEXT,
+                            tipe_scan INTEGER,
+                            status_absen TEXT,
                             sumber TEXT,
-                            raw_payload TEXT,
-                            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
                         );
- 
+                        CREATE UNIQUE INDEX IF NOT EXISTS idx_att_raw_unique
+ON attendance_raw (fingerprint_id, tanggal, waktu);
                     -- =========================
                     -- 8. attendance_daily
                     -- hasil rangkuman absensi harian
                     -- =========================
                 
-                    CREATE TABLE IF NOT EXISTS attendance_daily (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        tanggal TEXT NOT NULL,
-                        no_id TEXT NOT NULL,
-                        jam_masuk TEXT,
-                        jam_pulang TEXT,
-                        total_jam_kerja REAL NOT NULL DEFAULT 0,
-                        status_hadir TEXT NOT NULL DEFAULT 'ALPHA',
-                        terlambat_menit REAL NOT NULL DEFAULT 0,
-                        lembur_menit REAL NOT NULL DEFAULT 0,
-                        uang_hadir REAL NOT NULL DEFAULT 0,
-                        catatan TEXT,
-                        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                        UNIQUE (tanggal, no_id)
-                    );
-
-
+                    
             -- =========================
             -- 9. payroll_daily
             -- gabungan absensi + borongan per hari
@@ -446,6 +429,7 @@ def init_db():
                 updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE (tanggal, no_id)
             );
+
                 -- =========================
                 -- 10. payroll_settings
                 -- setting nominal insentif / bonus
@@ -459,7 +443,11 @@ def init_db():
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
-                
+                CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE,
+                password TEXT,
+                role TEXT);
         CREATE INDEX IF NOT EXISTS idx_production_packing_pid
         ON production_packing(production_id);
         CREATE INDEX IF NOT EXISTS idx_invoice_line_invoice
@@ -470,11 +458,49 @@ def init_db():
         ON borongan_inputs(tanggal, no_id);
         CREATE INDEX IF NOT EXISTS idx_attendance_raw_tanggal_fingerprint
         ON attendance_raw(tanggal, fingerprint_id);
-        CREATE INDEX IF NOT EXISTS idx_attendance_daily_tanggal_no_id
-        ON attendance_daily(tanggal, no_id);
+
         CREATE INDEX IF NOT EXISTS idx_payroll_daily_tanggal_no_id
         ON payroll_daily(tanggal, no_id);
+        CREATE TABLE IF NOT EXISTS shift_definitions (
+            shift_code TEXT PRIMARY KEY,
+            nama_shift TEXT NOT NULL,
+            jam_masuk TEXT NOT NULL,
+            jam_pulang TEXT NOT NULL,
+            break_start TEXT,
+            break_end TEXT,
+            lintas_hari INTEGER NOT NULL DEFAULT 0,
+            normal_hours REAL NOT NULL DEFAULT 0,
+            toleransi_telat_menit INTEGER NOT NULL DEFAULT 10,
+            minimal_lembur_menit INTEGER NOT NULL DEFAULT 30
+        );
 
+       CREATE TABLE IF NOT EXISTS attendance_daily (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL,
+    fingerprint_id TEXT,
+    work_date TEXT NOT NULL,
+    shift_code TEXT NOT NULL,
+
+    period1_in TEXT,
+    period1_out TEXT,
+    period2_in TEXT,
+    period2_out TEXT,
+    period3_in TEXT,
+    period3_out TEXT,
+
+    normal_hours REAL NOT NULL DEFAULT 0,
+    actual_hours REAL NOT NULL DEFAULT 0,
+    overtime_hours REAL NOT NULL DEFAULT 0,
+    late_minutes INTEGER NOT NULL DEFAULT 0,
+    early_leave_minutes INTEGER NOT NULL DEFAULT 0,
+
+    status_hadir TEXT DEFAULT 'hadir',
+    sumber TEXT DEFAULT 'auto',
+    catatan TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+
+    UNIQUE(employee_id, work_date)
+);
         CREATE UNIQUE INDEX IF NOT EXISTS idx_work_rates_unique
         ON work_rates(work_type_id, size_id);
         DELETE FROM work_rates
@@ -495,6 +521,7 @@ def init_db():
         ensure_column(conn, "borongan_logs", "insentif_lembur", "REAL NOT NULL DEFAULT 0")
         ensure_column(conn, "borongan_logs", "total_insentif", "REAL NOT NULL DEFAULT 0")
         ensure_column(conn, "borongan_logs", "grand_total", "REAL NOT NULL DEFAULT 0")
+        ensure_column(conn, "attendance_raw", "processed", "INTEGER DEFAULT 0")
         default_payroll_settings = [
             ("KEHADIRAN", "Bonus Kehadiran", 50000),
             ("LIBUR", "Insentif Hari Libur/Minggu", 20000),
@@ -507,20 +534,39 @@ def init_db():
                 VALUES (?, ?, ?, 1)
             """, (kode, nama, nilai))
 
+        conn.executemany("""
+        INSERT OR IGNORE INTO users (username, password, role)
+        VALUES (?, ?, ?)
+        """, [
+            ("admin", "1234", "admin"),
+            ("admin2", "1234", "gaji"),
+            ("admin3", "1234", "rekap"),
+            ("admin4", "1234", "absensi"),
+            ("admin5", "1234", "karyawan")
+        ])
         # update mode untuk data lama
         conn.execute("""
         UPDATE master_jenis
         SET mode='manual_grade'
         WHERE LOWER(nama)='kupasan'
         """)
-
+        conn.execute("""INSERT OR REPLACE INTO shift_definitions
+        (shift_code, nama_shift, jam_masuk, jam_pulang, break_start, break_end, lintas_hari, normal_hours, toleransi_telat_menit, minimal_lembur_menit)
+        VALUES
+        ('PAGI',  'Shift Pagi',  '08:00', '17:30', '12:00', '13:30', 0, 8.0, 10, 30),
+        ( 'SORE',  'Shift Sore',  '13:00', '22:00', '17:30', '19:00', 0, 7.5, 10, 30),
+        ('MALAM', 'Shift Malam', '22:00', '08:00', NULL,    NULL,    1, 10.0, 10, 30);""")
         conn.execute("""
             UPDATE master_jenis
             SET mode='udang_size'
             WHERE LOWER(nama) IN ('vannamei','dogol')
         """)
+
         ensure_column(conn, "receiving_item", "grade_manual", "TEXT")
         ensure_column(conn,"invoice_header", "grade_prices_json", "TEXT")
+        ensure_column(conn, "employees", "tipe_gaji", "TEXT DEFAULT 'harian'")
+        ensure_column(conn, "employees", "area_kerja", "TEXT DEFAULT 'normal'")
+        ensure_column(conn, "employees", "shift_default", "TEXT DEFAULT 'PAGI'")
         seed_master_data(conn)
         conn.commit()
         print("✅ Database baru siap:", DB_PATH)

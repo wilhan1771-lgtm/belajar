@@ -5,7 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ 'Edit Karyawan' if employee else 'Tambah Karyawan' }}</title>
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
@@ -15,7 +17,7 @@
     }
 
     .container {
-      max-width: 760px;
+      max-width: 900px;
       margin: 0 auto;
       padding: 30px 20px 40px;
     }
@@ -77,19 +79,24 @@
     }
 
     .field input,
-    .field select {
-      height: 44px;
+    .field textarea {
+      min-height: 44px;
       border: 1px solid #cbd5e1;
       border-radius: 12px;
-      padding: 0 12px;
+      padding: 10px 12px;
       font-size: 14px;
       background: #fff;
       outline: none;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
 
+    .field textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
     .field input:focus,
-    .field select:focus {
+    .field textarea:focus {
       border-color: #2563eb;
       box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
     }
@@ -166,9 +173,14 @@
           {{ 'Perbarui data karyawan di bawah ini.' if employee else 'Isi data karyawan baru dengan lengkap.' }}
         </p>
       </div>
-
+    {% if error %}
+    <div style="margin-bottom:16px; padding:12px 14px; background:#fef2f2; color:#b91c1c; border:1px solid #fecaca; border-radius:12px; font-weight:600;">
+    {{ error }}
+    </div>
+    {% endif %}
       <form method="post">
         <div class="form-grid">
+
           <div class="field">
             <label for="no_id">No ID</label>
             <input
@@ -193,12 +205,13 @@
 
           <div class="field">
             <label for="bagian">Bagian</label>
-            <select id="bagian" name="bagian">
-              <option value="">Pilih Bagian</option>
-              <option value="Borongan" {{ 'selected' if employee and employee.bagian == 'Borongan' else '' }}>Borongan</option>
-              <option value="Absensi" {{ 'selected' if employee and employee.bagian == 'Absensi' else '' }}>Absensi</option>
-              <option value="Admin" {{ 'selected' if employee and employee.bagian == 'Admin' else '' }}>Admin</option>
-            </select>
+            <input
+              type="text"
+              id="bagian"
+              name="bagian"
+              value="{{ employee.bagian if employee else '' }}"
+              placeholder="Contoh: Borongan / Beku / Admin / Produksi"
+            >
           </div>
 
           <div class="field">
@@ -212,17 +225,94 @@
             >
           </div>
 
-          <div class="field full">
+          <div class="field">
+            <label for="status_aktif">Status Aktif</label>
+            <input
+              type="number"
+              id="status_aktif"
+              name="status_aktif"
+              value="{{ employee.status_aktif if employee else 1 }}"
+              min="0"
+              max="1"
+              required
+            >
+            <div class="hint">Isi 1 = aktif, 0 = nonaktif.</div>
+          </div>
+
+          <div class="field">
+            <label for="tanggal_masuk">Tanggal Masuk</label>
+            <input
+              type="date"
+              id="tanggal_masuk"
+              name="tanggal_masuk"
+              value="{{ employee.tanggal_masuk if employee and employee.tanggal_masuk else '' }}"
+            >
+          </div>
+
+          <div class="field">
             <label for="fingerprint_id">Fingerprint ID</label>
             <input
               type="text"
               id="fingerprint_id"
               name="fingerprint_id"
-              value="{{ employee.fingerprint_id if employee else '' }}"
+               value="{{ '' if not employee or employee.fingerprint_id in [None, 'None', ''] else employee.fingerprint_id }}"
               placeholder="Isi jika digunakan"
             >
-            <div class="hint">Boleh dikosongkan jika belum dipakai.</div>
           </div>
+
+          <div class="field">
+            <label for="no_hp">No HP</label>
+            <input
+              type="text"
+              id="no_hp"
+              name="no_hp"
+              value="{{ employee.no_hp if employee else '' }}"
+              placeholder="Contoh: 0812xxxxxxx"
+            >
+          </div>
+
+          <div class="field">
+            <label for="tipe_gaji">Tipe Gaji</label>
+            <input
+              type="text"
+              id="tipe_gaji"
+              name="tipe_gaji"
+              value="{{ employee.tipe_gaji if employee else '' }}"
+              placeholder="Contoh: harian / bulanan / borongan"
+            >
+          </div>
+
+          <div class="field">
+            <label for="area_kerja">Area Kerja</label>
+            <input
+              type="text"
+              id="area_kerja"
+              name="area_kerja"
+              value="{{ employee.area_kerja if employee else '' }}"
+              placeholder="Contoh: normal / coldroom"
+            >
+          </div>
+
+          <div class="field">
+            <label for="shift_default">Shift Default</label>
+            <input
+              type="text"
+              id="shift_default"
+              name="shift_default"
+              value="{{ employee.shift_default if employee else '' }}"
+              placeholder="Contoh: PAGI / SORE / MALAM"
+            >
+          </div>
+
+          <div class="field full">
+            <label for="catatan">Catatan</label>
+            <textarea
+              id="catatan"
+              name="catatan"
+              placeholder="Catatan tambahan jika ada"
+            >{{ employee.catatan if employee else '' }}</textarea>
+          </div>
+
         </div>
 
         <div class="actions">

@@ -1,17 +1,13 @@
 from flask import Blueprint, render_template, request, redirect, url_for, json ,jsonify
 from helpers.db import get_conn
 from datetime import date
-
+from helpers.auth import login_required, role_required
 
 karyawan_bp = Blueprint("karyawan",__name__,url_prefix="/karyawan", template_folder="templates")
 
 @karyawan_bp.route("/")
 def karyawan_index():
     return render_template("karyawan/index.html")
-
-@karyawan_bp.route("/absensi")
-def absensi_index():
-    return "Absensi Page"
 
 @karyawan_bp.route("/tarif", methods=["GET", "POST"])
 def tarif_index():
@@ -46,6 +42,8 @@ def tarif_index():
     return render_template("karyawan/tarif.html", rates=rates)
 
 @karyawan_bp.route("/borongan", methods=["GET"])
+@login_required
+@role_required("admin","absensi")
 def borongan_index():
     conn = get_conn()
     setting_rows = conn.execute("""
@@ -385,53 +383,198 @@ def employees_list():
     conn.close()
 
     return render_template("karyawan/employees.html", employees=employees)
+# letakkan di atas (di bawah import)
+
+def clean_value(val):
+    if val is None:
+        return ""
+    val = str(val).strip()
+    if val.lower() == "none":
+        return ""
+    return val
 
 @karyawan_bp.route("/employees/add", methods=["GET", "POST"])
 def employee_add():
-    conn = get_conn()
+    error = None
 
     if request.method == "POST":
-        no_id = request.form["no_id"]
-        nama = request.form["nama"]
-        bagian = request.form.get("bagian")
-        jabatan = request.form.get("jabatan")
-        fingerprint_id = request.form.get("fingerprint_id")
+        no_id = request.form.get("no_id", "").strip()
+        nama = request.form.get("nama", "").strip()
+        bagian = request.form.get("bagian", "").strip()
+        jabatan = request.form.get("jabatan", "").strip()
+        status_aktif = request.form.get("status_aktif", "1").strip()
+        tanggal_masuk = request.form.get("tanggal_masuk", "").strip()
+        fingerprint_id = clean_value(request.form.get("fingerprint_id"))
+        no_hp = request.form.get("no_hp", "").strip()
+        catatan = request.form.get("catatan", "").strip()
+        tipe_gaji = request.form.get("tipe_gaji", "").strip()
+        area_kerja = request.form.get("area_kerja", "").strip()
+        shift_default = request.form.get("shift_default", "").strip()
 
-        conn.execute("""
-            INSERT INTO employees (no_id, nama, bagian, jabatan, fingerprint_id)
-            VALUES (?, ?, ?, ?, ?)
-        """, (no_id, nama, bagian, jabatan, fingerprint_id))
-        conn.commit()
-        conn.close()
+        with get_conn() as conn:
+            # cek no_id dobel
+            cek_no_id = conn.execute("""
+                SELECT id FROM employees
+                WHERE no_id = ?
+                LIMIT 1
+            """, (no_id,)).fetchone()
+
+            if cek_no_id:
+                error = f"No ID {no_id} sudah dipakai."
+                return render_template(
+                    "karyawan/employee_form.html",
+                    employee=None,
+                    error=error
+                )
+
+            # cek fingerprint dobel, abaikan kalau kosong
+            if fingerprint_id:
+                cek_fp = conn.execute("""
+                    SELECT id FROM employees
+                    WHERE fingerprint_id = ?
+                    LIMIT 1
+                """, (fingerprint_id,)).fetchone()
+
+                if cek_fp:
+                    error = f"Fingerprint ID {fingerprint_id} sudah dipakai."
+                    return render_template(
+                        "karyawan/employee_form.html",
+                        employee=None,
+                        error=error
+                    )
+
+            conn.execute("""
+                INSERT INTO employees (
+                    no_id, nama, bagian, jabatan,
+                    status_aktif, tanggal_masuk,
+                    fingerprint_id, no_hp, catatan,
+                    created_at, updated_at,
+                    tipe_gaji, area_kerja, shift_default
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)
+            """, (
+                no_id,
+                nama,
+                bagian or None,
+                jabatan or None,
+                int(status_aktif) if status_aktif else 1,
+                tanggal_masuk or None,
+                fingerprint_id or None,
+                no_hp or None,
+                catatan or None,
+                tipe_gaji or None,
+                area_kerja or None,
+                shift_default or None
+            ))
+            conn.commit()
+
         return redirect(url_for("karyawan.employees_list"))
 
-    conn.close()
-    return render_template("karyawan/employee_form.html", employee=None)
+    return render_template("karyawan/employee_form.html", employee=None, error=error)
 
 @karyawan_bp.route("/employees/<int:id>/edit", methods=["GET", "POST"])
 def employee_edit(id):
     conn = get_conn()
 
     if request.method == "POST":
-        no_id = request.form["no_id"]
-        nama = request.form["nama"]
-        bagian = request.form.get("bagian")
-        jabatan = request.form.get("jabatan")
-        fingerprint_id = request.form.get("fingerprint_id")
+        no_id = request.form.get("no_id", "").strip()
+        nama = request.form.get("nama", "").strip()
+        bagian = request.form.get("bagian", "").strip()
+        jabatan = request.form.get("jabatan", "").strip()
+        status_aktif = request.form.get("status_aktif", "1").strip()
+        tanggal_masuk = request.form.get("tanggal_masuk", "").strip()
+        fingerprint_id = clean_value(request.form.get("fingerprint_id"))
+        no_hp = request.form.get("no_hp", "").strip()
+        catatan = request.form.get("catatan", "").strip()
+        tipe_gaji = request.form.get("tipe_gaji", "").strip()
+        area_kerja = request.form.get("area_kerja", "").strip()
+        shift_default = request.form.get("shift_default", "").strip()
+
+        # cek no_id dobel selain dirinya sendiri
+        cek_no_id = conn.execute("""
+            SELECT id FROM employees
+            WHERE no_id = ?
+              AND id != ?
+            LIMIT 1
+        """, (no_id, id)).fetchone()
+
+        if cek_no_id:
+            employee = conn.execute(
+                "SELECT * FROM employees WHERE id = ?",
+                (id,)
+            ).fetchone()
+            conn.close()
+            return render_template(
+                "karyawan/employee_form.html",
+                employee=employee,
+                error=f"No ID {no_id} sudah dipakai."
+            )
+
+        # cek fingerprint dobel selain dirinya sendiri
+        if fingerprint_id:
+            cek_fp = conn.execute("""
+                SELECT id FROM employees
+                WHERE fingerprint_id = ?
+                  AND id != ?
+                LIMIT 1
+            """, (fingerprint_id, id)).fetchone()
+
+            if cek_fp:
+                employee = conn.execute(
+                    "SELECT * FROM employees WHERE id = ?",
+                    (id,)
+                ).fetchone()
+                conn.close()
+                return render_template(
+                    "karyawan/employee_form.html",
+                    employee=employee,
+                    error=f"Fingerprint ID {fingerprint_id} sudah dipakai."
+                )
 
         conn.execute("""
             UPDATE employees
-            SET no_id = ?, nama = ?, bagian = ?, jabatan = ?, fingerprint_id = ?
+            SET
+                no_id = ?,
+                nama = ?,
+                bagian = ?,
+                jabatan = ?,
+                status_aktif = ?,
+                tanggal_masuk = ?,
+                fingerprint_id = ?,
+                no_hp = ?,
+                catatan = ?,
+                updated_at = CURRENT_TIMESTAMP,
+                tipe_gaji = ?,
+                area_kerja = ?,
+                shift_default = ?
             WHERE id = ?
-        """, (no_id, nama, bagian, jabatan, fingerprint_id, id))
+        """, (
+            no_id,
+            nama,
+            bagian or None,
+            jabatan or None,
+            int(status_aktif) if status_aktif else 1,
+            tanggal_masuk or None,
+            fingerprint_id or None,
+            no_hp or None,
+            catatan or None,
+            tipe_gaji or None,
+            area_kerja or None,
+            shift_default or None,
+            id
+        ))
+
         conn.commit()
         conn.close()
         return redirect(url_for("karyawan.employees_list"))
 
-    employee = conn.execute("SELECT * FROM employees WHERE id = ?", (id,)).fetchone()
+    employee = conn.execute(
+        "SELECT * FROM employees WHERE id = ?",
+        (id,)
+    ).fetchone()
     conn.close()
 
-    return render_template("karyawan/employee_form.html", employee=employee)
+    return render_template("karyawan/employee_form.html", employee=employee, error=None)
 
 @karyawan_bp.route("/employees/<int:id>/delete", methods=["POST"])
 def employee_delete(id):
@@ -649,3 +792,145 @@ def borongan_delete_tanggal(tanggal):
 
     finally:
         conn.close()
+
+@karyawan_bp.route("/absensi")
+def absensi_index():
+    from datetime import date
+
+    conn = get_conn()
+
+    # Filter
+    tanggal = request.args.get("tanggal")
+    status = request.args.get("status")
+    bagian = request.args.get("bagian")
+
+    if not tanggal:
+        tanggal = date.today().isoformat()
+
+    # Ambil semua karyawan aktif
+    rows = conn.execute("""
+        SELECT 
+            e.no_id,
+            e.nama,
+            e.bagian,
+            e.shift_default as shift_code,
+
+            a.period1_in,
+            a.period1_out,
+            a.period2_in,
+            a.period2_out,
+            a.period3_in,
+            a.period3_out,
+            a.actual_hours,
+            a.late_minutes,
+            a.early_leave_minutes,
+            a.overtime_hours,
+            a.status_hadir
+
+        FROM employees e
+
+        LEFT JOIN attendance_daily a 
+            ON e.id = a.employee_id 
+            AND a.work_date = ?
+
+        WHERE e.status_aktif = 1
+
+        ORDER BY CAST(e.no_id AS INTEGER)
+    """, (tanggal,)).fetchall()
+
+    # Convert ke list supaya bisa filter
+    rows = [dict(r) for r in rows]
+
+    # Jika tidak ada absensi = tidak hadir
+    for r in rows:
+        if not r["status_hadir"]:
+            r["status_hadir"] = "tidak_hadir"
+
+    # Filter status
+    if status:
+        rows = [r for r in rows if r["status_hadir"] == status]
+
+    # Filter bagian
+    if bagian:
+        rows = [r for r in rows if r["bagian"] == bagian]
+
+    # List tidak hadir
+    tidak_hadir = [r for r in rows if r["status_hadir"] == "tidak_hadir"]
+
+    # Summary
+    summary = {
+        "hadir": len([r for r in rows if r["status_hadir"] == "hadir"]),
+        "tidak_hadir": len([r for r in rows if r["status_hadir"] == "tidak_hadir"]),
+        "borongan_masuk": len([
+            r for r in rows
+            if r["status_hadir"] == "hadir"
+            and r["bagian"] == "Borongan"
+        ]),
+        "borongan_beku": len([
+            r for r in rows
+            if r["status_hadir"] == "tidak_hadir"
+            and r["bagian"] == "Borongan"
+        ])
+    }
+
+    conn.close()
+
+    return render_template(
+        "karyawan/absensi.html",
+        rows=rows,
+        tanggal=tanggal,
+        summary=summary,
+        tidak_hadir=tidak_hadir
+    )
+@karyawan_bp.route("/rekap-mingguan")
+def rekap_mingguan():
+    from datetime import date, timedelta
+
+    conn = get_conn()
+
+    start_date = request.args.get("start_date")
+    end_date = request.args.get("end_date")
+
+    if not end_date:
+        end_date = date.today().isoformat()
+
+    if not start_date:
+        start_date = (date.fromisoformat(end_date) - timedelta(days=6)).isoformat()
+
+    rows = conn.execute("""
+        SELECT
+            e.no_id,
+            e.nama,
+            e.bagian,
+            SUM(CASE WHEN a.status_hadir = 'hadir' THEN 1 ELSE 0 END) as hadir_count,
+            SUM(CASE WHEN a.status_hadir = 'tidak_hadir' OR a.status_hadir IS NULL THEN 1 ELSE 0 END) as tidak_hadir_count,
+            SUM(COALESCE(a.actual_hours, 0)) as total_hours,
+            SUM(COALESCE(a.late_minutes, 0)) as total_late,
+            SUM(COALESCE(a.overtime_hours, 0)) as total_overtime
+        FROM employees e
+        LEFT JOIN attendance_daily a
+            ON e.id = a.employee_id
+            AND a.work_date BETWEEN ? AND ?
+        WHERE e.status_aktif = 1
+        GROUP BY e.id, e.no_id, e.nama, e.bagian
+        ORDER BY CAST(e.no_id AS INTEGER)
+    """, (start_date, end_date)).fetchall()
+
+    rows = [dict(r) for r in rows]
+
+    summary = {
+        "total_hadir": sum(r["hadir_count"] or 0 for r in rows),
+        "total_tidak_hadir": sum(r["tidak_hadir_count"] or 0 for r in rows),
+        "total_telat": sum(r["total_late"] or 0 for r in rows),
+        "total_lembur": sum(r["total_overtime"] or 0 for r in rows),
+    }
+
+    conn.close()
+
+    return render_template(
+        "karyawan/rekap_mingguan.html",
+        rows=rows,
+        start_date=start_date,
+        end_date=end_date,
+        summary=summary
+    )

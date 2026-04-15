@@ -16,7 +16,6 @@ from helpers.db import init_db, get_conn
 from karyawan.routes import karyawan_bp
 
 
-
 # init database
 init_db()
 
@@ -49,24 +48,43 @@ cols = cursor.fetchall()
 
 for c in cols:
     print(c)
+
 @app.route("/", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
         username = request.form.get("username")
         password = request.form.get("password")
-        if (
-                username == app.config["ADMIN_USERNAME"] and
-                password == app.config["ADMIN_PASSWORD"]
-        ):
+
+        conn = get_conn()
+        user = conn.execute(
+            "SELECT * FROM users WHERE username=? AND password=?",
+            (username, password)
+        ).fetchone()
+
+        if user:
             session.clear()
-            session["user"] = username
+            session["user"] = user["username"]
+            session["role"] = user["role"]
             session.permanent = True
-            return redirect("/dashboard")
+
+            if user["role"] == "admin":
+                return redirect("/dashboard")
+
+            elif user["role"] == "gaji":
+                return redirect("/production/list")
+
+            elif user["role"] == "rekap":
+                return redirect("/receiving")
+
+            elif user["role"] == "absensi":
+                return redirect("/karyawan")
+
+            else:
+                return redirect("/dashboard")
 
         return render_template("login.html", error="Login gagal")
 
     return render_template("login.html")
-
 @app.route("/dashboard")
 def dashboard():
     print("SESSION:", dict(session))  # 🔎 DEBUG
@@ -394,6 +412,7 @@ if app.debug:
 print("=== ROUTE LIST ===")
 print(app.url_map)
 
+
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
@@ -401,4 +420,3 @@ if __name__ == "__main__":
         debug=True,
         threaded=True
     )
-

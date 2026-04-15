@@ -15,3 +15,16 @@ def login_required(func):
             return redirect(url_for("login"))
         return func(*args, **kwargs)
     return wrapper
+
+def role_required(*roles):
+    from functools import wraps
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if session.get("role") not in roles:
+                return redirect(url_for("dashboard"))
+            return func(*args, **kwargs)
+        return wrapper
+
+    return decorator

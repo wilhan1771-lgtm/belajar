@@ -5,136 +5,302 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Data Karyawan</title>
   <style>
-    * { box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f7fb;
+    color: #1f2937;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 28px 20px 40px;
+  }
+
+  .header-box {
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: white;
+    border-radius: 18px;
+    padding: 26px 28px;
+    margin-bottom: 22px;
+  }
+
+  .header-box h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+  }
+
+  .header-box p {
+    margin: 0;
+    opacity: 0.95;
+  }
+
+  .top-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .back-link {
+    text-decoration: none;
+    color: #3730a3;
+    font-weight: 700;
+  }
+
+  .toolbar {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 18px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .field label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #475569;
+  }
+
+  .field input,
+  .field select {
+    height: 38px;
+    min-width: 170px;
+    padding: 0 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fff;
+  }
+
+  .btn {
+    height: 38px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .btn-primary {
+    background: #2563eb;
+    color: white;
+  }
+
+  .btn-green {
+    background: #16a34a;
+    color: white;
+  }
+
+  .btn-dark {
+    background: #111827;
+    color: white;
+  }
+
+  .table-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 14px;
+    overflow: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 850px;
+  }
+
+  th,
+  td {
+    border-bottom: 1px solid #e5e7eb;
+    padding: 12px 10px;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    background: #f8fafc;
+    font-weight: 700;
+  }
+
+  .aksi {
+    display: flex;
+    gap: 8px;
+  }
+
+  .btn-sm {
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    display: inline-block;
+    border: none;
+    cursor: pointer;
+  }
+
+  .btn-edit {
+    background: #facc15;
+    color: #111827;
+  }
+
+  .btn-delete {
+    background: #ef4444;
+    color: white;
+  }
+
+  .print-only {
+    display: none;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  @media print {
+    html,
     body {
+      width: 210mm;
       margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f4f7fb;
-      color: #1f2937;
+      padding: 0;
+      background: #fff !important;
+      color: #000 !important;
+      font-size: 10px;
     }
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 28px 20px 40px;
+@media print {
+
+  body {
+    font-size: 15px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+  }
+
+  th, td {
+    border: 1px solid #555 !important;
+    padding: 6px 6px !important;
+    font-size: 11px !important;
+  }
+
+  th {
+    background: #eee !important;
+  }
+
+  /* ukuran kolom */
+  th:nth-child(1), td:nth-child(1) { width: 45px; }   /* No */
+  th:nth-child(2), td:nth-child(2) { width: 45px; }   /* ID */
+  th:nth-child(3), td:nth-child(3) { width: 35%; }    /* Nama */
+  th:nth-child(4), td:nth-child(4) { width: 25%; }    /* Bagian */
+  th:nth-child(5), td:nth-child(5) { width: 20%; }    /* Fingerprint */
+}
+    .no-print,
+    .no-print-jabatan {
+      display: none !important;
     }
-    .header-box {
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
-      color: white;
-      border-radius: 18px;
-      padding: 26px 28px;
-      margin-bottom: 22px;
-    }
-    .header-box h1 {
-      margin: 0 0 8px;
-      font-size: 30px;
-    }
-    .toolbar {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      padding: 16px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      align-items: end;
-      margin-bottom: 18px;
-    }
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .field label {
-      font-size: 13px;
-      font-weight: 700;
-      color: #475569;
-    }
-    .field input, .field select {
-      height: 38px;
-      min-width: 170px;
-      padding: 0 10px;
-      border: 1px solid #cbd5e1;
-      border-radius: 10px;
+
+    .print-only {
+      display: block !important;
+      text-align: center;
       font-size: 14px;
+      font-weight: bold;
+      margin: 0 0 10px 0;
     }
-    .btn {
-      height: 38px;
-      padding: 0 16px;
-      border: none;
-      border-radius: 10px;
-      font-weight: 700;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-    }
-    .btn-primary { background: #2563eb; color: white; }
-    .btn-green { background: #16a34a; color: white; }
+
+    .container,
+    .header-box,
+    .top-actions,
+    .toolbar,
     .table-card {
-      background: white;
-      border: 1px solid #e5e7eb;
-      border-radius: 16px;
-      padding: 14px;
-      overflow: auto;
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      background: #fff !important;
+      overflow: visible !important;
     }
+
     table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 850px;
+      width: 100% !important;
+      min-width: 100% !important;
+      border-collapse: collapse !important;
+      table-layout: fixed !important;
     }
-    th, td {
-      border-bottom: 1px solid #e5e7eb;
-      padding: 12px 10px;
-      text-align: left;
+
+    th,
+    td {
+      border: 1px solid #000 !important;
+      padding: 4px !important;
+      font-size: 10px !important;
+      line-height: 1.2 !important;
+      text-align: left !important;
+      color: #000 !important;
+      background: #fff !important;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
-    th {
-      background: #f8fafc;
+
+    thead th {
+      font-weight: bold;
     }
-    .aksi {
-      display: flex;
-      gap: 8px;
+
+    tr td:last-child,
+    tr th:last-child {
+      border-right: 1px solid #000 !important;
     }
-    .btn-sm {
-      padding: 8px 12px;
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 700;
-      text-decoration: none;
-      display: inline-block;
-      border: none;
-      cursor: pointer;
+
+    tr {
+      page-break-inside: avoid;
     }
-    .btn-edit { background: #facc15; color: #111827; }
-    .btn-delete { background: #ef4444; color: white; }
-    .top-actions {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 14px;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .back-link {
-      text-decoration: none;
-      color: #3730a3;
-      font-weight: 700;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
+  }
+</style>
+
+<h2 class="print-only" style="display:none;">DATA KARYAWAN</h2>
+
+<div class="container">
+
+  <!-- HEADER + ACTION -->
+  <div class="no-print">
     <div class="header-box">
       <h1>Data Karyawan</h1>
       <p>Kelola daftar karyawan, bagian, jabatan, dan fingerprint ID.</p>
     </div>
 
     <div class="top-actions">
-      <a href="{{ url_for('karyawan.karyawan_index') }}" class="back-link">← Kembali ke Menu Karyawan</a>
+      <a href="{{ url_for('karyawan.karyawan_index') }}" class="back-link">← Kembali</a>
       <a href="{{ url_for('karyawan.employee_add') }}" class="btn btn-green">+ Tambah Karyawan</a>
     </div>
 
+    <!-- FILTER -->
     <form method="get" class="toolbar">
       <div class="field">
         <label>Cari</label>
@@ -143,12 +309,12 @@
 
       <div class="field">
         <label>Bagian</label>
-        <input type="text" name="bagian" value="{{ request.args.get('bagian', '') }}" placeholder="Contoh: Borongan">
+        <input type="text" name="bagian" value="{{ request.args.get('bagian', '') }}">
       </div>
 
       <div class="field">
         <label>Jabatan</label>
-        <input type="text" name="jabatan" value="{{ request.args.get('jabatan', '') }}" placeholder="Contoh: Kupas">
+        <input type="text" name="jabatan" value="{{ request.args.get('jabatan', '') }}">
       </div>
 
       <div class="field">
@@ -162,45 +328,57 @@
       </div>
 
       <button type="submit" class="btn btn-primary">Tampilkan</button>
+      <button type="button" onclick="window.print()" class="btn btn-dark">Print</button>
     </form>
-
-    <div class="table-card">
-      <table>
-        <thead>
-          <tr>
-            <th>No ID</th>
-            <th>Nama</th>
-            <th>Bagian</th>
-            <th>Jabatan</th>
-            <th>Fingerprint ID</th>
-            <th>Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for k in employees %}
-          <tr>
-            <td>{{ k.no_id }}</td>
-            <td>{{ k.nama }}</td>
-            <td>{{ k.bagian or '-' }}</td>
-            <td>{{ k.jabatan or '-' }}</td>
-            <td>{{ k.fingerprint_id or '-' }}</td>
-            <td>
-              <div class="aksi">
-                <a href="{{ url_for('karyawan.employee_edit', id=k.id) }}" class="btn-sm btn-edit">Edit</a>
-                <form method="post" action="{{ url_for('karyawan.employee_delete', id=k.id) }}" onsubmit="return confirm('Hapus karyawan ini?');" style="margin:0;">
-                  <button type="submit" class="btn-sm btn-delete">Hapus</button>
-                </form>
-              </div>
-            </td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="6" style="text-align:center;">Belum ada data karyawan.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
   </div>
-</body>
-</html>
+
+  <!-- TABLE -->
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>No</th>
+          <th>ID</th>
+          <th>Nama</th>
+          <th>Bagian</th>
+          <th class="no-print-jabatan">Jabatan</th>
+          <th>Fingerprint ID</th>
+          <th class="no-print">Aksi</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in employees %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ r.no_id }}</td>
+          <td>{{ r.nama }}</td>
+          <td>{{ r.bagian or '-' }}</td>
+          <td class="no-print-jabatan">{{ r.jabatan or '-' }}</td>
+          <td>{{ r.fingerprint_id or '-' }}</td>
+
+          <!-- FIX DI SINI 🔥 -->
+          <td class="no-print">
+            <div class="aksi">
+              <a href="{{ url_for('karyawan.employee_edit', id=r.id) }}" class="btn-sm btn-edit">Edit</a>
+
+              <form method="post"
+                    action="{{ url_for('karyawan.employee_delete', id=r.id) }}"
+                    onsubmit="return confirm('Hapus karyawan ini?');"
+                    style="margin:0;">
+                <button type="submit" class="btn-sm btn-delete">Hapus</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center;">Belum ada data karyawan.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
