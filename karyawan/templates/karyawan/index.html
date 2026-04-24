@@ -179,13 +179,13 @@
 {% endif %}
 
      {% if session.role in ["admin","absensi"] %}
-<div class="menu-card">
-  <div class="menu-icon icon-orange">📊</div>
-  <h2>Rekap Borongan</h2>
-  <p>Lihat rekap per tanggal atau per karyawan untuk laporan mingguan.</p>
-  <a href="{{ url_for('karyawan.borongan_rekap') }}">Buka Rekap Borongan</a>
-</div>
-{% endif %}
+      <div class="menu-card">
+        <div class="menu-icon icon-orange">📊</div>
+        <h2>Rekap Borongan</h2>
+        <p>Lihat rekap per tanggal atau per karyawan untuk laporan mingguan.</p>
+        <a href="{{ url_for('karyawan.borongan_rekap') }}">Buka Rekap Borongan</a>
+      </div>
+      {% endif %}
 
       <div class="menu-card">
         <div class="menu-icon icon-purple">🗓️</div>
@@ -200,11 +200,26 @@
         <p>Atur tarif kupas, belah, PK, dan dasar perhitungan upah kerja.</p>
         <a href="{{ url_for('karyawan.tarif_index') }}">Buka Tarif</a>
       </div>
-    </div>
 
-    <div class="footer-note">
-      Sistem pengelolaan karyawan dan borongan harian.
-    </div>
+     <div class="menu-card">
+       <div class="menu-icon icon-red">💼</div>
+        <h2>Rekap Gajian</h2>
+        <p>Gaji mingguan</p>
+       <a href="{{ url_for('karyawan.payroll_index') }}">Buka Payroll</a>
+     </div>
+       <div class="menu-card">
+        <div class="menu-icon icon-purple">🧤</div>
+         <h2>Barang Karyawan</h2>
+            <p>Input sarung tangan, seragam, sepatu, masker, dan potongan barang.</p>
+             <a href="{{ url_for('karyawan.employee_items') }}">Buka Barang Karyawan</a>
+       </div>
+        <div class="menu-card">
+  <div class="menu-icon icon-blue">🏠</div>
+  <h2>Data Mes</h2>
+  <p>Kelola karyawan yang tinggal di mes dan tanggal keluar.</p>
+  <a href="{{ url_for('karyawan.mes_index') }}">Buka Data Mes</a>
+</div>
+
   </div>
 </body>
 </html>

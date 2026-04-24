@@ -270,7 +270,15 @@
               placeholder="Contoh: 0812xxxxxxx"
             >
           </div>
-
+          <div class="field">
+          <label for="gaji_harian">Gaji Harian</label>
+          <input
+             type="number"
+             id="gaji_harian"
+             name="gaji_harian"
+             value="{{ employee.gaji_harian if employee else '' }}"
+             placeholder="Contoh: 100000">
+          </div>
           <div class="field">
             <label for="tipe_gaji">Tipe Gaji</label>
             <input
@@ -278,8 +286,7 @@
               id="tipe_gaji"
               name="tipe_gaji"
               value="{{ employee.tipe_gaji if employee else '' }}"
-              placeholder="Contoh: harian / bulanan / borongan"
-            >
+              placeholder="Contoh: harian / bulanan / borongan">
           </div>
 
           <div class="field">
@@ -289,8 +296,7 @@
               id="area_kerja"
               name="area_kerja"
               value="{{ employee.area_kerja if employee else '' }}"
-              placeholder="Contoh: normal / coldroom"
-            >
+              placeholder="Contoh: normal / coldroom">
           </div>
 
           <div class="field">
@@ -300,10 +306,16 @@
               id="shift_default"
               name="shift_default"
               value="{{ employee.shift_default if employee else '' }}"
-              placeholder="Contoh: PAGI / SORE / MALAM"
-            >
+              placeholder="Contoh: PAGI / SORE / MALAM">
           </div>
 
+          <div class="field">
+            <label for="tinggal_di_mes">Tinggal di Mes</label>
+             <select id="tinggal_di_mes" name="tinggal_di_mes">
+             <option value="0" {{ 'selected' if employee and employee.tinggal_di_mes == 0 else '' }}>Tidak</option>
+             <option value="1" {{ 'selected' if employee and employee.tinggal_di_mes == 1 else '' }}>Ya</option>
+             </select>
+          </div>
           <div class="field full">
             <label for="catatan">Catatan</label>
             <textarea

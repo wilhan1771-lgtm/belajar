@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Input Absensi Manual</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f6fa;
+      padding: 20px;
+    }
+
+    .card {
+      max-width: 500px;
+      margin: auto;
+      background: #fff;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      margin-bottom: 10px;
+    }
+
+    .info {
+      margin-bottom: 15px;
+      font-size: 14px;
+      color: #555;
+    }
+
+    .form-group {
+      margin-bottom: 12px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      margin-bottom: 4px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+    }
+
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .row .form-group {
+      flex: 1;
+    }
+
+    button {
+      width: 100%;
+      padding: 10px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1e40af;
+    }
+
+    .back {
+      display: block;
+      text-align: center;
+      margin-top: 10px;
+      text-decoration: none;
+      color: #555;
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>Input Absensi Manual</h2>
+
+  <div class="info">
+    <strong>{{ emp.nama }}</strong> ({{ emp.no_id }})<br>
+    Bagian: {{ emp.bagian }}<br>
+    Tanggal: {{ tanggal }}
+  </div>
+
+  <form method="post">
+
+    <input type="hidden" name="employee_id" value="{{ emp.id }}">
+    <input type="hidden" name="fingerprint_id" value="{{ emp.fingerprint_id }}">
+    <input type="hidden" name="work_date" value="{{ tanggal }}">
+    <input type="hidden" name="shift_code" value="{{ emp.shift_default }}">
+
+    <div class="form-group">
+      <label>Status Hadir</label>
+      <select name="status_hadir">
+        <option value="hadir">Hadir</option>
+        <option value="tidak_hadir">Tidak Hadir</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>P1 In</label>
+        <input type="time" name="period1_in">
+      </div>
+      <div class="form-group">
+        <label>P1 Out</label>
+        <input type="time" name="period1_out">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>P2 In</label>
+        <input type="time" name="period2_in">
+      </div>
+      <div class="form-group">
+        <label>P2 Out</label>
+        <input type="time" name="period2_out">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>P3 In</label>
+        <input type="time" name="period3_in">
+      </div>
+      <div class="form-group">
+        <label>P3 Out</label>
+        <input type="time" name="period3_out">
+      </div>
+    </div>
+
+    <button type="submit">Simpan</button>
+  </form>
+
+  <a href="{{ url_for('karyawan.absensi_index', tanggal=tanggal) }}" class="back">
+    ← Kembali ke Absensi
+  </a>
+</div>
+
+</body>
+</html>

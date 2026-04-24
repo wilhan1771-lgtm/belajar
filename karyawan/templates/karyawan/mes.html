@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Data Mes Karyawan</title>
+
+  <style>
+    body {
+      background: #f4f7fb;
+      font-family: Arial, sans-serif;
+      color: #1f2937;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      padding: 25px;
+    }
+
+    .header-box {
+      background: #2563eb;
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      margin-bottom: 15px;
+    }
+
+    .top-actions {
+      margin-bottom: 12px;
+    }
+
+    .back-link {
+      text-decoration: none;
+      color: #1d4ed8;
+      font-weight: bold;
+    }
+
+    .card {
+      background: white;
+      padding: 18px;
+      border-radius: 12px;
+      margin-bottom: 18px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .field-full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    input {
+      border: 1px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+
+    .btn-red {
+      background: #dc2626;
+      color: white;
+      padding: 7px 10px;
+      font-size: 12px;
+    }
+
+    .table-card {
+      background: white;
+      padding: 12px;
+      border-radius: 12px;
+      overflow-x: auto;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    th {
+      background: #f3f4f6;
+    }
+
+    th, td {
+      padding: 8px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 13px;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: bold;
+    }
+
+    .badge-aktif {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .badge-keluar {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .inline-form {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin: 0;
+    }
+
+    .inline-form input {
+      width: 130px;
+      padding: 6px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 800px) {
+      .form-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .inline-form {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header-box">
+    <h1>Data Mes Karyawan</h1>
+    <p>Kelola karyawan yang tinggal di mes, tanggal mulai, dan tanggal keluar.</p>
+  </div>
+
+  <div class="top-actions">
+    <a href="{{ url_for('karyawan.karyawan_index') }}" class="back-link">← Kembali</a>
+  </div>
+
+  <div class="card">
+    <form method="post">
+      <div class="form-grid">
+
+        <div class="field">
+          <label>No ID</label>
+          <input type="text" name="no_id" placeholder="Contoh: 3001" required>
+        </div>
+
+        <div class="field">
+          <label>Tanggal Mulai</label>
+          <input type="date" name="tanggal_mulai" required>
+        </div>
+
+        <div class="field">
+          <label>Tanggal Keluar</label>
+          <input type="date" name="tanggal_selesai">
+        </div>
+
+        <div class="field">
+          <label>Keterangan</label>
+          <input type="text" name="keterangan" placeholder="Opsional">
+        </div>
+
+        <div class="field field-full">
+          <button type="submit" class="btn btn-primary">Simpan Data Mes</button>
+        </div>
+
+      </div>
+    </form>
+  </div>
+
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>No ID</th>
+          <th>Nama</th>
+          <th>Tanggal Mulai</th>
+          <th>Tanggal Keluar</th>
+          <th>Status</th>
+          <th>Keterangan</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.no_id }}</td>
+          <td>{{ r.nama }}</td>
+          <td>{{ r.tanggal_mulai }}</td>
+          <td>{{ r.tanggal_selesai or '-' }}</td>
+          <td>
+            <span class="badge badge-{{ r.status }}">
+              {{ r.status }}
+            </span>
+          </td>
+          <td>{{ r.keterangan or '-' }}</td>
+          <td>
+            {% if r.status == 'aktif' %}
+            <form method="post"
+                  action="{{ url_for('karyawan.mes_keluar', id=r.id) }}"
+                  class="inline-form"
+                  onsubmit="return confirm('Tandai karyawan ini keluar dari mes?');">
+              <input type="date" name="tanggal_selesai" required>
+              <input type="text" name="keterangan" placeholder="Keterangan">
+              <button type="submit" class="btn btn-red">Keluar</button>
+            </form>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="7" style="text-align:center;">
+            Belum ada data mes karyawan.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+</body>
+</html>

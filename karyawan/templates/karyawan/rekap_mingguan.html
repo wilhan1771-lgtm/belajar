@@ -1,318 +1,322 @@
-<div class="container py-4 absensi-page">
+<div class="container rekap-page">
 
-  <!-- HEADER -->
-  <div class="hero-card mb-4">
-    <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-      <div>
-        <h1 class="hero-title">Rekap Mingguan</h1>
-        <p class="hero-subtitle mb-0">
-          Ringkasan absensi mingguan karyawan, total hadir, telat, dan lembur.
-        </p>
-      </div>
-      <div class="d-flex gap-2 flex-wrap">
-        <a href="/absensi" class="btn btn-light btn-custom">
-          ← Kembali Absensi
-        </a>
-      </div>
-    </div>
+  <div class="header-box">
+    <h1>Rekap Mingguan</h1>
+    <p>Ringkasan absensi mingguan karyawan</p>
   </div>
 
-  <!-- FILTER -->
-  <form method="get" class="filter-card mb-4">
-    <div class="row g-3 align-items-end">
+  <div class="top-actions">
+    <a href="{{ url_for('karyawan.absensi_index') }}" class="back-link">← Kembali ke Absensi</a>
+    <button type="button" onclick="window.print()" class="btn btn-dark">Print</button>
+  </div>
 
-      <div class="col-md-4">
-        <label class="form-label fw-semibold">Tanggal Awal</label>
+  <div class="no-print">
+    <form method="get" class="toolbar">
+      <div class="field">
+        <label>Tanggal Awal</label>
         <input
           type="date"
           name="start_date"
           value="{{ request.args.get('start_date', start_date) }}"
-          class="form-control custom-input"
         >
       </div>
 
-      <div class="col-md-4">
-        <label class="form-label fw-semibold">Tanggal Akhir</label>
+      <div class="field">
+        <label>Tanggal Akhir</label>
         <input
           type="date"
           name="end_date"
           value="{{ request.args.get('end_date', end_date) }}"
-          class="form-control custom-input"
         >
       </div>
 
-      <div class="col-md-4">
-        <button class="btn btn-primary w-100 btn-filter">
-          Tampilkan Rekap
-        </button>
-      </div>
+      <button class="btn btn-primary" type="submit">Tampilkan Rekap</button>
+    </form>
 
-    </div>
-  </form>
-
-  <!-- SUMMARY -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-3">
-      <div class="summary-box green">
-        <div class="summary-title">Total Hadir</div>
-        <div class="summary-number">{{ summary.total_hadir or 0 }}</div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="summary-box red">
-        <div class="summary-title">Tidak Hadir</div>
-        <div class="summary-number">{{ summary.total_tidak_hadir or 0 }}</div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="summary-box blue">
-        <div class="summary-title">Total Telat</div>
-        <div class="summary-number">{{ summary.total_telat or 0 }}</div>
-      </div>
-    </div>
-
-    <div class="col-md-3">
-      <div class="summary-box gray">
-        <div class="summary-title">Total Lembur</div>
-        <div class="summary-number">{{ "%.2f"|format(summary.total_lembur or 0) }}</div>
-      </div>
+    <div class="summary-simple">
+      <div>Total Hadir: <b>{{ summary.total_hadir or 0 }}</b></div>
+      <div>Tidak Hadir: <b>{{ summary.total_tidak_hadir or 0 }}</b></div>
+      <div>Total Telat: <b>{{ summary.total_telat or 0 }}</b></div>
+      <div>Total Lembur: <b>{{ "%.2f"|format(summary.total_lembur or 0) }}</b></div>
     </div>
   </div>
 
-  <!-- TABEL -->
-  <div class="content-card">
-    <div class="table-responsive">
-      <table class="table custom-table align-middle mb-0">
-        <thead>
-          <tr>
-            <th>No</th>
-            <th>No ID</th>
-            <th>Nama</th>
-            <th>Bagian</th>
-            <th>Hadir</th>
-            <th>Tidak Hadir</th>
-            <th>Total Jam</th>
-            <th>Total Telat</th>
-            <th>Total Lembur</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in rows %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ r.no_id }}</td>
-            <td class="fw-semibold">{{ r.nama }}</td>
-            <td><span class="bagian-badge">{{ r.bagian }}</span></td>
-            <td>{{ r.hadir_count or 0 }}</td>
-            <td>{{ r.tidak_hadir_count or 0 }}</td>
-            <td>{{ "%.2f"|format(r.total_hours or 0) }}</td>
-            <td>{{ r.total_late or 0 }}</td>
-            <td>{{ "%.2f"|format(r.total_overtime or 0) }}</td>
-          </tr>
-          {% endfor %}
+  <h3 class="print-only">REKAP MINGGUAN</h3>
+  <p class="print-only print-range">{{ start_date }} s/d {{ end_date }}</p>
 
-          {% if not rows %}
-          <tr>
-            <td colspan="9" class="text-center py-4 text-muted">
-              Tidak ada data rekap mingguan
-            </td>
-          </tr>
-          {% endif %}
-        </tbody>
-      </table>
-    </div>
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>No</th>
+          <th>No ID</th>
+          <th>Nama</th>
+          <th>Bagian</th>
+          <th>Hadir</th>
+          <th>Tidak Hadir</th>
+          <th>Total Jam</th>
+          <th>Total Telat</th>
+          <th>Total Lembur</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ r.no_id }}</td>
+          <td>{{ r.nama }}</td>
+          <td>{{ r.bagian or '-' }}</td>
+          <td>{{ r.hadir_count or 0 }}</td>
+          <td>{{ r.tidak_hadir_count or 0 }}</td>
+          <td>{{ "%.2f"|format(r.total_hours or 0) }}</td>
+          <td>{{ r.total_late or 0 }}</td>
+          <td>{{ "%.2f"|format(r.total_overtime or 0) }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" style="text-align:center;">Tidak ada data rekap mingguan.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 
 </div>
 
 <style>
+  * {
+    box-sizing: border-box;
+  }
+
   body {
-    background: #f5f7fb;
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f4f7fb;
     color: #1f2937;
-    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   }
 
-  .container,
-  .absensi-page {
-    max-width: 1180px;
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 28px 20px 40px;
   }
 
-  .hero-card {
-    background: linear-gradient(135deg, #4f6fdc, #3f5fcf);
-    border-radius: 20px;
-    padding: 24px 28px;
-    color: #ffffff;
-    box-shadow: 0 8px 24px rgba(63, 95, 207, 0.14);
-    margin-bottom: 20px;
+  .header-box {
+    background: #2563eb;
+    color: white;
+    border-radius: 18px;
+    padding: 26px 28px;
+    margin-bottom: 18px;
   }
 
-  .hero-title {
-    font-size: 28px;
+  .header-box h1 {
+    margin: 0 0 8px;
+    font-size: 30px;
+  }
+
+  .header-box p {
+    margin: 0;
+    opacity: 0.95;
+  }
+
+  .top-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .back-link {
+    text-decoration: none;
+    color: #3730a3;
     font-weight: 700;
-    margin-bottom: 6px;
   }
 
-  .hero-subtitle {
-    font-size: 14px;
-    color: rgba(255, 255, 255, 0.9);
-    margin-bottom: 0;
-  }
-
-  .btn-custom {
-    border-radius: 10px;
-    padding: 10px 18px;
-    font-weight: 600;
-    border: none;
-  }
-
-  .filter-card,
-  .content-card {
-    background: #ffffff;
+  .toolbar {
+    background: white;
     border: 1px solid #e5e7eb;
-    border-radius: 18px;
-    padding: 20px;
-    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+    border-radius: 16px;
+    padding: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: end;
+    margin-bottom: 14px;
   }
 
-  .form-label {
-    font-size: 14px;
-    font-weight: 600;
-    color: #374151;
-    margin-bottom: 8px;
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
-  .custom-input,
-  .form-control {
-    height: 44px;
-    border-radius: 10px;
-    border: 1px solid #d1d5db;
-    background: #ffffff;
-    color: #111827;
-    box-shadow: none;
-    font-size: 14px;
-  }
-
-  .custom-input:focus,
-  .form-control:focus {
-    border-color: #7c93e6;
-    box-shadow: 0 0 0 0.15rem rgba(79, 111, 220, 0.12);
-  }
-
-  .btn-filter,
-  .btn-primary {
-    height: 44px;
-    border-radius: 10px;
-    font-weight: 600;
-    background: #4f6fdc;
-    border-color: #4f6fdc;
-  }
-
-  .btn-filter:hover,
-  .btn-primary:hover {
-    background: #3f5fcf;
-    border-color: #3f5fcf;
-  }
-
-  .summary-box {
-    border-radius: 18px;
-    padding: 18px 20px;
-    min-height: 110px;
-    box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
-    border: 1px solid transparent;
-  }
-
-  .summary-title {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-
-  .summary-number {
-    font-size: 34px;
-    font-weight: 700;
-    line-height: 1.1;
-  }
-
-  .summary-box.green {
-    background: #edf8f1;
-    color: #1f7a45;
-    border-color: #cfead9;
-  }
-
-  .summary-box.red {
-    background: #fdf0f0;
-    color: #c24141;
-    border-color: #f3caca;
-  }
-
-  .summary-box.blue {
-    background: #eef4ff;
-    color: #3559c7;
-    border-color: #d6e2ff;
-  }
-
-  .summary-box.gray {
-    background: #f3f4f6;
-    color: #4b5563;
-    border-color: #e5e7eb;
-  }
-
-  .table-responsive {
-    border-radius: 14px;
-    overflow: hidden;
-  }
-
-  .custom-table thead th {
-    background: #f8fafc;
-    color: #374151;
+  .field label {
     font-size: 13px;
     font-weight: 700;
-    padding: 13px 10px;
-    border-bottom: 1px solid #e5e7eb;
-    white-space: nowrap;
+    color: #475569;
   }
 
-  .custom-table tbody td {
-    padding: 12px 10px;
+  .field input {
+    height: 38px;
+    min-width: 180px;
+    padding: 0 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
     font-size: 14px;
-    color: #1f2937;
-    border-color: #eef2f7;
-    vertical-align: middle;
-    white-space: nowrap;
+    background: #fff;
   }
 
-  .custom-table tbody tr:hover {
+  .btn {
+    height: 38px;
+    padding: 0 16px;
+    border: none;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+  }
+
+  .btn-primary {
+    background: #2563eb;
+    color: white;
+  }
+
+  .btn-dark {
+    background: #111827;
+    color: white;
+  }
+
+  .summary-simple {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+
+  .table-card {
+    background: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 16px;
+    padding: 14px;
+    overflow: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 900px;
+  }
+
+  th, td {
+    border-bottom: 1px solid #e5e7eb;
+    padding: 12px 10px;
+    text-align: left;
+    vertical-align: middle;
+  }
+
+  th {
+    background: #f8fafc;
+    font-weight: 700;
+  }
+
+  tbody tr:hover {
     background: #f9fbff;
   }
 
-  .bagian-badge {
-    display: inline-block;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: #eef4ff;
-    color: #3559c7;
-    font-size: 12px;
-    font-weight: 600;
+  .print-only {
+    display: none;
+  }
+
+  .print-range {
+    margin-top: -6px;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+
+  @media print {
+    html, body {
+      background: #fff !important;
+      color: #000 !important;
+      margin: 0;
+      padding: 0;
+      font-size: 10px;
+    }
+
+    .no-print,
+    .top-actions,
+    .header-box {
+      display: none !important;
+    }
+
+    .print-only {
+      display: block !important;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .container,
+    .table-card {
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      background: #fff !important;
+      overflow: visible !important;
+    }
+
+    table {
+      width: 100% !important;
+      min-width: 100% !important;
+      border-collapse: collapse !important;
+      table-layout: fixed !important;
+    }
+
+    th, td {
+      border: 1px solid #000 !important;
+      padding: 4px !important;
+      font-size: 10px !important;
+      line-height: 1.2 !important;
+      color: #000 !important;
+      background: #fff !important;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    tr {
+      page-break-inside: avoid;
+    }
   }
 
   @media (max-width: 768px) {
-    .hero-card {
+    .header-box {
       padding: 20px;
-      border-radius: 16px;
+      border-radius: 14px;
     }
 
-    .hero-title {
-      font-size: 22px;
+    .header-box h1 {
+      font-size: 24px;
     }
 
-    .summary-number {
-      font-size: 28px;
+    .toolbar {
+      border-radius: 14px;
     }
 
-    .filter-card,
-    .content-card {
+    .table-card {
       border-radius: 14px;
     }
   }

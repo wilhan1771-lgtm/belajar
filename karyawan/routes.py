@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, json ,
 from helpers.db import get_conn
 from datetime import date
 from helpers.auth import login_required, role_required
+from absensi.rules import hitung_gaji_harian_row
 
 karyawan_bp = Blueprint("karyawan",__name__,url_prefix="/karyawan", template_folder="templates")
 
@@ -410,6 +411,8 @@ def employee_add():
         tipe_gaji = request.form.get("tipe_gaji", "").strip()
         area_kerja = request.form.get("area_kerja", "").strip()
         shift_default = request.form.get("shift_default", "").strip()
+        gaji_harian = request.form.get("gaji_harian")
+        gaji_harian = int(gaji_harian) if gaji_harian else None
 
         with get_conn() as conn:
             # cek no_id dobel
@@ -449,9 +452,9 @@ def employee_add():
                     status_aktif, tanggal_masuk,
                     fingerprint_id, no_hp, catatan,
                     created_at, updated_at,
-                    tipe_gaji, area_kerja, shift_default
+                    tipe_gaji, area_kerja, shift_default, gaji_harian
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?)
             """, (
                 no_id,
                 nama,
@@ -464,9 +467,10 @@ def employee_add():
                 catatan or None,
                 tipe_gaji or None,
                 area_kerja or None,
-                shift_default or None
+                shift_default or None,
+                gaji_harian
             ))
-            conn.commit()
+        conn.commit()
 
         return redirect(url_for("karyawan.employees_list"))
 
@@ -489,6 +493,8 @@ def employee_edit(id):
         tipe_gaji = request.form.get("tipe_gaji", "").strip()
         area_kerja = request.form.get("area_kerja", "").strip()
         shift_default = request.form.get("shift_default", "").strip()
+        gaji_harian = request.form.get("gaji_harian")
+        gaji_harian = int(gaji_harian) if gaji_harian else None
 
         # cek no_id dobel selain dirinya sendiri
         cek_no_id = conn.execute("""
@@ -546,7 +552,8 @@ def employee_edit(id):
                 updated_at = CURRENT_TIMESTAMP,
                 tipe_gaji = ?,
                 area_kerja = ?,
-                shift_default = ?
+                shift_default = ?,
+                gaji_harian = ?
             WHERE id = ?
         """, (
             no_id,
@@ -561,6 +568,7 @@ def employee_edit(id):
             tipe_gaji or None,
             area_kerja or None,
             shift_default or None,
+            gaji_harian or None,
             id
         ))
 
@@ -796,10 +804,10 @@ def borongan_delete_tanggal(tanggal):
 @karyawan_bp.route("/absensi")
 def absensi_index():
     from datetime import date
+    from absensi.rules import hitung_gaji_harian_row
 
     conn = get_conn()
 
-    # Filter
     tanggal = request.args.get("tanggal")
     status = request.args.get("status")
     bagian = request.args.get("bagian")
@@ -807,14 +815,15 @@ def absensi_index():
     if not tanggal:
         tanggal = date.today().isoformat()
 
-    # Ambil semua karyawan aktif
     rows = conn.execute("""
-        SELECT 
+        SELECT
             e.no_id,
             e.nama,
             e.bagian,
-            e.shift_default as shift_code,
-
+            e.shift_default AS shift_code,
+            COALESCE(e.gaji_harian, 100000) AS gaji_harian,
+            a.id AS attendance_id, 
+            a.work_date,
             a.period1_in,
             a.period1_out,
             a.period2_in,
@@ -825,52 +834,62 @@ def absensi_index():
             a.late_minutes,
             a.early_leave_minutes,
             a.overtime_hours,
-            a.status_hadir
+            a.status_hadir,
+            COALESCE(a.insentif_malam, 0) AS insentif_malam,
+            COALESCE(a.insentif_hari_besar, 0) AS insentif_hari_besar,
+            COALESCE(a.total_insentif, 0) AS total_insentif
 
         FROM employees e
-
-        LEFT JOIN attendance_daily a 
-            ON e.id = a.employee_id 
-            AND a.work_date = ?
-
+        LEFT JOIN attendance_daily a
+            ON e.id = a.employee_id
+           AND a.work_date = ?
         WHERE e.status_aktif = 1
-
         ORDER BY CAST(e.no_id AS INTEGER)
     """, (tanggal,)).fetchall()
 
-    # Convert ke list supaya bisa filter
     rows = [dict(r) for r in rows]
 
-    # Jika tidak ada absensi = tidak hadir
+    # default status
     for r in rows:
         if not r["status_hadir"]:
             r["status_hadir"] = "tidak_hadir"
 
-    # Filter status
+    # filter
     if status:
         rows = [r for r in rows if r["status_hadir"] == status]
 
-    # Filter bagian
     if bagian:
         rows = [r for r in rows if r["bagian"] == bagian]
 
-    # List tidak hadir
+    # hitung gaji harian runtime
+    for r in rows:
+        hasil = hitung_gaji_harian_row(r)
+
+        r["work_type"] = hasil["work_type"]
+        r["gaji_pokok"] = hasil["gaji_pokok"]
+        r["gaji_lembur"] = hasil["gaji_lembur"]
+        r["insentif"] = hasil["insentif"]
+        r["potongan_telat"] = hasil["potongan_telat"]
+        r["gaji_final"] = hasil["gaji_final"]
+        r["note"] = hasil["note"]
+        r["is_valid"] = hasil["is_valid"]
+
+        # biar template lama tetap jalan
+        r["gaji_draft"] = hasil["gaji_final"]
+
     tidak_hadir = [r for r in rows if r["status_hadir"] == "tidak_hadir"]
 
-    # Summary
     summary = {
-        "hadir": len([r for r in rows if r["status_hadir"] == "hadir"]),
-        "tidak_hadir": len([r for r in rows if r["status_hadir"] == "tidak_hadir"]),
-        "borongan_masuk": len([
-            r for r in rows
-            if r["status_hadir"] == "hadir"
-            and r["bagian"] == "Borongan"
-        ]),
-        "borongan_beku": len([
-            r for r in rows
-            if r["status_hadir"] == "tidak_hadir"
-            and r["bagian"] == "Borongan"
-        ])
+        "hadir": sum(1 for r in rows if r["status_hadir"] == "hadir"),
+        "tidak_hadir": sum(1 for r in rows if r["status_hadir"] == "tidak_hadir"),
+        "borongan_masuk": sum(
+            1 for r in rows
+            if r["status_hadir"] == "hadir" and r["bagian"] == "Borongan"
+        ),
+        "borongan_beku": sum(
+            1 for r in rows
+            if r["status_hadir"] == "tidak_hadir" and r["bagian"] == "Borongan"
+        ),
     }
 
     conn.close()
@@ -934,3 +953,586 @@ def rekap_mingguan():
         end_date=end_date,
         summary=summary
     )
+
+def cek_tinggal_di_mes(conn, employee_id, work_date):
+    row = conn.execute("""
+        SELECT id
+        FROM employee_mes_history
+        WHERE employee_id = ?
+          AND tanggal_mulai <= ?
+          AND (
+                tanggal_selesai IS NULL
+                OR tanggal_selesai = ''
+                OR tanggal_selesai >= ?
+              )
+        LIMIT 1
+    """, (employee_id, work_date, work_date)).fetchone()
+
+    return row is not None
+
+@karyawan_bp.route("/payroll", methods=["GET"])
+
+def payroll_index():
+    tanggal_awal = request.args.get("tanggal_awal", "")
+    tanggal_akhir = request.args.get("tanggal_akhir", "")
+    bagian = request.args.get("bagian", "").strip()
+
+    rows = []
+    summary = {
+        "total_karyawan": 0,
+        "total_upah_borongan": 0,
+        "total_gaji_pokok": 0,
+        "total_lembur": 0,
+        "total_insentif": 0,
+        "total_potongan": 0,
+        "total_potongan_barang": 0,
+        "total_gaji": 0,
+    }
+
+    if tanggal_awal and tanggal_akhir:
+        conn = get_conn()
+
+        query = """
+            SELECT
+                e.id AS employee_id,
+                e.no_id,
+                e.nama,
+                e.bagian,
+                e.shift_default AS shift_code,
+                COALESCE(e.gaji_harian, 100000) AS gaji_harian,
+                COALESCE(e.tinggal_di_mes, 0) AS tinggal_di_mes,
+
+                a.work_date,
+                a.period1_in,
+                a.period1_out,
+                a.period2_in,
+                a.period2_out,
+                a.period3_in,
+                a.period3_out,
+                a.actual_hours,
+                a.late_minutes,
+                a.early_leave_minutes,
+                a.overtime_hours,
+                a.status_hadir,
+
+                COALESCE(b.total_upah, 0) AS total_upah_borongan
+
+            FROM employees e
+            LEFT JOIN attendance_daily a
+                ON e.id = a.employee_id
+               AND a.work_date BETWEEN ? AND ?
+            LEFT JOIN borongan_logs b
+                ON b.no_id = e.no_id
+               AND b.tanggal = a.work_date
+            WHERE e.status_aktif = 1
+        """
+
+        params = [tanggal_awal, tanggal_akhir]
+
+        if bagian and bagian.lower() != "semua":
+            query += " AND LOWER(TRIM(e.bagian)) = ? "
+            params.append(bagian.lower())
+
+        query += " ORDER BY CAST(e.no_id AS INTEGER), a.work_date "
+
+        data = conn.execute(query, params).fetchall()
+        data = [dict(r) for r in data]
+
+        grouped = {}
+
+        for r in data:
+            emp_id = r["employee_id"]
+
+            if emp_id not in grouped:
+                grouped[emp_id] = {
+                    "employee_id": emp_id,
+                    "no_id": r["no_id"],
+                    "nama": r["nama"],
+                    "bagian": r["bagian"],
+                    "hari_masuk": 0,
+                    "total_upah_borongan": 0,
+                    "total_gaji_pokok": 0,
+                    "total_lembur": 0,
+                    "total_insentif": 0,
+                    "total_potongan": 0,
+                    "total_potongan_barang": 0,  # ✅ tambah ini
+                    "total_gaji": 0,
+                }
+
+            # hitung absensi runtime
+            # inject status mes dari history (per hari)
+            if r.get("work_date"):
+                r["tinggal_di_mes"] = 1 if cek_tinggal_di_mes(
+                    conn,
+                    r["employee_id"],
+                    r["work_date"]
+                ) else 0
+            else:
+                r["tinggal_di_mes"] = 0
+
+            # hitung absensi runtime
+            hasil = hitung_gaji_harian_row(r)
+            potongan_barang = conn.execute("""
+                SELECT
+                    COALESCE(SUM(
+                        CASE
+                            WHEN metode_potong = 'sekali' THEN total
+                            WHEN metode_potong = 'cicilan' THEN
+                                CASE
+                                    WHEN sisa < cicilan_per_minggu THEN sisa
+                                    ELSE cicilan_per_minggu
+                                END
+                            ELSE 0
+                        END
+                    ), 0) AS total
+                FROM employee_items
+                WHERE employee_id = ?
+                  AND status = 'aktif'
+                  AND tanggal BETWEEN ? AND ?
+            """, (
+                emp_id,
+                tanggal_awal,
+                tanggal_akhir
+            )).fetchone()["total"]
+
+            if hasil["work_type"] == "full":
+                grouped[emp_id]["hari_masuk"] += 1
+
+            grouped[emp_id]["total_upah_borongan"] += int(round(r.get("total_upah_borongan") or 0))
+            grouped[emp_id]["total_gaji_pokok"] += int(round(hasil["gaji_pokok"] or 0))
+            grouped[emp_id]["total_lembur"] += int(round(hasil["gaji_lembur"] or 0))
+            grouped[emp_id]["total_insentif"] += int(round(hasil["insentif"] or 0))
+            grouped[emp_id]["total_potongan_barang"] += int(potongan_barang or 0)
+
+            grouped[emp_id]["total_potongan"] += (
+                    int(round(hasil.get("potongan_telat", 0) or 0))
+                    + int(round(hasil.get("potongan_mes", 0) or 0))
+                    + int(potongan_barang or 0)
+            )
+
+            grouped[emp_id]["total_gaji"] += (
+                    int(round(r.get("total_upah_borongan") or 0))
+                    + int(round(hasil["gaji_pokok"] or 0))
+                    + int(round(hasil["gaji_lembur"] or 0))
+                    + int(round(hasil["insentif"] or 0))
+                    - int(round(hasil.get("potongan_telat", 0) or 0))
+                    - int(round(hasil.get("potongan_mes", 0) or 0))
+                    - int(potongan_barang or 0)
+            )
+        rows = list(grouped.values())
+        rows.sort(key=lambda x: int(x["no_id"]) if str(x["no_id"]).isdigit() else 999999)
+
+        summary["total_karyawan"] = len(rows)
+        summary["total_upah_borongan"] = sum(r["total_upah_borongan"] for r in rows)
+        summary["total_gaji_pokok"] = sum(r["total_gaji_pokok"] for r in rows)
+        summary["total_lembur"] = sum(r["total_lembur"] for r in rows)
+        summary["total_insentif"] = sum(r["total_insentif"] for r in rows)
+        summary["total_potongan"] = sum(r["total_potongan"] for r in rows)
+        summary["total_gaji"] = sum(r["total_gaji"] for r in rows)
+
+        conn.close()
+
+    return render_template(
+        "karyawan/payroll.html",
+        rows=rows,
+        tanggal_awal=tanggal_awal,
+        tanggal_akhir=tanggal_akhir,
+        bagian=bagian,
+        summary=summary
+    )
+
+@karyawan_bp.route("/absensi/<int:id>/edit", methods=["GET", "POST"])
+def absensi_edit(id):
+    conn = get_conn()
+
+    if request.method == "POST":
+        def fix_time(t):
+            if t and len(t) == 5:  # format HH:MM
+                return t + ":00"
+            return t
+
+        period1_in = fix_time(request.form.get("period1_in"))
+        period1_out = fix_time(request.form.get("period1_out"))
+        period2_in = fix_time(request.form.get("period2_in"))
+        period2_out = fix_time(request.form.get("period2_out"))
+        period3_in = fix_time(request.form.get("period3_in"))
+        period3_out = fix_time(request.form.get("period3_out"))
+        status_hadir = request.form.get("status_hadir") or "tidak_hadir"
+
+        conn.execute("""
+            UPDATE attendance_daily
+            SET
+                period1_in = ?,
+                period1_out = ?,
+                period2_in = ?,
+                period2_out = ?,
+                period3_in = ?,
+                period3_out = ?,
+                status_hadir = ?
+            WHERE id = ?
+        """, (
+            period1_in,
+            period1_out,
+            period2_in,
+            period2_out,
+            period3_in,
+            period3_out,
+            status_hadir,
+            id
+        ))
+        conn.commit()
+        conn.close()
+        return redirect(url_for("karyawan.absensi_index"))
+
+    row = conn.execute("""
+        SELECT *
+        FROM attendance_daily
+        WHERE id = ?
+    """, (id,)).fetchone()
+
+    conn.close()
+
+    if not row:
+        return redirect(url_for("karyawan.absensi_index"))
+
+    return render_template("karyawan/absensi_edit.html", row=row)
+def fix_time(t):
+    if not t:
+        return None
+    if len(t) == 5:
+        return t + ":00"
+    return t
+
+
+@karyawan_bp.route("/absensi/input-manual", methods=["GET", "POST"])
+def absensi_input_manual():
+    conn = get_conn()
+
+    no_id = request.args.get("no_id")
+    tanggal = request.args.get("tanggal")
+
+    if request.method == "POST":
+        employee_id = request.form.get("employee_id")
+        fingerprint_id = request.form.get("fingerprint_id") or None
+        work_date = request.form.get("work_date")
+        shift_code = request.form.get("shift_code")
+        status_hadir = request.form.get("status_hadir") or "hadir"
+
+        period1_in = fix_time(request.form.get("period1_in"))
+        period1_out = fix_time(request.form.get("period1_out"))
+        period2_in = fix_time(request.form.get("period2_in"))
+        period2_out = fix_time(request.form.get("period2_out"))
+        period3_in = fix_time(request.form.get("period3_in"))
+        period3_out = fix_time(request.form.get("period3_out"))
+
+        cek = conn.execute("""
+            SELECT id
+            FROM attendance_daily
+            WHERE employee_id = ?
+              AND work_date = ?
+            LIMIT 1
+        """, (employee_id, work_date)).fetchone()
+
+        if cek:
+            conn.execute("""
+                UPDATE attendance_daily
+                SET
+                    fingerprint_id = ?,
+                    shift_code = ?,
+                    period1_in = ?,
+                    period1_out = ?,
+                    period2_in = ?,
+                    period2_out = ?,
+                    period3_in = ?,
+                    period3_out = ?,
+                    status_hadir = ?,
+                    sumber = ?,
+                    catatan = ?
+                WHERE id = ?
+            """, (
+                fingerprint_id,
+                shift_code,
+                period1_in,
+                period1_out,
+                period2_in,
+                period2_out,
+                period3_in,
+                period3_out,
+                status_hadir,
+                "manual",
+                "Update manual dari absensi",
+                cek["id"]
+            ))
+        else:
+            conn.execute("""
+                INSERT INTO attendance_daily (
+                    employee_id, fingerprint_id, work_date, shift_code,
+                    period1_in, period1_out,
+                    period2_in, period2_out,
+                    period3_in, period3_out,
+                    normal_hours, actual_hours, overtime_hours,
+                    late_minutes, early_leave_minutes,
+                    status_hadir, sumber, catatan, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (
+                employee_id,
+                fingerprint_id,
+                work_date,
+                shift_code,
+                period1_in, period1_out,
+                period2_in, period2_out,
+                period3_in, period3_out,
+                0, 0, 0,
+                0, 0,
+                status_hadir,
+                "manual",
+                "Input manual dari absensi"
+            ))
+
+        conn.commit()
+        conn.close()
+        return redirect(url_for("karyawan.absensi_index", tanggal=work_date))
+
+    emp = conn.execute("""
+        SELECT id, no_id, nama, bagian, fingerprint_id, shift_default
+        FROM employees
+        WHERE no_id = ?
+        LIMIT 1
+    """, (no_id,)).fetchone()
+
+    conn.close()
+
+    if not emp:
+        return redirect(url_for("karyawan.absensi_index", tanggal=tanggal))
+
+    return render_template(
+        "karyawan/absensi_input_manual.html",
+        emp=emp,
+        tanggal=tanggal
+    )
+@karyawan_bp.route("/employee-items", methods=["GET", "POST"])
+def employee_items():
+    conn = get_conn()
+
+    item_options = [
+        "Seragam",
+        "Baju",
+        "Celana",
+        "Topi",
+        "Apron",
+        "Masker",
+        "Sepatu Cewek",
+        "Sepatu Cowok",
+        "Sarung Tangan Kain",
+        "Sarung Tangan Karet",
+    ]
+
+    if request.method == "POST":
+        tanggal = request.form.get("tanggal")
+        nama_item = request.form.get("nama_item")
+        harga_satuan = int(request.form.get("harga_satuan") or 0)
+        qty = int(request.form.get("qty") or 1)
+        metode_potong = request.form.get("metode_potong") or "sekali"
+        cicilan_per_minggu = int(request.form.get("cicilan_per_minggu") or 0)
+        keterangan = request.form.get("keterangan") or ""
+        no_ids_text = request.form.get("no_ids") or ""
+
+        total = harga_satuan * qty
+        no_ids = [
+            x.strip()
+            for x in no_ids_text.replace(",", "\n").splitlines()
+            if x.strip()
+        ]
+
+        berhasil = 0
+        gagal = []
+
+        for no_id in no_ids:
+            emp = conn.execute("""
+                SELECT id, no_id, nama
+                FROM employees
+                WHERE no_id = ?
+                  AND status_aktif = 1
+                LIMIT 1
+            """, (no_id,)).fetchone()
+
+            if not emp:
+                gagal.append(no_id)
+                continue
+
+            sisa = total if metode_potong == "cicilan" else 0
+
+            conn.execute("""
+                INSERT INTO employee_items (
+                    employee_id, no_id, nama, tanggal,
+                    nama_item, qty, harga_satuan, total,
+                    metode_potong, cicilan_per_minggu, sisa,
+                    status, keterangan, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (
+                emp["id"],
+                emp["no_id"],
+                emp["nama"],
+                tanggal,
+                nama_item,
+                qty,
+                harga_satuan,
+                total,
+                metode_potong,
+                cicilan_per_minggu,
+                sisa,
+                "aktif",
+                keterangan
+            ))
+
+            berhasil += 1
+
+        conn.commit()
+        conn.close()
+
+        return redirect(url_for("karyawan.employee_items"))
+
+    rows = conn.execute("""
+        SELECT *
+        FROM employee_items
+        ORDER BY tanggal DESC, id DESC
+        LIMIT 100
+    """).fetchall()
+
+    rows = [dict(r) for r in rows]
+    conn.close()
+
+    return render_template(
+        "karyawan/employee_items.html",
+        rows=rows,
+        item_options=item_options
+    )
+@karyawan_bp.route("/payroll/finalize", methods=["POST"])
+def payroll_finalize():
+    conn = get_conn()
+
+    tanggal_awal = request.form.get("tanggal_awal")
+    tanggal_akhir = request.form.get("tanggal_akhir")
+
+    if not tanggal_awal or not tanggal_akhir:
+        conn.close()
+        return redirect(url_for("karyawan.payroll_index"))
+
+    # potongan sekali: tandai sudah dipotong
+    conn.execute("""
+        UPDATE employee_items
+        SET status = 'paid'
+        WHERE metode_potong = 'sekali'
+          AND status = 'aktif'
+          AND tanggal BETWEEN ? AND ?
+    """, (tanggal_awal, tanggal_akhir))
+
+    # cicilan: kurangi sisa
+    items = conn.execute("""
+        SELECT id, sisa, cicilan_per_minggu
+        FROM employee_items
+        WHERE metode_potong = 'cicilan'
+          AND status = 'aktif'
+    """).fetchall()
+
+    for item in items:
+        potong = min(item["sisa"], item["cicilan_per_minggu"])
+        sisa_baru = item["sisa"] - potong
+        status_baru = "lunas" if sisa_baru <= 0 else "aktif"
+
+        conn.execute("""
+            UPDATE employee_items
+            SET sisa = ?, status = ?
+            WHERE id = ?
+        """, (sisa_baru, status_baru, item["id"]))
+
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for(
+        "karyawan.payroll_index",
+        tanggal_awal=tanggal_awal,
+        tanggal_akhir=tanggal_akhir
+    ))
+@karyawan_bp.route("/mes", methods=["GET", "POST"])
+def mes_index():
+    conn = get_conn()
+
+    if request.method == "POST":
+        no_id = request.form.get("no_id", "").strip()
+        tanggal_mulai = request.form.get("tanggal_mulai", "").strip()
+        tanggal_selesai = request.form.get("tanggal_selesai", "").strip()
+        keterangan = request.form.get("keterangan", "").strip()
+
+        emp = conn.execute("""
+            SELECT id, no_id, nama
+            FROM employees
+            WHERE no_id = ?
+              AND status_aktif = 1
+            LIMIT 1
+        """, (no_id,)).fetchone()
+
+        if emp and tanggal_mulai:
+            conn.execute("""
+                INSERT INTO employee_mes_history (
+                    employee_id, no_id, nama,
+                    tanggal_mulai, tanggal_selesai,
+                    status, keterangan, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, (
+                emp["id"],
+                emp["no_id"],
+                emp["nama"],
+                tanggal_mulai,
+                tanggal_selesai or None,
+                "keluar" if tanggal_selesai else "aktif",
+                keterangan or None
+            ))
+            conn.commit()
+
+        conn.close()
+        return redirect(url_for("karyawan.mes_index"))
+
+    rows = conn.execute("""
+        SELECT *
+        FROM employee_mes_history
+        ORDER BY 
+            CASE WHEN status = 'aktif' THEN 0 ELSE 1 END,
+            tanggal_mulai DESC,
+            CAST(no_id AS INTEGER)
+    """).fetchall()
+
+    rows = [dict(r) for r in rows]
+    conn.close()
+
+    return render_template(
+        "karyawan/mes.html",
+        rows=rows
+    )
+@karyawan_bp.route("/mes/<int:id>/keluar", methods=["POST"])
+def mes_keluar(id):
+    conn = get_conn()
+
+    tanggal_selesai = request.form.get("tanggal_selesai", "").strip()
+    keterangan = request.form.get("keterangan", "").strip()
+
+    conn.execute("""
+        UPDATE employee_mes_history
+        SET
+            tanggal_selesai = ?,
+            status = 'keluar',
+            keterangan = COALESCE(?, keterangan)
+        WHERE id = ?
+    """, (
+        tanggal_selesai or None,
+        keterangan or None,
+        id
+    ))
+
+    conn.commit()
+    conn.close()
+
+    return redirect(url_for("karyawan.mes_index"))

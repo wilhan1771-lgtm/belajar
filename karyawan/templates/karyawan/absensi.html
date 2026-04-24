@@ -19,118 +19,134 @@
 
   <!-- FILTER -->
   <form method="get" class="toolbar">
-
-    <div class="field">
-      <label>Tanggal</label>
-      <input type="date" name="tanggal"
-        value="{{ request.args.get('tanggal', tanggal) }}">
-    </div>
-
-    <div class="field">
-      <label>Status</label>
-      <select name="status">
-        <option value="">Semua</option>
-        <option value="hadir" {% if request.args.get('status') == 'hadir' %}selected{% endif %}>Hadir</option>
-        <option value="tidak_hadir" {% if request.args.get('status') == 'tidak_hadir' %}selected{% endif %}>Tidak Hadir</option>
-      </select>
-    </div>
-
-    <div class="field">
-      <label>Bagian</label>
-      <select name="bagian">
-        <option value="">Semua</option>
-        <option value="Borongan">Borongan</option>
-        <option value="Produksi">Produksi</option>
-        <option value="Beku">Beku</option>
-        <option value="Training">Training</option>
-        <option value="Coldroom">Coldroom</option>
-        <option value="Umum">Umum</option>
-        <option value="Admin">Admin</option>
-      </select>
-    </div>
-
-    <button class="btn btn-primary">Tampilkan</button>
-    <button type="button" onclick="window.print()" class="btn btn-dark">Print</button>
-
-  </form>
-
-  <!-- SUMMARY SIMPLE -->
-  <div class="summary-simple">
-    <div>Hadir: <b>{{ summary.hadir }}</b></div>
-    <div>Tidak Hadir: <b>{{ summary.tidak_hadir }}</b></div>
-    <div>Borongan Masuk: <b>{{ summary.borongan_masuk }}</b></div>
-    <div>Borongan Beku: <b>{{ summary.borongan_beku }}</b></div>
-  </div>
-</div>
-  <!-- TABLE -->
-  <div class="table-card">
-    <table>
-
-      <thead>
-        <tr>
-          <th>No</th>
-          <th>No ID</th>
-          <th>Nama</th>
-          <th>Bagian</th>
-          <th>Shift</th>
-          <th>P1 In</th>
-          <th>P1 Out</th>
-          <th>P2 In</th>
-          <th>P2 Out</th>
-          <th>P3 In</th>
-          <th>P3 Out</th>
-          <th>Jam</th>
-          <th>Telat</th>
-          <th>Lembur</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {% for r in rows %}
-        <tr class="{% if r.status_hadir == 'tidak_hadir' %}row-not-present{% endif %}">
-
-          <td>{{ loop.index }}</td>
-          <td>{{ r.no_id }}</td>
-          <td>{{ r.nama }}</td>
-          <td>{{ r.bagian }}</td>
-          <td>{{ r.shift_code }}</td>
-
-          <td class="text-success">{{ r.period1_in or "-" }}</td>
-          <td class="text-danger">{{ r.period1_out or "-" }}</td>
-
-          <td class="text-success">{{ r.period2_in or "-" }}</td>
-          <td class="text-danger">{{ r.period2_out or "-" }}</td>
-
-          <td class="text-success">{{ r.period3_in or "-" }}</td>
-          <td class="text-danger">{{ r.period3_out or "-" }}</td>
-
-          <td>{{ "%.2f"|format(r.actual_hours or 0) }}</td>
-          <td>{{ r.late_minutes or 0 }}</td>
-          <td>{{ "%.2f"|format(r.overtime_hours or 0) }}</td>
-
-          <td>
-            {% if r.status_hadir == "hadir" %}
-              <span class="status-hadir">Hadir</span>
-            {% else %}
-              <span class="status-tidak">Tidak Hadir</span>
-            {% endif %}
-          </td>
-
-        </tr>
-        {% endfor %}
-      </tbody>
-
-    </table>
+  <div class="field">
+    <label>Tanggal</label>
+    <input type="date" name="tanggal" value="{{ request.args.get('tanggal', tanggal) }}">
   </div>
 
+  <div class="field">
+    <label>Status</label>
+    <select name="status">
+      <option value="">Semua</option>
+      <option value="hadir" {% if request.args.get('status') == 'hadir' %}selected{% endif %}>Hadir</option>
+      <option value="tidak_hadir" {% if request.args.get('status') == 'tidak_hadir' %}selected{% endif %}>Tidak Hadir</option>
+    </select>
+  </div>
+
+  <div class="field">
+    <label>Bagian</label>
+    <select name="bagian">
+      <option value="">Semua</option>
+      <option value="Borongan" {% if request.args.get('bagian') == 'Borongan' %}selected{% endif %}>Borongan</option>
+      <option value="Produksi" {% if request.args.get('bagian') == 'Produksi' %}selected{% endif %}>Produksi</option>
+      <option value="Beku" {% if request.args.get('bagian') == 'Beku' %}selected{% endif %}>Beku</option>
+      <option value="Training" {% if request.args.get('bagian') == 'Training' %}selected{% endif %}>Training</option>
+      <option value="Coldroom" {% if request.args.get('bagian') == 'Coldroom' %}selected{% endif %}>Coldroom</option>
+      <option value="UMUM" {% if request.args.get('bagian') == 'UMUM' %}selected{% endif %}>UMUM</option>
+      <option value="Malam" {% if request.args.get('bagian') == 'Malam' %}selected{% endif %}>Malam</option>
+      <option value="Admin" {% if request.args.get('bagian') == 'Admin' %}selected{% endif %}>Admin</option>
+    </select>
+  </div>
+
+  <button class="btn btn-primary">Tampilkan</button>
+  <button type="button" onclick="window.print()" class="btn btn-dark">Print</button>
+</form>
+
+<!-- SUMMARY SIMPLE -->
+<div class="summary-simple">
+  <div>Hadir: <b>{{ summary.hadir }}</b></div>
+  <div>Tidak Hadir: <b>{{ summary.tidak_hadir }}</b></div>
+  <div>Borongan Masuk: <b>{{ summary.borongan_masuk }}</b></div>
+  <div>Borongan Beku: <b>{{ summary.borongan_beku }}</b></div>
 </div>
+</div>
+
+<!-- TABLE -->
+<div class="table-card">
+  <table>
+    <thead>
+      <tr>
+        <th>No</th>
+        <th>No ID</th>
+        <th>Nama</th>
+        <th>Bagian</th>
+        <th>P1 In</th>
+        <th>P1 Out</th>
+        <th>P2 In</th>
+        <th>P2 Out</th>
+        <th>P3 In</th>
+        <th>P3 Out</th>
+        <th class="hide-print">Jam</th>
+        <th>Telat</th>
+        <th>Lembur</th>
+        <th>Insentif</th>
+        <th class="hide-print">Status</th>
+        <th>Gaji</th>
+        <th class="hide-print">Validasi</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for r in rows %}
+      <tr class="{% if r.status_hadir == 'tidak_hadir' %}row-not-present{% endif %}">
+        <td>{{ loop.index }}</td>
+        <td>{{ r.no_id }}</td>
+        <td>{{ r.nama }}</td>
+        <td>{{ r.bagian }}</td>
+
+        <td class="text-success">{{ r.period1_in or "-" }}</td>
+        <td class="text-danger">{{ r.period1_out or "-" }}</td>
+
+        <td class="text-success">{{ r.period2_in or "-" }}</td>
+        <td class="text-danger">{{ r.period2_out or "-" }}</td>
+
+        <td class="text-success">{{ r.period3_in or "-" }}</td>
+        <td class="text-danger">{{ r.period3_out or "-" }}</td>
+
+        <td class="hide-print">{{ "%.2f"|format(r.actual_hours or 0) }}</td>
+        <td>{{ r.late_minutes or 0 }}</td>
+        <td>{{ "%.2f"|format(r.overtime_hours or 0) }}</td>
+        <td>Rp {{ "{:,.0f}".format(r.insentif or 0) }}</td>
+
+        <td class="hide-print">
+          {% if r.status_hadir == "hadir" %}
+            <span class="status-hadir">Hadir</span>
+          {% else %}
+            <span class="status-tidak">Tidak Hadir</span>
+          {% endif %}
+        </td>
+
+        <td>
+          Rp {{ "{:,.0f}".format(r.gaji_final or 0) }}
+        </td>
+
+       <td class="hide-print">
+  <div class="validasi-aksi">
+    <span class="badge-ok">OK</span>
+
+    {% if r.attendance_id %}
+      <a href="{{ url_for('karyawan.absensi_edit', id=r.attendance_id) }}"
+         class="edit-mini"
+         title="Edit">✏️</a>
+    {% else %}
+      <a href="{{ url_for('karyawan.absensi_input_manual', no_id=r.no_id, tanggal=tanggal) }}"
+         class="edit-mini"
+         title="Input">＋</a>
+    {% endif %}
+  </div>
+</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
 <style>
-
 body {
   background: #f4f7fb;
-  font-family: Arial;
+  font-family: Arial, sans-serif;
   color: #1f2937;
+  margin: 0;
 }
 
 .container {
@@ -175,7 +191,8 @@ input, select {
   height: 35px;
   border-radius: 6px;
   border: 1px solid #ccc;
-  padding: 5px;
+  padding: 5px 8px;
+  box-sizing: border-box;
 }
 
 .btn {
@@ -204,34 +221,42 @@ input, select {
   display: flex;
   gap: 20px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
 }
 
 .table-card {
   background: white;
   padding: 10px;
   border-radius: 10px;
+  overflow-x: auto;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 th {
   background: #f3f4f6;
+  white-space: nowrap;
 }
 
 th, td {
   padding: 8px;
   border-bottom: 1px solid #ddd;
+  font-size: 13px;
+  vertical-align: middle;
 }
 
 .text-success {
   color: green;
+  font-weight: bold;
 }
 
 .text-danger {
   color: red;
+  font-weight: bold;
 }
 
 .status-hadir {
@@ -247,9 +272,115 @@ th, td {
 .row-not-present {
   background: #fff5f5;
 }
+
+.badge-ok {
+  background: #dcfce7;
+  color: #166534;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+.badge-error {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* =========================
+   PRINT A4
+========================= */
+@page {
+  size: A4 portrait;
+  margin: 8mm;
+}
+
 @media print {
+
+  body {
+    font-size: 10px;
+    color: #000;
+  }
+
   .no-print {
     display: none !important;
   }
+
+  .hide-print {
+    display: none !important;
+  }
+
+  .container {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .header-box {
+    background: none !important;
+    color: black !important;
+    padding: 0 !important;
+    margin-bottom: 10px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  th {
+    background: #f3f4f6 !important;
+    font-size: 10px;
+  }
+
+  th, td {
+    padding: 3px 4px;
+    font-size: 9px;
+    border-bottom: 1px solid #ccc;
+    text-align: center;
+  }
+
+  td:nth-child(3) {
+    text-align: left; /* nama rata kiri */
+  }
+
+  /* warna tetap */
+  .text-success {
+    color: #166534 !important;
+    font-weight: bold;
+  }
+
+  .text-danger {
+    color: #b91c1c !important;
+    font-weight: bold;
+  }
+
+  /* hilangkan badge */
+  .badge-ok, .badge-error {
+    background: none !important;
+    color: black !important;
+    padding: 0;
+  }
+  .validasi-aksi {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.edit-mini {
+  text-decoration: none;
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+.edit-mini:hover {
+  opacity: 1;
+}
+
 }
 </style>

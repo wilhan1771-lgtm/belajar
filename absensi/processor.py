@@ -1,6 +1,7 @@
 from helpers.db import get_conn
 from datetime import datetime, time as dt_time, timedelta
 import time
+from .rules import apply_pagi_rules
 
 
 def parse_dt(tanggal, waktu):
@@ -73,7 +74,7 @@ def process_attendance():
 
         employee_id = emp["id"]
         no_id = emp["no_id"]
-        shift_code = emp["shift_default"] or "PAGI"
+        shift_code = (emp["shift_default"] or "PAGI").upper()
 
         scan_times = [
             parse_dt(s["tanggal"], s["waktu"])
@@ -97,9 +98,6 @@ def process_attendance():
 
         # =========================
         # SHIFT PAGI
-        # P1 = 08:00 - 12:00
-        # P2 = 13:00 - 17:30
-        # P3 = lembur
         # =========================
         if shift_code == "PAGI":
 
@@ -112,87 +110,138 @@ def process_attendance():
             for dt in scan_times:
                 t = dt.time()
 
-                # scan masuk pagi
-                if dt_time(6, 30) <= t <= dt_time(10, 0):
+                if dt_time(6, 30) <= t <= dt_time(9, 0):
                     masuk_pagi.append(dt)
-
-                # scan keluar istirahat
-                elif dt_time(11, 30) <= t <= dt_time(12, 34):
+                elif dt_time(10, 0) <= t <= dt_time(12, 34):
                     keluar_siang.append(dt)
-
-                # scan masuk sesi 2
-                elif dt_time(12, 35 ) <= t <= dt_time(15, 0):
+                elif dt_time(12, 35) <= t <= dt_time(15, 0):
                     masuk_siang.append(dt)
-
-                # scan pulang normal
-                elif dt_time(15, 1) <= t <= dt_time(18, 30):
+                elif dt_time(15, 1) <= t <= dt_time(18, 0):
                     pulang_normal.append(dt)
-
-                # scan lembur
-                elif dt_time(18, 31) <= t <= dt_time(23, 59):
+                elif dt_time(18, 1) <= t <= dt_time(23, 59):
                     scan_lembur.append(dt)
 
-            # assign P1
             if masuk_pagi:
                 period1_in = masuk_pagi[0].strftime("%H:%M:%S")
 
             if keluar_siang:
                 period1_out = keluar_siang[-1].strftime("%H:%M:%S")
 
-            # assign P2
             if masuk_siang:
                 period2_in = masuk_siang[0].strftime("%H:%M:%S")
 
             if pulang_normal:
                 period2_out = pulang_normal[-1].strftime("%H:%M:%S")
 
-            # kalau tidak scan masuk sesi 2 tapi ada pulang sesi 2,
-            # anggap mulai sesi 2 jam 13:00
             if not period2_in and period2_out:
                 period2_in = "13:00:00"
 
-            # assign P3 lembur
             if len(scan_lembur) >= 2:
                 period3_in = scan_lembur[0].strftime("%H:%M:%S")
                 period3_out = scan_lembur[-1].strftime("%H:%M:%S")
             elif len(scan_lembur) == 1:
-                # kalau hanya 1 scan lembur, anggap mulai lembur 17:30
-                period3_in = "17:30:00"
+                period3_in = scan_lembur[0].strftime("%H:%M:%S")
                 period3_out = scan_lembur[0].strftime("%H:%M:%S")
 
-            # hitung telat
             if period1_in:
-                jadwal_masuk = parse_dt(tanggal, "08:00:00")
-                actual_masuk = parse_dt(tanggal, period1_in)
-                if actual_masuk > jadwal_masuk:
-                    late_minutes = diff_minutes(actual_masuk, jadwal_masuk)
+                jadwal = parse_dt(tanggal, "08:00:00")
+                actual = parse_dt(tanggal, period1_in)
+                telat_menit = diff_minutes(actual, jadwal)
 
-            # hitung pulang cepat
+                if telat_menit >= 2:
+                    potongan_telat = 10000
+                else:
+                    potongan_telat = 0
+
             if period2_out:
                 jadwal_pulang = parse_dt(tanggal, "17:30:00")
                 actual_pulang = parse_dt(tanggal, period2_out)
                 if actual_pulang < jadwal_pulang:
                     early_leave_minutes = diff_minutes(jadwal_pulang, actual_pulang)
 
+            hasil = apply_pagi_rules(period1_in)
+            lembur_p1 = hasil["lembur_p1"]
+
+            if lembur_p1 > 0:
+                overtime_hours = lembur_p1
+
+        # =========================
+        # SHIFT BORONGAN
+        # =========================
+        elif shift_code == "BORONGAN":
+
+            masuk_pagi = []
+            keluar_siang = []
+            masuk_siang = []
+            pulang_normal = []
+            scan_malam = []
+
+            for dt in scan_times:
+                t = dt.time()
+
+                if dt_time(6, 0) <= t <= dt_time(9, 0):
+                    masuk_pagi.append(dt)
+                elif dt_time(10, 30) <= t <= dt_time(12, 30):
+                    keluar_siang.append(dt)
+                elif dt_time(12, 30) <= t <= dt_time(14, 30):
+                    masuk_siang.append(dt)
+                elif dt_time(14, 30) <= t <= dt_time(18, 0):
+                    pulang_normal.append(dt)
+                elif dt_time(18, 0) <= t <= dt_time(23, 59):
+                    scan_malam.append(dt)
+
+            if masuk_pagi:
+                period1_in = masuk_pagi[0].strftime("%H:%M:%S")
+
+            if keluar_siang:
+                period1_out = keluar_siang[-1].strftime("%H:%M:%S")
+
+            if masuk_siang:
+                period2_in = masuk_siang[0].strftime("%H:%M:%S")
+
+            if pulang_normal:
+                period2_out = pulang_normal[-1].strftime("%H:%M:%S")
+
+            if not period2_in and period2_out:
+                period2_in = "12:30:00"
+
+            if len(scan_malam) >= 2:
+                period3_in = scan_malam[0].strftime("%H:%M:%S")
+                period3_out = scan_malam[-1].strftime("%H:%M:%S")
+            elif len(scan_malam) == 1:
+                period3_in = scan_malam[0].strftime("%H:%M:%S")
+                period3_out = scan_malam[0].strftime("%H:%M:%S")
+
+            if period1_in:
+                jadwal_masuk = parse_dt(tanggal, "08:00:00")
+                actual_masuk = parse_dt(tanggal, period1_in)
+                if actual_masuk > jadwal_masuk:
+                    late_minutes = diff_minutes(actual_masuk, jadwal_masuk)
+
+            if period2_out:
+                jadwal_pulang = parse_dt(tanggal, "17:00:00")
+                actual_pulang = parse_dt(tanggal, period2_out)
+                if actual_pulang < jadwal_pulang:
+                    early_leave_minutes = diff_minutes(jadwal_pulang, actual_pulang)
+
         # =========================
         # SHIFT SORE
-        # P1 = 13:00 - 17:30
-        # P2 = 19:00 - 22:00
-        # P3 = lembur sampai 02:00 besok
+        # P1 = sesi sore
+        # P2 = 18:30 sampai selesai
+        # lembur dihitung jika P2 OUT > 22:00
+        # P2 bisa lanjut sampai besok 02:00
         # =========================
         elif shift_code == "SORE":
 
             sore_masuk = []
             sore_pulang = []
-            malam_masuk = []
-            malam_pulang = []
-            scan_lembur = []
+            malam_hari_ini = []
+            malam_besok = []
 
             besok = (
-                    datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
+                datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
             ).strftime("%Y-%m-%d")
 
-            # ambil scan besok dini hari untuk lembur
             cur.execute("""
                 SELECT *
                 FROM attendance_raw
@@ -216,70 +265,84 @@ def process_attendance():
                 t = dt.time()
                 scan_date = dt.strftime("%Y-%m-%d")
 
-                # P1 IN
-                if scan_date == tanggal and dt_time(12, 30) <= t <= dt_time(15, 0):
+                if scan_date == tanggal and dt_time(8, 30) <= t <= dt_time(15, 0):
                     sore_masuk.append(dt)
-
-                # P1 OUT
-                elif scan_date == tanggal and dt_time(17, 0) <= t <= dt_time(18, 30):
+                elif scan_date == tanggal and dt_time(16, 30) <= t <= dt_time(18, 0):
                     sore_pulang.append(dt)
+                elif scan_date == tanggal and dt_time(18, 21) <= t <= dt_time(23, 59):
+                    malam_hari_ini.append(dt)
+                elif scan_date == besok and dt_time(0, 0) <= t <= dt_time(2, 0):
+                    malam_besok.append(dt)
 
-                # P2 IN
-                elif scan_date == tanggal and dt_time(18, 30) <= t <= dt_time(20, 0):
-                    malam_masuk.append(dt)
-
-                # P2 OUT
-                elif scan_date == tanggal and dt_time(21, 55) <= t <= dt_time(22, 30):
-                    malam_pulang.append(dt)
-
-                # P3 lembur
-                elif (
-                        (scan_date == tanggal and dt_time(22, 1) <= t <= dt_time(23, 59))
-                        or
-                        (scan_date == besok and dt_time(0, 0) <= t <= dt_time(2, 0))
-                ):
-                    scan_lembur.append(dt)
-
-            # P1
             if sore_masuk:
                 period1_in = sore_masuk[0].strftime("%H:%M:%S")
 
             if sore_pulang:
                 period1_out = sore_pulang[-1].strftime("%H:%M:%S")
 
-            # P2
+            if malam_hari_ini or malam_besok:
+                if malam_hari_ini:
+                    period2_in = malam_hari_ini[0].strftime("%H:%M:%S")
+
+                if malam_besok:
+                    period2_out = malam_besok[-1].strftime("%H:%M:%S")
+                elif malam_hari_ini:
+                    period2_out = malam_hari_ini[-1].strftime("%H:%M:%S")
+
+            period3_in = None
+            period3_out = None
+
+        # =========================
+        # SHIFT MALAM
+        # =========================
+        elif shift_code == "MALAM":
+
+            malam_masuk = []
+            pagi_pulang = []
+
+            besok = (
+                datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
+            ).strftime("%Y-%m-%d")
+
+            cur.execute("""
+                SELECT *
+                FROM attendance_raw
+                WHERE fingerprint_id = ?
+                AND tanggal = ?
+                ORDER BY waktu
+            """, (fingerprint_id, besok))
+
+            raw_besok = cur.fetchall()
+
+            next_day_scans = []
+            for s in raw_besok:
+                dt_besok = parse_dt(s["tanggal"], s["waktu"])
+                if dt_time(0, 0) <= dt_besok.time() <= dt_time(10, 0):
+                    next_day_scans.append(dt_besok)
+
+            all_scans = scan_times + next_day_scans
+            all_scans.sort()
+
+            for dt in all_scans:
+                t = dt.time()
+                scan_date = dt.strftime("%Y-%m-%d")
+
+                if scan_date == tanggal and dt_time(21, 0) <= t <= dt_time(23, 0):
+                    malam_masuk.append(dt)
+                elif scan_date == besok and dt_time(0, 0) <= t <= dt_time(10, 0):
+                    pagi_pulang.append(dt)
+
             if malam_masuk:
-                period2_in = malam_masuk[0].strftime("%H:%M:%S")
+                period1_in = malam_masuk[0].strftime("%H:%M:%S")
 
-            if malam_pulang:
-                period2_out = malam_pulang[-1].strftime("%H:%M:%S")
+            if pagi_pulang:
+                period1_out = pagi_pulang[-1].strftime("%H:%M:%S")
 
-            if not period2_in and period2_out:
-                period2_in = "19:00:00"
+            period2_in = None
+            period2_out = None
+            period3_in = None
+            period3_out = None
 
-            # P3
-            if len(scan_lembur) >= 2:
-                period3_in = scan_lembur[0].strftime("%H:%M:%S")
-                period3_out = scan_lembur[-1].strftime("%H:%M:%S")
-            elif len(scan_lembur) == 1:
-                period3_in = "22:00:00"
-                period3_out = scan_lembur[0].strftime("%H:%M:%S")
-
-        # =========================
-        # FIX: kalau tidak checkout jam 22 tapi lanjut lembur
-        # =========================
-
-        # kalau ada lembur tapi tidak ada P2 OUT
-        if period3_out and not period2_out:
-            period2_out = "22:00:00"
-
-        # kalau ada P2 OUT tapi tidak ada P2 IN
-        if not period2_in and period2_out:
-            period2_in = "19:00:00"
-
-        # kalau ada lembur tapi tidak ada P3 IN
-        if period3_out and not period3_in:
-            period3_in = "22:00:00"
         # =========================
         # CHECK SCAN
         # =========================
@@ -298,30 +361,85 @@ def process_attendance():
         # =========================
         actual_hours = 0.0
 
-        if period1_in and period1_out:
-            dt1 = parse_dt(tanggal, period1_in)
-            dt2 = parse_dt(tanggal, period1_out)
-            actual_hours += max(0, (dt2 - dt1).total_seconds() / 3600)
+        if shift_code == "SORE":
+            if period1_in and period1_out:
+                dt1 = parse_dt(tanggal, period1_in)
+                dt2 = parse_dt(tanggal, period1_out)
+                actual_hours += max(0, (dt2 - dt1).total_seconds() / 3600)
 
-        if period2_in and period2_out:
-            dt1 = parse_dt(tanggal, period2_in)
-            dt2 = parse_dt(tanggal, period2_out)
-            actual_hours += max(0, (dt2 - dt1).total_seconds() / 3600)
+            if period2_in and period2_out:
+                dt1 = parse_dt(tanggal, period2_in)
 
-        if period3_in and period3_out:
-            dt1 = parse_dt(tanggal, period3_in)
+                if period2_out < period2_in:
+                    dt2 = parse_dt(
+                        (datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"),
+                        period2_out
+                    )
+                else:
+                    dt2 = parse_dt(tanggal, period2_out)
 
-            if period3_out < period3_in:
-                dt2 = parse_dt(
-                    (datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"),
-                    period3_out
-                )
+                actual_hours += max(0, (dt2 - dt1).total_seconds() / 3600)
+
+                batas_lembur = parse_dt(tanggal, "22:00:00")
+                if dt2 > batas_lembur:
+                    overtime_hours = round((dt2 - batas_lembur).total_seconds() / 3600, 2)
+                else:
+                    overtime_hours = 0.0
+
+            actual_hours = round(actual_hours, 2)
+
+        elif shift_code == "MALAM" and period1_in and period1_out:
+            dt_in = parse_dt(tanggal, period1_in)
+            dt_out = parse_dt(
+                (datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"),
+                period1_out
+            )
+
+            actual_hours = round(max(0, (dt_out - dt_in).total_seconds() / 3600), 2)
+
+            batas_normal = parse_dt(
+                (datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"),
+                "08:00:00"
+            )
+
+            if dt_out > batas_normal:
+                overtime_hours = round((dt_out - batas_normal).total_seconds() / 3600, 2)
             else:
-                dt2 = parse_dt(tanggal, period3_out)
+                overtime_hours = 0.0
 
-            actual_hours += max(0, (dt2 - dt1).total_seconds() / 3600)
+        else:
+            if period1_in and period1_out:
+                dt1 = parse_dt(tanggal, period1_in)
+                dt2 = parse_dt(tanggal, period1_out)
+                actual_hours += max(0, (dt2 - dt1).total_seconds() / 3600)
 
-        actual_hours = round(actual_hours, 2)
+            if period2_in and period2_out:
+                dt1 = parse_dt(tanggal, period2_in)
+
+                if period2_out < period2_in:
+                    dt2 = parse_dt(
+                        (datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"),
+                        period2_out
+                    )
+                else:
+                    dt2 = parse_dt(tanggal, period2_out)
+
+                actual_hours += max(0, (dt2 - dt1).total_seconds() / 3600)
+
+            if period3_in and period3_out:
+                dt1 = parse_dt(tanggal, period3_in)
+
+                if period3_out < period3_in:
+                    dt2 = parse_dt(
+                        (datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d"),
+                        period3_out
+                    )
+                else:
+                    dt2 = parse_dt(tanggal, period3_out)
+
+                actual_hours += max(0, (dt2 - dt1).total_seconds() / 3600)
+
+            actual_hours = round(actual_hours, 2)
 
         # =========================
         # NORMAL HOURS
@@ -335,10 +453,23 @@ def process_attendance():
         shift = cur.fetchone()
         normal_hours = shift["normal_hours"] if shift else 0
 
-        overtime_hours = max(
-            0,
-            round(actual_hours - normal_hours, 2)
-        )
+        if shift_code != "MALAM":
+            overtime_calc = max(0, round(actual_hours - normal_hours, 2))
+        else:
+            overtime_calc = overtime_hours
+
+        # =========================
+        # FINAL OVERRIDE RULE PAGI
+        # =========================
+        if shift_code == "PAGI" and period1_in:
+            hasil = apply_pagi_rules(period1_in)
+
+            if hasil["lembur_p1"] > 0:
+                overtime_hours = 1.0
+            else:
+                overtime_hours = overtime_calc
+        else:
+            overtime_hours = overtime_calc
 
         # =========================
         # STATUS
@@ -381,20 +512,27 @@ def process_attendance():
         # =========================
         # UPDATE PROCESSED
         # =========================
-        cur.execute("""
-            UPDATE attendance_raw
-            SET processed = 1
-            WHERE fingerprint_id = ?
-              AND tanggal = ?
-              AND IFNULL(processed, 0) = 0
-        """, (fingerprint_id, tanggal))
+        if shift_code in ["MALAM", "SORE"]:
+            besok = (
+                    datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
+            ).strftime("%Y-%m-%d")
 
-        print(f"Processed {no_id} - {tanggal}")
+            cur.execute("""
+                UPDATE attendance_raw
+                SET processed = 1
+                WHERE fingerprint_id = ?
+                  AND tanggal IN (?, ?)
+                  AND IFNULL(processed, 0) = 0
+            """, (fingerprint_id, tanggal, besok))
 
-    db.commit()
-    db.close()
-
-    print("Selesai proses attendance_raw -> attendance_daily")
+        else:
+            cur.execute("""
+                UPDATE attendance_raw
+                SET processed = 1
+                WHERE fingerprint_id = ?
+                  AND tanggal = ?
+                  AND IFNULL(processed, 0) = 0
+            """, (fingerprint_id, tanggal))
 
 
 if __name__ == "__main__":

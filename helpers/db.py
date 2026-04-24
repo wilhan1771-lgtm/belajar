@@ -4,12 +4,12 @@ import os
 # 1️⃣ Cek environment variable dulu
 DB_PATH = os.environ.get("RECEIVING_DB")
 
-# 2️⃣ Kalau tidak ada, pakai default relatif terhadap folder project
+# 2️⃣ Default: langsung ke folder project (belajar/)
 if not DB_PATH:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-    DB_PATH = os.path.join(BASE_DIR, "..", "receiving.db")
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    DB_PATH = os.path.join(BASE_DIR, "receiving.db")
 
-print("🗄️ Database aktif:", DB_PATH)  # optional: untuk debug
+print("🗄️ Database aktif:", DB_PATH)
 
 
 def get_conn():
@@ -443,24 +443,40 @@ ON attendance_raw (fingerprint_id, tanggal, waktu);
                     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
-                CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE,
-                password TEXT,
-                role TEXT);
-        CREATE INDEX IF NOT EXISTS idx_production_packing_pid
-        ON production_packing(production_id);
-        CREATE INDEX IF NOT EXISTS idx_invoice_line_invoice
-        ON invoice_line(invoice_id);      
-        CREATE INDEX IF NOT EXISTS idx_employees_no_id
-        ON employees(no_id);
-        CREATE INDEX IF NOT EXISTS idx_borongan_inputs_tanggal_no_id
-        ON borongan_inputs(tanggal, no_id);
-        CREATE INDEX IF NOT EXISTS idx_attendance_raw_tanggal_fingerprint
-        ON attendance_raw(tanggal, fingerprint_id);
-
-        CREATE INDEX IF NOT EXISTS idx_payroll_daily_tanggal_no_id
-        ON payroll_daily(tanggal, no_id);
+                CREATE TABLE IF NOT EXISTS employee_mes_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    employee_id INTEGER NOT NULL,
+                    no_id TEXT,
+                    nama TEXT,
+                    tanggal_mulai TEXT NOT NULL,
+                    tanggal_selesai TEXT,
+                    status TEXT DEFAULT 'aktif',
+                    keterangan TEXT,
+                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+                );
+            CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT,role TEXT);                 
+            CREATE INDEX IF NOT EXISTS idx_production_packing_pid ON production_packing(production_id);
+            CREATE INDEX IF NOT EXISTS idx_invoice_line_invoice ON invoice_line(invoice_id);      
+            CREATE INDEX IF NOT EXISTS idx_employees_no_id ON employees(no_id);
+            CREATE INDEX IF NOT EXISTS idx_borongan_inputs_tanggal_no_id ON borongan_inputs(tanggal, no_id);
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_raw_unique ON attendance_raw (tanggal, waktu, fingerprint_id);
+            CREATE INDEX IF NOT EXISTS idx_payroll_daily_tanggal_no_id ON payroll_daily(tanggal, no_id);
+            CREATE TABLE IF NOT EXISTS employee_items (
+                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                 employee_id INTEGER NOT NULL,
+                 no_id TEXT,
+                 nama TEXT,
+                tanggal TEXT NOT NULL,
+                nama_item TEXT NOT NULL,
+                qty INTEGER DEFAULT 1,
+                harga_satuan INTEGER DEFAULT 0,
+                total INTEGER DEFAULT 0,
+                metode_potong TEXT DEFAULT 'sekali',
+                cicilan_per_minggu INTEGER DEFAULT 0,
+                sisa INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'aktif',
+                keterangan TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE IF NOT EXISTS shift_definitions (
             shift_code TEXT PRIMARY KEY,
             nama_shift TEXT NOT NULL,
@@ -475,32 +491,31 @@ ON attendance_raw (fingerprint_id, tanggal, waktu);
         );
 
        CREATE TABLE IF NOT EXISTS attendance_daily (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    employee_id INTEGER NOT NULL,
-    fingerprint_id TEXT,
-    work_date TEXT NOT NULL,
-    shift_code TEXT NOT NULL,
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              employee_id INTEGER NOT NULL,
+              fingerprint_id TEXT,
+              work_date TEXT NOT NULL,
+              shift_code TEXT NOT NULL,
 
-    period1_in TEXT,
-    period1_out TEXT,
-    period2_in TEXT,
-    period2_out TEXT,
-    period3_in TEXT,
-    period3_out TEXT,
+                 period1_in TEXT,
+                 period1_out TEXT,
+                 period2_in TEXT,
+                 period2_out TEXT,
+                 period3_in TEXT,
+                 period3_out TEXT,
 
-    normal_hours REAL NOT NULL DEFAULT 0,
-    actual_hours REAL NOT NULL DEFAULT 0,
-    overtime_hours REAL NOT NULL DEFAULT 0,
-    late_minutes INTEGER NOT NULL DEFAULT 0,
-    early_leave_minutes INTEGER NOT NULL DEFAULT 0,
+             normal_hours REAL NOT NULL DEFAULT 0,
+             actual_hours REAL NOT NULL DEFAULT 0,
+             overtime_hours REAL NOT NULL DEFAULT 0,
+             late_minutes INTEGER NOT NULL DEFAULT 0,
+             early_leave_minutes INTEGER NOT NULL DEFAULT 0,
 
-    status_hadir TEXT DEFAULT 'hadir',
-    sumber TEXT DEFAULT 'auto',
-    catatan TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-
-    UNIQUE(employee_id, work_date)
-);
+            status_hadir TEXT DEFAULT 'hadir',
+            sumber TEXT DEFAULT 'auto',
+            catatan TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+             UNIQUE(employee_id, work_date));
+             
         CREATE UNIQUE INDEX IF NOT EXISTS idx_work_rates_unique
         ON work_rates(work_type_id, size_id);
         DELETE FROM work_rates
@@ -555,7 +570,8 @@ ON attendance_raw (fingerprint_id, tanggal, waktu);
         VALUES
         ('PAGI',  'Shift Pagi',  '08:00', '17:30', '12:00', '13:30', 0, 8.0, 10, 30),
         ( 'SORE',  'Shift Sore',  '13:00', '22:00', '17:30', '19:00', 0, 7.5, 10, 30),
-        ('MALAM', 'Shift Malam', '22:00', '08:00', NULL,    NULL,    1, 10.0, 10, 30);""")
+        ('MALAM', 'Shift Malam', '22:00', '08:00', NULL,    NULL,    1, 10.0, 10, 30),
+        ('BORONGAN', 'Shift Borongan', '08:00', '17:30', '12:00', '12:30', 0, 8.0, 10, 30);""")
         conn.execute("""
             UPDATE master_jenis
             SET mode='udang_size'
@@ -567,6 +583,12 @@ ON attendance_raw (fingerprint_id, tanggal, waktu);
         ensure_column(conn, "employees", "tipe_gaji", "TEXT DEFAULT 'harian'")
         ensure_column(conn, "employees", "area_kerja", "TEXT DEFAULT 'normal'")
         ensure_column(conn, "employees", "shift_default", "TEXT DEFAULT 'PAGI'")
+        ensure_column(conn, "attendance_daily", "insentif_malam", "INTEGER DEFAULT 0")
+        ensure_column(conn, "attendance_daily", "insentif_hari_besar", "INTEGER DEFAULT 0")
+        ensure_column(conn, "attendance_daily", "total_insentif", "INTEGER DEFAULT 0")
+        ensure_column(conn, "employees", "gaji_harian", "INTEGER DEFAULT 0")
+        ensure_column(conn, "employees", "tinggal_di_mes", "INTEGER DEFAULT 0")
+
         seed_master_data(conn)
         conn.commit()
         print("✅ Database baru siap:", DB_PATH)

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payroll</title>
+
+  <style>
+    body {
+      background: #f4f7fb;
+      font-family: Arial, sans-serif;
+      color: #1f2937;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 1280px;
+      margin: auto;
+      padding: 24px;
+    }
+
+    .header-box {
+      background: #2563eb;
+      color: white;
+      padding: 20px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+    }
+
+    .top-actions {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    .back-link {
+      text-decoration: none;
+      font-weight: bold;
+      color: #1d4ed8;
+    }
+
+    .no-print {
+      display: block;
+    }
+
+    /* FILTER */
+    .filter-card {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 18px;
+      padding: 16px;
+      margin-bottom: 18px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+
+    .filter-row {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-end;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      min-width: 170px;
+    }
+
+    .field label {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: #374151;
+    }
+
+    .field input,
+    .field select {
+      height: 40px;
+      min-width: 170px;
+      padding: 0 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 12px;
+      background: #fff;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    .action-field {
+      min-width: auto;
+    }
+
+    .btn {
+      height: 40px;
+      padding: 0 18px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+
+    .btn-dark {
+      background: #111827;
+      color: white;
+    }
+
+    .btn-green {
+      background: #16a34a;
+      color: white;
+    }
+
+    /* SUMMARY */
+    .summary-box {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+
+    .summary-item {
+      background: white;
+      padding: 12px 16px;
+      border-radius: 14px;
+      text-align: center;
+      min-width: 180px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    /* TABLE */
+    .table-card {
+      background: white;
+      padding: 10px;
+      border-radius: 14px;
+
+      overflow-x: auto;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+
+    }
+
+    th {
+      background: #f3f4f6;
+      white-space: nowrap;
+    }
+
+    th, td {
+      padding: 8px;
+      border-bottom: 1px solid #ddd;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    td:nth-child(3) {
+      text-align: center;
+    }
+
+    .text-right {
+      text-align: center;
+    }
+
+    @page {
+      size: A4 portrait;
+      margin: 8mm;
+    }
+
+    @media print {
+      body {
+        background: white !important;
+        font-size: 10px;
+      }
+
+      .no-print {
+        display: none !important;
+      }
+
+      .container {
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+
+      .header-box {
+        background: white !important;
+        color: black !important;
+        padding: 0 !important;
+        margin-bottom: 10px !important;
+        border-radius: 0 !important;
+      }
+
+      .summary-item,
+      .table-card,
+      .filter-card {
+        box-shadow: none !important;
+        border-radius: 0 !important;
+        background: white !important;
+      }
+
+      th, td {
+        font-size: 10px !important;
+        padding: 4px !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header-box">
+    <h1>Payroll </h1>
+    <p>Rekap gaji karyawan mingguan</p>
+  </div>
+
+  <div class="top-actions no-print">
+    <a href="{{ url_for('karyawan.karyawan_index') }}" class="back-link">← Kembali</a>
+  </div>
+
+  <div class="filter-card no-print">
+    <form method="get" class="filter-row">
+
+      <div class="field">
+        <label>Dari</label>
+        <input type="date" name="tanggal_awal" value="{{ tanggal_awal }}">
+      </div>
+
+      <div class="field">
+        <label>Sampai</label>
+        <input type="date" name="tanggal_akhir" value="{{ tanggal_akhir }}">
+      </div>
+
+      <div class="field">
+        <label>Bagian</label>
+        <select name="bagian">
+          <option value="">Semua</option>
+          <option value="borongan" {{ 'selected' if bagian == 'borongan' else '' }}>Borongan</option>
+          <option value="produksi" {{ 'selected' if bagian == 'produksi' else '' }}>Produksi</option>
+          <option value="beku" {{ 'selected' if bagian == 'beku' else '' }}>Beku</option>
+          <option value="malam" {{ 'selected' if bagian == 'malam' else '' }}>Malam</option>
+          <option value="UMUM" {{ 'selected' if bagian == 'umum' else '' }}>Umum</option>
+        </select>
+      </div>
+
+      <div class="field action-field">
+        <label>&nbsp;</label>
+        <button type="submit" class="btn btn-primary">Tampilkan</button>
+      </div>
+
+      <div class="field action-field">
+        <label>&nbsp;</label>
+        <button type="button" onclick="window.print()" class="btn btn-green">Print</button>
+      </div>
+        <form method="post"
+      action="{{ url_for('karyawan.payroll_finalize') }}"
+      onsubmit="return confirm('Finalisasi payroll periode ini? Potongan barang akan ditandai sudah dipotong.');"
+      style="display:inline;">
+      <input type="hidden" name="tanggal_awal" value="{{ tanggal_awal }}">
+        <input type="hidden" name="tanggal_akhir" value="{{ tanggal_akhir }}">
+        <button type="submit" class="btn btn-green">
+       Finalisasi Payroll
+     </button>
+</form>
+
+    </form>
+  </div>
+
+  <div class="summary-box">
+    <div class="summary-item">
+      <b>Total Karyawan</b><br>
+      {{ summary.total_karyawan }}
+    </div>
+
+    <div class="summary-item">
+      <b>Total Lembur</b><br>
+      Rp {{ "{:,.0f}".format(summary.total_lembur).replace(",", ".") }}
+    </div>
+
+    <div class="summary-item">
+      <b>Total Insentif</b><br>
+      Rp {{ "{:,.0f}".format(summary.total_insentif).replace(",", ".") }}
+    </div>
+
+    <div class="summary-item">
+      <b>Total Potongan</b><br>
+      Rp {{ "{:,.0f}".format(summary.total_potongan).replace(",", ".") }}
+    </div>
+
+    <div class="summary-item">
+      <b>Total Gaji</b><br>
+      Rp {{ "{:,.0f}".format(summary.total_gaji).replace(",", ".") }}
+    </div>
+
+    <div class="summary-item">
+      <b>Total Upah Borongan</b><br>
+      Rp {{ "{:,.0f}".format(summary.total_upah_borongan).replace(",", ".") }}
+    </div>
+
+    <div class="summary-item">
+      <b>Total Gaji Kehadiran</b><br>
+      Rp {{ "{:,.0f}".format(summary.total_gaji_pokok).replace(",", ".") }}
+    </div>
+  </div>
+
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>No</th>
+          <th>No ID</th>
+          <th>Nama</th>
+          <th>Bagian</th>
+          <th>Hari Masuk</th>
+          <th>Upah Borongan</th>
+          <th>Gaji Kehadiran</th>
+          <th>Lembur</th>
+          <th>Insentif</th>
+          <th>Potongan</th>
+          <th>Total Gaji</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ r.no_id }}</td>
+          <td>{{ r.nama }}</td>
+          <td>{{ r.bagian or '-' }}</td>
+          <td>{{ r.hari_masuk }}</td>
+          <td class="text-right">Rp {{ "{:,.0f}".format(r.total_upah_borongan).replace(",", ".") }}</td>
+          <td class="text-right">Rp {{ "{:,.0f}".format(r.total_gaji_pokok).replace(",", ".") }}</td>
+          <td class="text-right">Rp {{ "{:,.0f}".format(r.total_lembur).replace(",", ".") }}</td>
+          <td class="text-right">Rp {{ "{:,.0f}".format(r.total_insentif).replace(",", ".") }}</td>
+          <td class="text-right">Rp {{ "{:,.0f}".format(r.total_potongan).replace(",", ".") }}</td>
+          <td class="text-right"><b>Rp {{ "{:,.0f}".format(r.total_gaji).replace(",", ".") }}</b></td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="11" style="text-align:center;">Belum ada data payroll.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

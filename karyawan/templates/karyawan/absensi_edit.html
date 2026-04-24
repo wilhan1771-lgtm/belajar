@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>Edit Absensi</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f6fa;
+      padding: 20px;
+    }
+
+    .card {
+      max-width: 600px;
+      margin: auto;
+      background: #fff;
+      padding: 24px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+      margin-bottom: 10px;
+    }
+
+    .info {
+      margin-bottom: 18px;
+      font-size: 14px;
+      color: #555;
+      line-height: 1.5;
+    }
+
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: bold;
+      margin-bottom: 5px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 7px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .row .form-group {
+      flex: 1;
+    }
+
+    button {
+      width: 100%;
+      padding: 11px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      font-size: 15px;
+      margin-top: 8px;
+    }
+
+    button:hover {
+      background: #1e40af;
+    }
+
+    .back {
+      display: block;
+      text-align: center;
+      margin-top: 14px;
+      text-decoration: none;
+      color: #555;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="card">
+  <h2>Edit Absensi</h2>
+
+  <div class="info">
+    <strong>ID Absensi:</strong> {{ row.id }}<br>
+    <strong>Tanggal:</strong> {{ row.work_date }}<br>
+    <strong>Shift:</strong> {{ row.shift_code or '-' }}<br>
+    <strong>Sumber:</strong> {{ row.sumber or '-' }}
+  </div>
+
+  <form method="post">
+    <div class="form-group">
+      <label>Status Hadir</label>
+      <select name="status_hadir">
+        <option value="hadir" {{ 'selected' if row.status_hadir == 'hadir' else '' }}>Hadir</option>
+        <option value="tidak_hadir" {{ 'selected' if row.status_hadir == 'tidak_hadir' else '' }}>Tidak Hadir</option>
+      </select>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>P1 In</label>
+        <input type="time" name="period1_in" value="{{ row.period1_in[:5] if row.period1_in else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label>P1 Out</label>
+        <input type="time" name="period1_out" value="{{ row.period1_out[:5] if row.period1_out else '' }}">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>P2 In</label>
+        <input type="time" name="period2_in" value="{{ row.period2_in[:5] if row.period2_in else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label>P2 Out</label>
+        <input type="time" name="period2_out" value="{{ row.period2_out[:5] if row.period2_out else '' }}">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label>P3 In</label>
+        <input type="time" name="period3_in" value="{{ row.period3_in[:5] if row.period3_in else '' }}">
+      </div>
+
+      <div class="form-group">
+        <label>P3 Out</label>
+        <input type="time" name="period3_out" value="{{ row.period3_out[:5] if row.period3_out else '' }}">
+      </div>
+    </div>
+
+    <button type="submit">Simpan Perubahan</button>
+  </form>
+
+  <a href="{{ url_for('karyawan.absensi_index', tanggal=row.work_date) }}" class="back">
+    ← Kembali ke Absensi
+  </a>
+</div>
+
+</body>
+</html>
