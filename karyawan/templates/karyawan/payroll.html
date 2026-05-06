@@ -46,28 +46,26 @@
     }
 
     /* FILTER */
-    .filter-card {
-      background: #fff;
-      border: 1px solid #e5e7eb;
-      border-radius: 18px;
-      padding: 16px;
-      margin-bottom: 18px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
-    }
+   .filter-card {
+  padding: 16px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  margin-bottom: 16px;
+}
 
-    .filter-row {
-      display: flex;
-      flex-direction: row;
-      align-items: flex-end;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
+.filter-row {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 
-    .field {
-      display: flex;
-      flex-direction: column;
-      min-width: 170px;
-    }
 
     .field label {
       font-size: 14px;
@@ -91,35 +89,41 @@
     .action-field {
       min-width: auto;
     }
+.button-group {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 
-    .btn {
-      height: 40px;
-      padding: 0 18px;
-      border: none;
-      border-radius: 12px;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      font-size: 14px;
-    }
+.finalize-form {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
 
-    .btn-primary {
-      background: #2563eb;
-      color: white;
-    }
+.btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: none;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  cursor: pointer;
+}
 
+.btn-primary { background: #2563eb; color: #fff; }
+.btn-green { background: #16a34a; color: #fff; }
+.btn-blue { background: #0f172a; color: #fff; }
+.btn-orange { background: #f97316; color: #fff; }
     .btn-dark {
       background: #111827;
       color: white;
     }
 
-    .btn-green {
-      background: #16a34a;
-      color: white;
-    }
+
 
     /* SUMMARY */
     .summary-box {
@@ -230,53 +234,59 @@
     <a href="{{ url_for('karyawan.karyawan_index') }}" class="back-link">← Kembali</a>
   </div>
 
-  <div class="filter-card no-print">
-    <form method="get" class="filter-row">
+<div class="filter-card no-print">
 
-      <div class="field">
-        <label>Dari</label>
-        <input type="date" name="tanggal_awal" value="{{ tanggal_awal }}">
-      </div>
+  <form method="get" class="filter-row">
 
-      <div class="field">
-        <label>Sampai</label>
-        <input type="date" name="tanggal_akhir" value="{{ tanggal_akhir }}">
-      </div>
+    <div class="field">
+      <label>Dari</label>
+      <input type="date" name="tanggal_awal" value="{{ tanggal_awal }}">
+    </div>
 
-      <div class="field">
-        <label>Bagian</label>
-        <select name="bagian">
-          <option value="">Semua</option>
-          <option value="borongan" {{ 'selected' if bagian == 'borongan' else '' }}>Borongan</option>
-          <option value="produksi" {{ 'selected' if bagian == 'produksi' else '' }}>Produksi</option>
-          <option value="beku" {{ 'selected' if bagian == 'beku' else '' }}>Beku</option>
-          <option value="malam" {{ 'selected' if bagian == 'malam' else '' }}>Malam</option>
-          <option value="UMUM" {{ 'selected' if bagian == 'umum' else '' }}>Umum</option>
-        </select>
-      </div>
+    <div class="field">
+      <label>Sampai</label>
+      <input type="date" name="tanggal_akhir" value="{{ tanggal_akhir }}">
+    </div>
 
-      <div class="field action-field">
-        <label>&nbsp;</label>
-        <button type="submit" class="btn btn-primary">Tampilkan</button>
-      </div>
+    <div class="field">
+      <label>Bagian</label>
+      <select name="bagian">
+        <option value="">Semua</option>
+        <option value="borongan" {{ 'selected' if bagian == 'borongan' else '' }}>Borongan</option>
+        <option value="produksi" {{ 'selected' if bagian == 'produksi' else '' }}>Produksi</option>
+        <option value="beku" {{ 'selected' if bagian == 'beku' else '' }}>Beku</option>
+        <option value="malam" {{ 'selected' if bagian == 'malam' else '' }}>Malam</option>
+        <option value="umum" {{ 'selected' if bagian == 'umum' else '' }}>Umum</option>
+      </select>
+    </div>
 
-      <div class="field action-field">
-        <label>&nbsp;</label>
-        <button type="button" onclick="window.print()" class="btn btn-green">Print</button>
-      </div>
-        <form method="post"
-      action="{{ url_for('karyawan.payroll_finalize') }}"
-      onsubmit="return confirm('Finalisasi payroll periode ini? Potongan barang akan ditandai sudah dipotong.');"
-      style="display:inline;">
-      <input type="hidden" name="tanggal_awal" value="{{ tanggal_awal }}">
-        <input type="hidden" name="tanggal_akhir" value="{{ tanggal_akhir }}">
-        <button type="submit" class="btn btn-green">
-       Finalisasi Payroll
-     </button>
-</form>
+    <div class="button-group">
+      <button type="submit" class="btn btn-primary">Tampilkan</button>
 
-    </form>
-  </div>
+      <button type="button" onclick="window.print()" class="btn btn-green">Print</button>
+
+      <a href="{{ url_for('karyawan.payroll_history') }}" class="btn btn-blue">
+        History
+      </a>
+    </div>
+
+  </form>
+
+  <form method="post"
+        action="{{ url_for('karyawan.payroll_finalize') }}"
+        onsubmit="return confirm('Finalisasi payroll periode ini?');"
+        class="finalize-form">
+
+    <input type="hidden" name="tanggal_awal" value="{{ tanggal_awal }}">
+    <input type="hidden" name="tanggal_akhir" value="{{ tanggal_akhir }}">
+    <input type="hidden" name="bagian" value="{{ bagian }}">
+
+    <button type="submit" class="btn btn-orange">
+      Finalisasi Payroll
+    </button>
+  </form>
+
+</div>
 
   <div class="summary-box">
     <div class="summary-item">

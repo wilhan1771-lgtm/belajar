@@ -1,6 +1,7 @@
 import sqlite3
 import os
 
+
 # 1️⃣ Cek environment variable dulu
 DB_PATH = os.environ.get("RECEIVING_DB")
 
@@ -454,6 +455,34 @@ ON attendance_raw (fingerprint_id, tanggal, waktu);
                     keterangan TEXT,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP
                 );
+            CREATE TABLE IF NOT EXISTS payroll_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                employee_id INTEGER,
+                no_id TEXT,
+                nama TEXT,
+                bagian TEXT,
+                tanggal_awal DATE,
+                tanggal_akhir DATE,
+                hari_masuk REAL DEFAULT 0,
+                total_upah_borongan INTEGER DEFAULT 0,
+                total_gaji_pokok INTEGER DEFAULT 0,
+                total_lembur INTEGER DEFAULT 0,
+                total_insentif INTEGER DEFAULT 0,
+                total_potongan INTEGER DEFAULT 0,
+                total_potongan_barang INTEGER DEFAULT 0,
+                total_gaji INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS payroll_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                payroll_id INTEGER,
+                employee_id INTEGER,
+                tanggal DATE,
+                jenis TEXT,
+                keterangan TEXT,
+                nominal INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
             CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT, username TEXT UNIQUE, password TEXT,role TEXT);                 
             CREATE INDEX IF NOT EXISTS idx_production_packing_pid ON production_packing(production_id);
             CREATE INDEX IF NOT EXISTS idx_invoice_line_invoice ON invoice_line(invoice_id);      
@@ -461,6 +490,8 @@ ON attendance_raw (fingerprint_id, tanggal, waktu);
             CREATE INDEX IF NOT EXISTS idx_borongan_inputs_tanggal_no_id ON borongan_inputs(tanggal, no_id);
             CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_raw_unique ON attendance_raw (tanggal, waktu, fingerprint_id);
             CREATE INDEX IF NOT EXISTS idx_payroll_daily_tanggal_no_id ON payroll_daily(tanggal, no_id);
+            CREATE INDEX IF NOT EXISTS idx_payroll_id ON payroll_items(payroll_id);
+            CREATE INDEX IF NOT EXISTS idx_employee_tanggal ON payroll_items(employee_id, tanggal);
             CREATE TABLE IF NOT EXISTS employee_items (
                  id INTEGER PRIMARY KEY AUTOINCREMENT,
                  employee_id INTEGER NOT NULL,
@@ -489,7 +520,8 @@ ON attendance_raw (fingerprint_id, tanggal, waktu);
             toleransi_telat_menit INTEGER NOT NULL DEFAULT 10,
             minimal_lembur_menit INTEGER NOT NULL DEFAULT 30
         );
-
+        CREATE TABLE IF NOT EXISTS hari_libur ( tanggal TEXT PRIMARY KEY, nama TEXT
+        );
        CREATE TABLE IF NOT EXISTS attendance_daily (
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               employee_id INTEGER NOT NULL,
@@ -588,7 +620,7 @@ ON attendance_raw (fingerprint_id, tanggal, waktu);
         ensure_column(conn, "attendance_daily", "total_insentif", "INTEGER DEFAULT 0")
         ensure_column(conn, "employees", "gaji_harian", "INTEGER DEFAULT 0")
         ensure_column(conn, "employees", "tinggal_di_mes", "INTEGER DEFAULT 0")
-
+        ensure_column(conn, "payroll_history","status","TEXT DEFAULT 'draft'")
         seed_master_data(conn)
         conn.commit()
         print("✅ Database baru siap:", DB_PATH)

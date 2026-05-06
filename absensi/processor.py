@@ -24,10 +24,25 @@ def process_attendance():
     # AMBIL RAW BELUM PROSES
     # =========================
     cur.execute("""
-        SELECT DISTINCT fingerprint_id, tanggal
-        FROM attendance_raw
-        WHERE IFNULL(processed, 0) = 0
-        ORDER BY fingerprint_id, tanggal
+        SELECT DISTINCT
+            r.fingerprint_id,
+            CASE
+                WHEN UPPER(TRIM(e.shift_default)) = 'MALAM'
+                     AND r.waktu BETWEEN '00:00:00' AND '11:00:00'
+                THEN DATE(r.tanggal, '-1 day')
+
+                WHEN UPPER(TRIM(e.shift_default)) = 'SORE'
+                     AND r.waktu BETWEEN '00:00:00' AND '03:00:00'
+                THEN DATE(r.tanggal, '-1 day')
+
+                ELSE r.tanggal
+            END AS tanggal
+        FROM attendance_raw r
+        JOIN employees e
+            ON e.fingerprint_id = r.fingerprint_id
+           AND e.status_aktif = 1
+        WHERE IFNULL(r.processed, 0) = 0
+        ORDER BY r.fingerprint_id, tanggal
     """)
 
     pending_keys = cur.fetchall()
@@ -38,7 +53,7 @@ def process_attendance():
         return
 
     for key in pending_keys:
-
+        skip_update_processed = False
         fingerprint_id = key["fingerprint_id"]
         tanggal = key["tanggal"]
 
@@ -114,9 +129,9 @@ def process_attendance():
                     masuk_pagi.append(dt)
                 elif dt_time(10, 0) <= t <= dt_time(12, 34):
                     keluar_siang.append(dt)
-                elif dt_time(12, 35) <= t <= dt_time(15, 0):
+                elif dt_time(12, 35) <= t <= dt_time(14, 29):
                     masuk_siang.append(dt)
-                elif dt_time(15, 1) <= t <= dt_time(18, 0):
+                elif dt_time(14, 30) <= t <= dt_time(18, 0):
                     pulang_normal.append(dt)
                 elif dt_time(18, 1) <= t <= dt_time(23, 59):
                     scan_lembur.append(dt)
@@ -227,7 +242,7 @@ def process_attendance():
         # =========================
         # SHIFT SORE
         # P1 = sesi sore
-        # P2 = 18:30 sampai selesai
+        # P2 = 18:00 sampai selesai
         # lembur dihitung jika P2 OUT > 22:00
         # P2 bisa lanjut sampai besok 02:00
         # =========================
@@ -235,18 +250,18 @@ def process_attendance():
 
             sore_masuk = []
             sore_pulang = []
-            malam_hari_ini = []
-            malam_besok = []
+            malam_masuk = []
+            malam_pulang = []
 
             besok = (
-                datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
+                    datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
             ).strftime("%Y-%m-%d")
 
             cur.execute("""
                 SELECT *
                 FROM attendance_raw
                 WHERE fingerprint_id = ?
-                AND tanggal = ?
+                  AND tanggal = ?
                 ORDER BY waktu
             """, (fingerprint_id, besok))
 
@@ -255,7 +270,7 @@ def process_attendance():
             next_day_scans = []
             for s in raw_besok:
                 dt_besok = parse_dt(s["tanggal"], s["waktu"])
-                if dt_time(0, 0) <= dt_besok.time() <= dt_time(2, 0):
+                if dt_time(0, 0) <= dt_besok.time() <= dt_time(3, 0):
                     next_day_scans.append(dt_besok)
 
             all_scans = scan_times + next_day_scans
@@ -265,43 +280,45 @@ def process_attendance():
                 t = dt.time()
                 scan_date = dt.strftime("%Y-%m-%d")
 
-                if scan_date == tanggal and dt_time(8, 30) <= t <= dt_time(15, 0):
+                if scan_date == tanggal and dt_time(12, 0) <= t <= dt_time(15, 0):
                     sore_masuk.append(dt)
-                elif scan_date == tanggal and dt_time(16, 30) <= t <= dt_time(18, 0):
-                    sore_pulang.append(dt)
-                elif scan_date == tanggal and dt_time(18, 21) <= t <= dt_time(23, 59):
-                    malam_hari_ini.append(dt)
-                elif scan_date == besok and dt_time(0, 0) <= t <= dt_time(2, 0):
-                    malam_besok.append(dt)
 
+                elif scan_date == tanggal and dt_time(16, 30) <= t <= dt_time(18, 30):
+                    sore_pulang.append(dt)
+                # MASUK SORE
+                elif scan_date == tanggal and dt_time(18, 0) <= t < dt_time(22, 0):
+                    malam_masuk.append(dt)
+                # KELUAR NORMAL + LEMBUR (hari yang sama)
+                elif scan_date == tanggal and t >= dt_time(22, 0):
+                    malam_pulang.append(dt)
+                # LEMBUR LANJUT (hari berikutnya sampai jam 4)
+                elif scan_date == besok and dt_time(0, 0) <= t <= dt_time(4, 0):
+                    malam_pulang.append(dt)
             if sore_masuk:
                 period1_in = sore_masuk[0].strftime("%H:%M:%S")
 
             if sore_pulang:
                 period1_out = sore_pulang[-1].strftime("%H:%M:%S")
 
-            if malam_hari_ini or malam_besok:
-                if malam_hari_ini:
-                    period2_in = malam_hari_ini[0].strftime("%H:%M:%S")
+            if malam_masuk:
+                period2_in = malam_masuk[0].strftime("%H:%M:%S")
 
-                if malam_besok:
-                    period2_out = malam_besok[-1].strftime("%H:%M:%S")
-                elif malam_hari_ini:
-                    period2_out = malam_hari_ini[-1].strftime("%H:%M:%S")
+            if malam_pulang:
+                period2_out = malam_pulang[-1].strftime("%H:%M:%S")
+
+            if period2_out and not period2_in:
+                period2_in = "19:00:00"
 
             period3_in = None
             period3_out = None
 
-        # =========================
-        # SHIFT MALAM
-        # =========================
         elif shift_code == "MALAM":
 
             malam_masuk = []
             pagi_pulang = []
 
             besok = (
-                datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
+                    datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
             ).strftime("%Y-%m-%d")
 
             cur.execute("""
@@ -317,8 +334,16 @@ def process_attendance():
             next_day_scans = []
             for s in raw_besok:
                 dt_besok = parse_dt(s["tanggal"], s["waktu"])
-                if dt_time(0, 0) <= dt_besok.time() <= dt_time(10, 0):
+                if dt_time(0, 0) <= dt_besok.time() <= dt_time(11, 0):
                     next_day_scans.append(dt_besok)
+
+            # PENTING:
+            # Kalau belum ada scan pulang besok pagi,
+            # jangan proses dulu shift malam hari ini.
+            if not next_day_scans:
+                print(f"Shift malam {fingerprint_id} tanggal {tanggal} belum ada scan pulang")
+                skip_update_processed = True
+                continue
 
             all_scans = scan_times + next_day_scans
             all_scans.sort()
@@ -327,9 +352,9 @@ def process_attendance():
                 t = dt.time()
                 scan_date = dt.strftime("%Y-%m-%d")
 
-                if scan_date == tanggal and dt_time(21, 0) <= t <= dt_time(23, 0):
+                if scan_date == tanggal and dt_time(21, 0) <= t <= dt_time(23, 59):
                     malam_masuk.append(dt)
-                elif scan_date == besok and dt_time(0, 0) <= t <= dt_time(10, 0):
+                elif scan_date == besok and dt_time(0, 0) <= t <= dt_time(11, 0):
                     pagi_pulang.append(dt)
 
             if malam_masuk:
@@ -342,7 +367,6 @@ def process_attendance():
             period2_out = None
             period3_in = None
             period3_out = None
-
         # =========================
         # CHECK SCAN
         # =========================
@@ -512,7 +536,7 @@ def process_attendance():
         # =========================
         # UPDATE PROCESSED
         # =========================
-        if shift_code in ["MALAM", "SORE"]:
+        if shift_code == "MALAM":
             besok = (
                     datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
             ).strftime("%Y-%m-%d")
@@ -521,8 +545,26 @@ def process_attendance():
                 UPDATE attendance_raw
                 SET processed = 1
                 WHERE fingerprint_id = ?
-                  AND tanggal IN (?, ?)
-                  AND IFNULL(processed, 0) = 0
+                  AND (
+                        (tanggal = ? AND waktu BETWEEN '21:00:00' AND '23:59:59')
+                     OR (tanggal = ? AND waktu BETWEEN '00:00:00' AND '11:00:00')
+                  )
+            """, (fingerprint_id, tanggal, besok))
+
+
+        elif shift_code == "SORE":
+            besok = (
+                    datetime.strptime(tanggal, "%Y-%m-%d") + timedelta(days=1)
+            ).strftime("%Y-%m-%d")
+
+            cur.execute("""
+                UPDATE attendance_raw
+                SET processed = 1
+                WHERE fingerprint_id = ?
+                  AND (
+                        tanggal = ?
+                     OR (tanggal = ? AND waktu BETWEEN '00:00:00' AND '03:00:00')
+                  )
             """, (fingerprint_id, tanggal, besok))
 
         else:
@@ -534,6 +576,8 @@ def process_attendance():
                   AND IFNULL(processed, 0) = 0
             """, (fingerprint_id, tanggal))
 
+    db.commit()
+    db.close()
 
 if __name__ == "__main__":
     while True:

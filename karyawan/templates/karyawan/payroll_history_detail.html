@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Detail Payroll History</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f6fa;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1250px;
+      margin: auto;
+    }
+
+    .header-box {
+      background: #fff;
+      padding: 15px 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      margin-bottom: 15px;
+    }
+
+    .header-box h2 {
+      margin: 0;
+    }
+
+    .top-actions {
+      margin-bottom: 15px;
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    .btn-blue {
+      background: #2e86de;
+    }
+
+    .btn-green {
+      background: #27ae60;
+    }
+
+    .btn-orange {
+      background: #f39c12;
+    }
+
+    .table-card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 10px;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      background: #2e86de;
+      color: #fff;
+      padding: 10px;
+      white-space: nowrap;
+    }
+
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+      white-space: nowrap;
+    }
+
+    tr:hover {
+      background: #f9f9f9;
+    }
+
+    .right {
+      text-align: right;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn-slip {
+      padding: 5px 10px;
+      background: #27ae60;
+      border-radius: 5px;
+      color: #fff;
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 15px;
+      color: #888;
+    }
+
+    @media print {
+      .top-actions {
+        display: none;
+      }
+
+      body {
+        background: #fff;
+        padding: 0;
+      }
+
+      .header-box,
+      .table-card {
+        box-shadow: none;
+        border-radius: 0;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="header-box">
+    <h2>Detail Payroll Final</h2>
+    <p>Periode: {{ tanggal_awal }} s/d {{ tanggal_akhir }}</p>
+  </div>
+
+  <div class="top-actions">
+    <a href="{{ url_for('karyawan.payroll_history') }}" class="btn btn-blue">
+      ← Kembali
+    </a>
+
+    <button onclick="window.print()" class="btn btn-green">
+      Print Rekap
+    </button>
+
+    <a href="{{ url_for('karyawan.payroll_print_bulk',
+        tanggal_awal=tanggal_awal,
+        tanggal_akhir=tanggal_akhir) }}"
+       target="_blank"
+       class="btn btn-green">
+      Print Semua Slip
+    </a>
+
+    <a href="{{ url_for('karyawan.payroll_receipt_print',
+        tanggal_awal=tanggal_awal,
+        tanggal_akhir=tanggal_akhir) }}"
+       target="_blank"
+       class="btn btn-orange">
+      Print Tanda Terima HRD
+    </a>
+    <form method="POST"
+      action="{{ url_for('karyawan.payroll_confirm') }}"
+      style="display:inline;"
+      onsubmit="return confirm('Yakin konfirmasi pembayaran?');">
+
+    <input type="hidden" name="tanggal_awal" value="{{ tanggal_awal }}">
+    <input type="hidden" name="tanggal_akhir" value="{{ tanggal_akhir }}">
+
+    <button type="submit" class="btn btn-danger">
+        Konfirmasi Pembayaran
+    </button>
+</form>
+  </div>
+
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>No</th>
+          <th>No ID</th>
+          <th>Nama</th>
+          <th>Bagian</th>
+          <th>Hari Masuk</th>
+          <th>Gaji Pokok</th>
+          <th>Lembur</th>
+          <th>Insentif</th>
+          <th>Potongan</th>
+          <th>Potongan Barang</th>
+          <th>Total Gaji</th>
+          <th>Slip</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          <td class="center">{{ r.no_id }}</td>
+          <td>{{ r.nama }}</td>
+          <td>{{ r.bagian }}</td>
+          <td class="center">{{ r.hari_masuk }}</td>
+
+          <td class="right">
+            Rp {{ "{:,.0f}".format(r.total_gaji_pokok or 0).replace(",", ".") }}
+          </td>
+
+          <td class="right">
+            Rp {{ "{:,.0f}".format(r.total_lembur or 0).replace(",", ".") }}
+          </td>
+
+          <td class="right">
+            Rp {{ "{:,.0f}".format(r.total_insentif or 0).replace(",", ".") }}
+          </td>
+
+          <td class="right">
+            Rp {{ "{:,.0f}".format(r.total_potongan or 0).replace(",", ".") }}
+          </td>
+
+          <td class="right">
+            Rp {{ "{:,.0f}".format(r.total_potongan_barang or 0).replace(",", ".") }}
+          </td>
+
+          <td class="right">
+            <b>Rp {{ "{:,.0f}".format(r.total_gaji or 0).replace(",", ".") }}</b>
+          </td>
+
+          <td class="center">
+            <a href="{{ url_for('karyawan.payroll_slip', payroll_id=r.id) }}"
+               class="btn-slip">
+              Lihat Slip
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="12" class="empty">Data kosong.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+</body>
+</html>

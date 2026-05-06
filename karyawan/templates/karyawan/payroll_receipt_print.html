@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tanda Terima Gaji</title>
+<style>
+  @page {
+    size: A4;
+    margin: 8mm;
+  }
+
+  body {
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    color: #000;
+    margin: 0;
+  }
+
+  h2, p {
+    text-align: center;
+    margin: 4px 0;
+  }
+
+  .no-print {
+    margin-bottom: 8px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    page-break-inside: auto;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tfoot {
+    display: table-footer-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  th, td {
+    border: 1px solid #000;
+    padding: 5px;
+    vertical-align: middle;
+    font-size: 11px;
+  }
+
+  th {
+    background: #eee;
+  }
+
+  .right {
+    text-align: right;
+  }
+
+  .center {
+    text-align: center;
+  }
+
+  .signature {
+    height: 45px;
+    width: 140px;
+  }
+
+  @media print {
+    .no-print {
+      display: none;
+    }
+
+    body {
+      margin: 0;
+    }
+
+    table {
+      page-break-inside: auto;
+    }
+
+    tr {
+      page-break-inside: avoid;
+    }
+  }
+</style>
+
+</head>
+<body>
+
+<button onclick="window.print()" class="no-print">Print</button>
+
+<h2>DAFTAR TANDA TERIMA GAJI</h2>
+<p>Periode: {{ tanggal_awal }} s/d {{ tanggal_akhir }}</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>No</th>
+      <th>No ID</th>
+      <th>Nama</th>
+      <th>Bagian</th>
+      <th>Hari Masuk</th>
+      <th>Total Gaji</th>
+      <th style="width: 120px;">Tanda Tangan</th>
+    </tr>
+  </thead>
+
+  <tbody>
+    {% for r in rows %}
+    <tr>
+      <td class="center">{{ loop.index }}</td>
+      <td class="center">{{ r.no_id }}</td>
+      <td>{{ r.nama }}</td>
+      <td>{{ r.bagian }}</td>
+      <td class="center">{{ r.hari_masuk }}</td>
+      <td class="right">
+        Rp {{ "{:,.0f}".format(r.total_gaji or 0).replace(",", ".") }}
+      </td>
+      <td class="signature"></td>
+    </tr>
+    {% else %}
+    <tr>
+      <td colspan="7" class="center">Tidak ada data gaji.</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<br><br>
+
+<table style="width: 100%; border: none;">
+  <tr>
+    <td style="border: none; text-align: center;">
+      Disiapkan oleh,<br><br><br><br>
+      HRD
+    </td>
+    <td style="border: none; text-align: center;">
+      Diperiksa oleh,<br><br><br><br>
+      Admin
+    </td>
+  </tr>
+</table>
+
+</body>
+</html>

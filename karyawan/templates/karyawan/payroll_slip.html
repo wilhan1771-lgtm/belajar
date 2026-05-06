@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Slip Gaji</title>
+  <style>
+    body { font-family: Arial; }
+    .box { width: 300px; border: 1px solid #000; padding: 10px; }
+    h3 { text-align: center; margin: 5px 0; }
+    table { width: 100%; font-size: 12px; }
+    td { padding: 3px; }
+    .right { text-align: right; }
+    .bold { font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<div class="box">
+
+<h3>SLIP GAJI</h3>
+<hr>
+
+<table>
+<tr><td>Nama</td><td>: {{ payroll.nama }}</td></tr>
+<tr><td>No ID</td><td>: {{ payroll.no_id }}</td></tr>
+<tr><td>Bagian</td><td>: {{ payroll.bagian }}</td></tr>
+<tr><td>Periode</td><td>: {{ payroll.tanggal_awal }} s/d {{ payroll.tanggal_akhir }}</td></tr>
+</table>
+
+<hr>
+
+<table>
+<tr><td>Hari Masuk</td><td class="right">{{ payroll.hari_masuk }}</td></tr>
+<tr><td>Upah Borongan</td><td class="right">Rp {{ "{:,.0f}".format(payroll.total_upah_borongan or 0).replace(",", ".") }}</td></tr>
+<tr><td>Gaji Pokok</td><td class="right">Rp {{ "{:,.0f}".format(payroll.total_gaji_pokok or 0).replace(",", ".") }}</td></tr>
+<tr><td>Lembur</td><td class="right">Rp {{ "{:,.0f}".format(payroll.total_lembur or 0).replace(",", ".") }}</td></tr>
+<tr><td>Insentif</td><td class="right">Rp {{ "{:,.0f}".format(payroll.total_insentif or 0).replace(",", ".") }}</td></tr>
+</table>
+
+<hr>
+
+<table>
+<tr>
+  <td>Potongan Telat</td>
+  <td class="right">
+    Rp {{ "{:,.0f}".format(summary_items.potongan_telat or 0).replace(",", ".") }}
+  </td>
+</tr>
+
+<tr>
+  <td>Potongan Mes</td>
+  <td class="right">
+    Rp {{ "{:,.0f}".format(summary_items.potongan_mes or 0).replace(",", ".") }}
+  </td>
+</tr>
+
+<tr>
+  <td>Potongan Barang</td>
+  <td class="right">
+    Rp {{ "{:,.0f}".format(summary_items.potongan_barang or 0).replace(",", ".") }}
+  </td>
+</tr>
+
+<tr>
+  <td><b>Total Potongan</b></td>
+  <td class="right bold">
+    Rp {{ "{:,.0f}".format(payroll.total_potongan or 0).replace(",", ".") }}
+  </td>
+</tr>
+</table>
+
+<hr>
+
+<table>
+<tr>
+  <td class="bold">GAJI DITERIMA</td>
+  <td class="right bold">Rp {{ "{:,.0f}".format(payroll.total_gaji or 0).replace(",", ".") }}</td>
+</tr>
+</table>
+
+</div>
+
+</body>
+</html>

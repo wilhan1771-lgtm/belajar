@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Payroll History</title>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f5f6fa;
+      margin: 0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: auto;
+    }
+
+    .header-box {
+      background: #fff;
+      padding: 15px 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      margin-bottom: 15px;
+    }
+
+    .header-box h2 {
+      margin: 0;
+    }
+
+    .top-actions {
+      margin-bottom: 10px;
+    }
+
+    .btn {
+      display: inline-block;
+      padding: 8px 14px;
+      border-radius: 6px;
+      text-decoration: none;
+      color: #fff;
+      background: #2e86de;
+    }
+
+    .table-card {
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 10px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th {
+      background: #2e86de;
+      color: #fff;
+      padding: 10px;
+    }
+
+    td {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+    }
+
+    tr:hover {
+      background: #f9f9f9;
+    }
+
+    .right {
+      text-align: right;
+    }
+
+    .center {
+      text-align: center;
+    }
+
+    .btn-detail {
+      padding: 5px 10px;
+      background: #27ae60;
+      border-radius: 5px;
+      color: #fff;
+      text-decoration: none;
+      font-size: 13px;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 15px;
+      color: #888;
+    }
+
+  </style>
+
+</head>
+
+<body>
+
+<div class="container">
+
+  <div class="header-box">
+    <h2>Payroll History</h2>
+    <p>Data payroll yang sudah difinalisasi</p>
+  </div>
+
+  <div class="top-actions">
+    <a href="{{ url_for('karyawan.payroll_index') }}" class="btn">
+      ← Kembali ke Payroll
+    </a>
+  </div>
+
+  <div class="table-card">
+    <table>
+      <thead>
+        <tr>
+          <th>Periode</th>
+          <th>Total Karyawan</th>
+          <th>Total Potongan</th>
+          <th>Total Gaji</th>
+          <th>Finalized</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td>{{ r.tanggal_awal }} s/d {{ r.tanggal_akhir }}</td>
+          <td class="center">{{ r.total_karyawan }}</td>
+
+          <td class="right">
+            Rp {{ "{:,.0f}".format(r.total_potongan or 0).replace(",", ".") }}
+          </td>
+
+          <td class="right">
+            <b>Rp {{ "{:,.0f}".format(r.total_gaji or 0).replace(",", ".") }}</b>
+          </td>
+
+          <td class="center">{{ r.finalized_at }}</td>
+
+          <td class="center">
+            <a href="{{ url_for(
+              'karyawan.payroll_history_detail',
+              tanggal_awal=r.tanggal_awal,
+              tanggal_akhir=r.tanggal_akhir
+            ) }}" class="btn-detail">
+              Detail
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="empty">
+            Belum ada payroll final.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+</body>
+</html>

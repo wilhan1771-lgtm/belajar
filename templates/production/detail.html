@@ -168,7 +168,7 @@ table.packing td.col-md{ min-width: 120px; }
     <thead>
       <tr>
         <th style="width:90px;">RM Code</th>
-        <th style="width:110px;">Produk</th>
+        <!--<th style="width:110px;">Produk</th>-->
         <th style="width:110px;">Size</th>
         <th style="width:120px;">Kupas (kg)</th>
 
@@ -263,7 +263,7 @@ table.packing td.col-md{ min-width: 120px; }
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><input class="p-rm" type="text" placeholder="  VN" value="${esc(d.rm_code||"")}"></td>
-      <td><input class="p-prod" type="text" placeholder="PTO" value="${esc(d.product_code||"")}"></td>
+      <!--<td><input class="p-prod" type="text" placeholder="PTO" value="${esc(d.product_code||"")}"></td>-->
       <td><input class="p-size" type="text" placeholder="31/40" value="${esc(d.out_size||"")}"></td>
       <td><input class="p-kupas" type="number" step="0.01" placeholder="0" value="${d.kupas_kg ?? ""}"></td>
 
@@ -324,7 +324,7 @@ table.packing td.col-md{ min-width: 120px; }
     packingBody.querySelectorAll("tr").forEach(tr=>{
       const row = {
         rm_code: (tr.querySelector(".p-rm").value || "").trim(),
-        product_code: (tr.querySelector(".p-prod").value || "").trim(),
+        //product_code: (tr.querySelector(".p-prod").value || "").trim(),
         out_size: (tr.querySelector(".p-size").value || "").trim(),
         kupas_kg: num(tr.querySelector(".p-kupas").value),
         mc_qty: num(tr.querySelector(".p-mc").value),
