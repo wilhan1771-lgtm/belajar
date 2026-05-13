@@ -30,21 +30,6 @@ def apply_potongan_mes(r, hasil):
     )
 
     return hasil
-def lembur_to_uang_min_1(hours):
-    """
-    Lembur minimal 1 jam.
-    Kalau ada lembur > 0 tapi kurang dari 1 jam,
-    tetap dibayar 10.000.
-    """
-    if not hours or hours <= 0:
-        return 0
-
-    jam_bulat = round_half_hour(hours)
-
-    if jam_bulat < 1:
-        jam_bulat = 1
-
-    return int(jam_bulat * 10000)
 
 def apply_insentif_lembur_weekend(r, hasil, flags):
     bagian = (r.get("bagian") or "").strip().lower()
@@ -67,7 +52,7 @@ def apply_insentif_lembur_weekend(r, hasil, flags):
         batas = parse_time_only("19:00:00")
         if p3_out:
             menit = int(diff_hours(batas, p3_out) * 60)
-            if menit >= 30:
+            if menit >= 34:
                 hasil["insentif"] += 10000
         return hasil
 
@@ -385,12 +370,8 @@ def rule_malam(r, hasil):
     jam_lembur = diff_hours(batas_normal_pulang, p1_out)
     menit_lembur = int(jam_lembur * 60)
 
-    if menit_lembur >= 45:
-        hasil["gaji_lembur"] += 10000
-    elif menit_lembur > 15:
-        hasil["gaji_lembur"] += 5000
-    else:
-        hasil["gaji_lembur"] += lembur_to_uang(jam_lembur)
+    if menit_lembur >= 15:
+        hasil["gaji_lembur"] += ((menit_lembur - 15) // 30 + 1) * 5000
 
     hasil = apply_insentif_libur(r, hasil)
     hasil = apply_insentif_lembur_weekend(r, hasil, flags)

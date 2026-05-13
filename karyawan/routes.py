@@ -994,7 +994,7 @@ def cek_tinggal_di_mes(conn, employee_id, work_date):
           AND (
                 tanggal_selesai IS NULL
                 OR tanggal_selesai = ''
-                OR tanggal_selesai >= ?
+                OR tanggal_selesai > ?
               )
         LIMIT 1
     """, (employee_id, work_date, work_date)).fetchone()
@@ -1052,9 +1052,16 @@ def payroll_index():
             LEFT JOIN attendance_daily a
                 ON e.id = a.employee_id
                AND a.work_date BETWEEN ? AND ?
-            LEFT JOIN borongan_logs b
-                ON b.no_id = e.no_id
-               AND b.tanggal = a.work_date
+            LEFT JOIN (
+                SELECT
+                     no_id,
+                     tanggal,
+                     SUM(total_upah) AS total_upah
+              FROM borongan_logs
+             GROUP BY no_id, tanggal
+            ) b
+    ON b.no_id = e.no_id
+    AND b.tanggal = a.work_date
             WHERE e.status_aktif = 1
         """
 
@@ -1160,7 +1167,21 @@ def payroll_index():
             g["total_potongan"] += potongan_barang
             g["total_gaji"] -= potongan_barang
         rows = list(grouped.values())
-        rows.sort(key=lambda x: int(x["no_id"]) if str(x["no_id"]).isdigit() else 999999)
+        bagian_order = {
+            "borongan": 1,
+            "produksi": 2,
+            "beku": 3,
+            "coldroom": 4,
+            "kebersihan": 5,
+            "malam": 6,
+        }
+
+        rows.sort(
+            key=lambda x: (
+                bagian_order.get((x["bagian"] or "").strip().lower(), 99),
+                int(x["no_id"]) if str(x["no_id"]).isdigit() else 999999
+            )
+        )
 
         summary["total_karyawan"] = len(rows)
         summary["total_upah_borongan"] = sum(r["total_upah_borongan"] for r in rows)
@@ -1891,18 +1912,40 @@ def payroll_history_detail():
 
     tanggal_awal = request.args.get("tanggal_awal")
     tanggal_akhir = request.args.get("tanggal_akhir")
+    bagian = request.args.get("bagian", "").strip().lower()
 
     if not tanggal_awal or not tanggal_akhir:
         conn.close()
         return redirect(url_for("karyawan.payroll_history"))
 
-    rows = conn.execute("""
+    query = """
         SELECT *
         FROM payroll_history
         WHERE tanggal_awal = ?
           AND tanggal_akhir = ?
-        ORDER BY CAST(no_id AS INTEGER)
-    """, (tanggal_awal, tanggal_akhir)).fetchall()
+    """
+
+    params = [tanggal_awal, tanggal_akhir]
+
+    if bagian:
+        query += " AND LOWER(TRIM(bagian)) = ? "
+        params.append(bagian)
+
+    query += """
+        ORDER BY
+          CASE LOWER(TRIM(bagian))
+            WHEN 'borongan' THEN 1
+            WHEN 'produksi' THEN 2
+            WHEN 'beku' THEN 3
+            WHEN 'coldroom' THEN 4
+            WHEN 'kebersihan' THEN 5
+            WHEN 'malam' THEN 6
+            ELSE 99
+          END,
+          CAST(no_id AS INTEGER)
+    """
+
+    rows = conn.execute(query, params).fetchall()
 
     rows = [dict(r) for r in rows]
     conn.close()
@@ -1963,7 +2006,7 @@ def payroll_print_bulk():
         FROM payroll_history
         WHERE tanggal_awal = ?
           AND tanggal_akhir = ?
-          AND total_gaji > 0
+          AND total_gaji != 0
         ORDER BY
           CASE LOWER(TRIM(bagian))
             WHEN 'borongan' THEN 1
@@ -2025,7 +2068,7 @@ def payroll_receipt_print():
         FROM payroll_history
         WHERE tanggal_awal = ?
           AND tanggal_akhir = ?
-          AND total_gaji > 0
+          AND total_gaji != 0
         ORDER BY
           CASE LOWER(TRIM(bagian))
             WHEN 'borongan' THEN 1
@@ -2105,3 +2148,47 @@ def payroll_confirm():
         tanggal_awal=tanggal_awal,
         tanggal_akhir=tanggal_akhir
     ))
+@karyawan_bp.route("/raw")
+def raw_index():
+
+    conn = get_conn()
+
+    tanggal = request.args.get("tanggal")
+    no_id = request.args.get("no_id")
+
+    query = """
+        SELECT
+            tanggal,
+            waktu,
+            fingerprint_id,
+            no_id,
+            tipe_scan,
+            status_absen,
+            sumber,
+            processed
+        FROM attendance_raw
+        WHERE 1=1
+    """
+
+    params = []
+
+    if tanggal:
+        query += " AND tanggal = ?"
+        params.append(tanggal)
+
+    if no_id:
+        query += " AND no_id = ?"
+        params.append(no_id)
+
+    query += " ORDER BY waktu DESC LIMIT 500"
+
+    rows = conn.execute(query, params).fetchall()
+
+    conn.close()
+
+    return render_template(
+        "karyawan/raw_index.html",
+        rows=rows,
+        tanggal=tanggal,
+        no_id=no_id
+    )

@@ -131,7 +131,7 @@ def process_attendance():
                     keluar_siang.append(dt)
                 elif dt_time(12, 35) <= t <= dt_time(14, 29):
                     masuk_siang.append(dt)
-                elif dt_time(14, 30) <= t <= dt_time(18, 0):
+                elif dt_time(14, 30) <= t <= dt_time(18, 1):
                     pulang_normal.append(dt)
                 elif dt_time(18, 1) <= t <= dt_time(23, 59):
                     scan_lembur.append(dt)
@@ -163,10 +163,6 @@ def process_attendance():
                 actual = parse_dt(tanggal, period1_in)
                 telat_menit = diff_minutes(actual, jadwal)
 
-                if telat_menit >= 2:
-                    potongan_telat = 10000
-                else:
-                    potongan_telat = 0
 
             if period2_out:
                 jadwal_pulang = parse_dt(tanggal, "17:30:00")
@@ -340,10 +336,12 @@ def process_attendance():
             # PENTING:
             # Kalau belum ada scan pulang besok pagi,
             # jangan proses dulu shift malam hari ini.
-            if not next_day_scans:
-                print(f"Shift malam {fingerprint_id} tanggal {tanggal} belum ada scan pulang")
-                skip_update_processed = True
-                continue
+            all_scans = scan_times.copy()
+
+            if next_day_scans:
+                all_scans.extend(next_day_scans)
+
+            all_scans.sort()
 
             all_scans = scan_times + next_day_scans
             all_scans.sort()

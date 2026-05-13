@@ -1,0 +1,71 @@
+<h2>RAW Attendance</h2>
+
+<form method="GET">
+
+    <input
+        type="date"
+        name="tanggal"
+        value="{{ tanggal or '' }}"
+    >
+
+    <input
+        type="text"
+        name="no_id"
+        placeholder="No ID"
+        value="{{ no_id or '' }}"
+    >
+
+    <button type="submit">
+        Cari
+    </button>
+
+</form>
+
+<br>
+
+<table border="1" cellpadding="5">
+
+    <tr>
+        <th>No</th>
+        <th>Tanggal</th>
+        <th>Waktu</th>
+        <th>Fingerprint</th>
+        <th>No ID</th>
+        <th>Scan</th>
+        <th>Status</th>
+        <th>Processed</th>
+    </tr>
+
+    {% for r in rows %}
+
+    <tr>
+
+        <td>{{ loop.index }}</td>
+
+        <td>{{ r.tanggal }}</td>
+
+        <td>{{ r.waktu }}</td>
+
+        <td>{{ r.fingerprint_id }}</td>
+
+        <td>{{ r.no_id }}</td>
+
+        <td>{{ r.tipe_scan }}</td>
+
+        <td>{{ r.status_absen }}</td>
+
+        <td>
+
+            {% if r.processed == 1 %}
+                ✅
+            {% else %}
+                ❌
+            {% endif %}
+
+        </td>
+
+    </tr>
+
+    {% endfor %}
+
+</table>

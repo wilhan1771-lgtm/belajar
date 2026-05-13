@@ -3,10 +3,8 @@ import time
 from datetime import datetime
 from helpers.db import get_conn
 
-ip = "192.168.1.201"
-port = 4370
-
-zk = ZK(ip, port=port, timeout=5)
+IP = "192.168.1.201"
+PORT = 4370
 
 
 def get_last_scan():
@@ -19,6 +17,7 @@ def get_last_scan():
         ORDER BY tanggal DESC, waktu DESC
         LIMIT 1
     """)
+
     row = cur.fetchone()
     db.close()
 
@@ -32,21 +31,37 @@ def get_last_scan():
 
 
 def start_listener():
+
+    last_scan = get_last_scan()
+
     while True:
+
         conn = None
         db = None
 
         try:
             print("🔌 Mencoba koneksi ke mesin...")
-            conn = zk.connect()
-            print("✅ Connected ke mesin absensi")
-            print("Menunggu fingerprint...")
 
-            # ambil scan terakhir dari DB saat awal koneksi
-            last_scan = get_last_scan()
+            # buat object baru setiap reconnect
+            zk = ZK(
+                IP,
+                port=PORT,
+                timeout=10,
+                force_udp=False
+            )
+
+            conn = zk.connect()
+
+            print("✅ Connected ke mesin absensi")
 
             while True:
-                attendances = conn.get_attendance()
+
+                try:
+                    attendances = conn.get_attendance()
+
+                except Exception as e:
+                    print("❌ Gagal baca attendance:", e)
+                    break
 
                 if not attendances:
                     time.sleep(2)
@@ -59,23 +74,31 @@ def start_listener():
                 newest_scan = last_scan
 
                 for att in attendances:
+
                     fingerprint_id = str(att.user_id).strip()
                     waktu = att.timestamp
 
                     if not fingerprint_id or not waktu:
                         continue
 
-                    # skip data lama / sama
                     if last_scan and waktu <= last_scan:
                         continue
 
                     tanggal = waktu.strftime("%Y-%m-%d")
                     jam = waktu.strftime("%H:%M:%S")
-                    status_scan = str(att.status)
 
                     cur.execute("""
                         INSERT OR IGNORE INTO attendance_raw
-                        (tanggal, waktu, fingerprint_id, no_id, tipe_scan, status_absen, sumber, created_at)
+                        (
+                            tanggal,
+                            waktu,
+                            fingerprint_id,
+                            no_id,
+                            tipe_scan,
+                            status_absen,
+                            sumber,
+                            created_at
+                        )
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         tanggal,
@@ -83,7 +106,7 @@ def start_listener():
                         fingerprint_id,
                         fingerprint_id,
                         "fingerprint",
-                        status_scan,
+                        str(att.status),
                         "mb460",
                         datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                     ))
@@ -92,15 +115,14 @@ def start_listener():
                         inserted += 1
                         print("✅ MASUK RAW:", fingerprint_id, waktu)
 
-                    if (newest_scan is None) or (waktu > newest_scan):
+                    if newest_scan is None or waktu > newest_scan:
                         newest_scan = waktu
 
                 db.commit()
                 db.close()
                 db = None
 
-                # update patokan scan terakhir
-                if newest_scan and (last_scan is None or newest_scan > last_scan):
+                if newest_scan:
                     last_scan = newest_scan
 
                 if inserted == 0:
@@ -110,10 +132,9 @@ def start_listener():
 
         except Exception as e:
             print("❌ Koneksi putus:", e)
-            print("🔄 Coba reconnect 5 detik lagi...")
-            time.sleep(5)
 
         finally:
+
             try:
                 if db:
                     db.close()
@@ -125,6 +146,9 @@ def start_listener():
                     conn.disconnect()
             except:
                 pass
+
+            print("🔄 Reconnect 5 detik lagi...")
+            time.sleep(5)
 
 
 if __name__ == "__main__":

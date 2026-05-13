@@ -177,7 +177,52 @@
     </button>
 </form>
   </div>
+<form method="get" style="display:flex; gap:10px; align-items:center; margin-top:10px;">
 
+    <input type="hidden" name="tanggal_awal" value="{{ tanggal_awal }}">
+    <input type="hidden" name="tanggal_akhir" value="{{ tanggal_akhir }}">
+
+    <select name="bagian" class="form-select">
+
+        <option value="">Semua Bagian</option>
+
+        <option value="borongan"
+            {% if request.args.get('bagian') == 'borongan' %}selected{% endif %}>
+            Borongan
+        </option>
+
+        <option value="produksi"
+            {% if request.args.get('bagian') == 'produksi' %}selected{% endif %}>
+            Produksi
+        </option>
+
+        <option value="beku"
+            {% if request.args.get('bagian') == 'beku' %}selected{% endif %}>
+            Beku
+        </option>
+
+        <option value="coldroom"
+            {% if request.args.get('bagian') == 'coldroom' %}selected{% endif %}>
+            Coldroom
+        </option>
+
+        <option value="kebersihan"
+            {% if request.args.get('bagian') == 'kebersihan' %}selected{% endif %}>
+            Kebersihan
+        </option>
+
+        <option value="malam"
+            {% if request.args.get('bagian') == 'malam' %}selected{% endif %}>
+            Malam
+        </option>
+
+    </select>
+
+    <button type="submit" class="btn btn-blue">
+        Pilih
+    </button>
+
+</form>
   <div class="table-card">
     <table>
       <thead>

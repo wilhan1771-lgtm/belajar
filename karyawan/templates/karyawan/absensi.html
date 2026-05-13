@@ -44,11 +44,15 @@
       <option value="Coldroom" {% if request.args.get('bagian') == 'Coldroom' %}selected{% endif %}>Coldroom</option>
       <option value="UMUM" {% if request.args.get('bagian') == 'UMUM' %}selected{% endif %}>UMUM</option>
       <option value="Malam" {% if request.args.get('bagian') == 'Malam' %}selected{% endif %}>Malam</option>
+      <option value="Kebersihan" {% if request.args.get('bagian') == 'Kebersihan' %}selected{% endif %}>Kebersihan</option>
       <option value="Admin" {% if request.args.get('bagian') == 'Admin' %}selected{% endif %}>Admin</option>
     </select>
   </div>
 
   <button class="btn btn-primary">Tampilkan</button>
+    <a href="{{ url_for('karyawan.raw_index') }}">
+    RAW LOG
+</a>
   <button type="button" onclick="window.print()" class="btn btn-dark">Print</button>
 </form>
 
@@ -133,6 +137,7 @@
         </td>
 
        <td class="hide-print">
+
   <div class="validasi-aksi">
     <span class="badge-ok">OK</span>
 
